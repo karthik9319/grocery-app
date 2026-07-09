@@ -1,0 +1,374 @@
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Camera, Loader2, Upload } from "lucide-react";
+import { api } from "@/lib/api";
+import type { Meta } from "@/types";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/Tabs";
+import { Button, Card, Checkbox, Input, Select } from "@/components/ui";
+
+type DraftEntry = {
+  id: string;
+  file: File;
+  previewUrl: string;
+  title: string;
+  category: string;
+  quantity: number;
+  unit: "count" | "g" | "kg";
+  notes: string;
+  useThreshold: boolean;
+  threshold: number;
+  trackExpiry: boolean;
+  expiryDate: string;
+};
+
+function todayPlus(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function makeDraft(file: File, meta: Meta): DraftEntry {
+  const category = meta.categories[0];
+  const isWeight = meta.units[category] === "g";
+  return {
+    id: crypto.randomUUID(),
+    file,
+    previewUrl: URL.createObjectURL(file),
+    title: "",
+    category,
+    quantity: isWeight ? 500 : 1,
+    unit: isWeight ? "g" : "count",
+    notes: "",
+    useThreshold: false,
+    threshold: 2,
+    trackExpiry: true,
+    expiryDate: todayPlus(14),
+  };
+}
+
+export function AddItemsTab({ meta }: { meta: Meta }) {
+  return (
+    <Tabs defaultValue="photo">
+      <TabsList>
+        <TabsTrigger value="photo">📷 By Photo</TabsTrigger>
+        <TabsTrigger value="receipt">🧾 By Receipt</TabsTrigger>
+      </TabsList>
+      <TabsContent value="photo" className="pt-4">
+        <PhotoAddPanel meta={meta} />
+      </TabsContent>
+      <TabsContent value="receipt" className="pt-4">
+        <ReceiptScanPanel meta={meta} />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+function PhotoAddPanel({ meta }: { meta: Meta }) {
+  const queryClient = useQueryClient();
+  const [drafts, setDrafts] = useState<DraftEntry[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  function handleFiles(files: FileList | null) {
+    if (!files) return;
+    setDrafts((prev) => [...prev, ...Array.from(files).map((f) => makeDraft(f, meta))]);
+  }
+
+  function updateDraft(id: string, patch: Partial<DraftEntry>) {
+    setDrafts((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+  }
+
+  async function submitAll() {
+    setSubmitting(true);
+    let added = 0;
+    let merged = 0;
+    let skipped = 0;
+    for (const draft of drafts) {
+      if (!draft.title.trim()) {
+        skipped++;
+        continue;
+      }
+      const quantity = draft.unit === "kg" ? draft.quantity * 1000 : draft.quantity;
+      try {
+        const result = await api.createItem({
+          title: draft.title,
+          category: draft.category,
+          quantity,
+          notes: draft.notes || undefined,
+          custom_threshold: draft.useThreshold ? draft.threshold : null,
+          expiration_date: draft.trackExpiry ? draft.expiryDate : null,
+          image: draft.file,
+        });
+        if (result.status === "merged") merged++;
+        else added++;
+      } catch {
+        skipped++;
+      }
+    }
+    setSubmitting(false);
+    setDrafts([]);
+    queryClient.invalidateQueries({ queryKey: ["items"] });
+    queryClient.invalidateQueries({ queryKey: ["summary"] });
+    toast.success(`Added ${added}, merged ${merged}${skipped ? `, skipped ${skipped}` : ""}`, {
+      icon: "✅",
+    });
+  }
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-dashed p-6 text-center">
+        <label className="flex cursor-pointer flex-col items-center gap-2">
+          <Upload className="h-8 w-8 text-brand-400" />
+          <span className="font-medium text-neutral-700">
+            Upload one or more photos of groceries/vegetables/household items
+          </span>
+          <span className="text-xs text-neutral-400">PNG, JPG, HEIC, HEIF - select multiple at once</span>
+          <input
+            type="file"
+            multiple
+            accept="image/png,image/jpeg,.heic,.heif"
+            className="hidden"
+            onChange={(e) => handleFiles(e.target.files)}
+          />
+        </label>
+      </Card>
+      <p className="text-xs text-neutral-400">
+        Tip: open this app on your iPhone's browser over the same Wi-Fi (see the terminal for the
+        network URL) to upload straight from your phone's camera roll or camera.
+      </p>
+
+      {drafts.map((draft) => (
+        <Card key={draft.id} className="flex gap-4 p-4">
+          <img src={draft.previewUrl} className="h-24 w-24 shrink-0 rounded-xl object-cover" />
+          <div className="grid flex-1 gap-3 sm:grid-cols-2">
+            <Input
+              placeholder="e.g. Apples, Milk, Shampoo"
+              value={draft.title}
+              onChange={(e) => updateDraft(draft.id, { title: e.target.value })}
+            />
+            <Select
+              value={draft.category}
+              onValueChange={(category) =>
+                updateDraft(draft.id, {
+                  category,
+                  unit: meta.units[category] === "g" ? "g" : "count",
+                  quantity: meta.units[category] === "g" ? 500 : 1,
+                })
+              }
+              options={meta.categories.map((c) => ({ value: c, label: `${meta.icons[c]} ${c}` }))}
+            />
+            {meta.units[draft.category] === "g" ? (
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  value={draft.quantity}
+                  onChange={(e) => updateDraft(draft.id, { quantity: parseFloat(e.target.value) || 0 })}
+                />
+                <Select
+                  value={draft.unit}
+                  onValueChange={(unit) => updateDraft(draft.id, { unit: unit as "g" | "kg" })}
+                  options={[
+                    { value: "g", label: "g" },
+                    { value: "kg", label: "kg" },
+                  ]}
+                  className="w-24"
+                />
+              </div>
+            ) : (
+              <Input
+                type="number"
+                value={draft.quantity}
+                onChange={(e) => updateDraft(draft.id, { quantity: parseFloat(e.target.value) || 0 })}
+              />
+            )}
+            <Input
+              placeholder="Notes (optional)"
+              value={draft.notes}
+              onChange={(e) => updateDraft(draft.id, { notes: e.target.value })}
+            />
+            <label className="flex items-center gap-2 text-sm text-neutral-600">
+              <Checkbox
+                checked={draft.useThreshold}
+                onCheckedChange={(v) => updateDraft(draft.id, { useThreshold: v === true })}
+              />
+              Custom low-stock alert
+            </label>
+            {draft.useThreshold && (
+              <Input
+                type="number"
+                value={draft.threshold}
+                onChange={(e) => updateDraft(draft.id, { threshold: parseFloat(e.target.value) || 0 })}
+              />
+            )}
+            <label className="flex items-center gap-2 text-sm text-neutral-600">
+              <Checkbox
+                checked={draft.trackExpiry}
+                onCheckedChange={(v) => updateDraft(draft.id, { trackExpiry: v === true })}
+              />
+              Track expiration
+            </label>
+            {draft.trackExpiry && (
+              <Input
+                type="date"
+                value={draft.expiryDate}
+                onChange={(e) => updateDraft(draft.id, { expiryDate: e.target.value })}
+              />
+            )}
+          </div>
+          <button
+            onClick={() => setDrafts((prev) => prev.filter((d) => d.id !== draft.id))}
+            className="self-start text-xs text-neutral-400 hover:text-red-500 cursor-pointer"
+          >
+            Remove
+          </button>
+        </Card>
+      ))}
+
+      {drafts.length > 0 && (
+        <Button onClick={submitAll} disabled={submitting} className="w-full sm:w-auto">
+          {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+          {drafts.length === 1 ? "Add to Inventory" : `Add all ${drafts.length} items to Inventory`}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function ReceiptScanPanel({ meta }: { meta: Meta }) {
+  const queryClient = useQueryClient();
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [candidates, setCandidates] = useState<
+    { title: string; category: string; quantity: number }[]
+  >([]);
+
+  async function scan() {
+    if (!file) return;
+    setScanning(true);
+    try {
+      const result = await api.scanReceipt(file);
+      if (result.candidates.length === 0) {
+        toast.warning("Couldn't detect any item lines on that receipt. Try a clearer photo.");
+      }
+      setCandidates(
+        result.candidates.map((c) => ({
+          title: c.title,
+          category: c.category,
+          quantity: meta.units[c.category] === "g" ? 500 : 1,
+        }))
+      );
+    } catch {
+      toast.error("Could not read that file as an image.");
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  async function addAll() {
+    let added = 0;
+    let merged = 0;
+    let skipped = 0;
+    for (const c of candidates) {
+      if (!c.title.trim()) {
+        skipped++;
+        continue;
+      }
+      const result = await api.createItem({
+        title: c.title,
+        category: c.category,
+        quantity: c.quantity,
+      });
+      if (result.status === "merged") merged++;
+      else added++;
+    }
+    setCandidates([]);
+    setFile(null);
+    setPreviewUrl(null);
+    queryClient.invalidateQueries({ queryKey: ["items"] });
+    queryClient.invalidateQueries({ queryKey: ["summary"] });
+    toast.success(`Receipt: added ${added}, merged ${merged}, skipped ${skipped}`, { icon: "🧾" });
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-neutral-500">
+        Upload a photo of a receipt — text is read locally on your Mac (no cloud), then you
+        review/edit each detected line before adding.
+      </p>
+      <Card className="border-dashed p-6 text-center">
+        <label className="flex cursor-pointer flex-col items-center gap-2">
+          <Camera className="h-8 w-8 text-brand-400" />
+          <span className="font-medium text-neutral-700">Upload a receipt photo</span>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,.heic,.heif"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0] ?? null;
+              setFile(f);
+              setPreviewUrl(f ? URL.createObjectURL(f) : null);
+            }}
+          />
+        </label>
+      </Card>
+
+      {previewUrl && (
+        <div className="flex items-center gap-3">
+          <img src={previewUrl} className="h-32 rounded-xl object-cover" />
+          <Button onClick={scan} disabled={scanning}>
+            {scanning && <Loader2 className="h-4 w-4 animate-spin" />}
+            🔍 Scan receipt
+          </Button>
+        </div>
+      )}
+
+      {candidates.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-sm text-neutral-500">
+            Found {candidates.length} candidate line(s) — review before adding (clear a title to
+            skip that line):
+          </p>
+          {candidates.map((c, idx) => (
+            <div key={idx} className="grid grid-cols-[1fr_auto_auto] gap-2">
+              <Input
+                value={c.title}
+                onChange={(e) =>
+                  setCandidates((prev) =>
+                    prev.map((p, i) => (i === idx ? { ...p, title: e.target.value } : p))
+                  )
+                }
+              />
+              <Select
+                value={c.category}
+                onValueChange={(category) =>
+                  setCandidates((prev) => prev.map((p, i) => (i === idx ? { ...p, category } : p)))
+                }
+                options={meta.categories.map((cat) => ({ value: cat, label: `${meta.icons[cat]} ${cat}` }))}
+                className="w-40"
+              />
+              <Input
+                type="number"
+                value={c.quantity}
+                onChange={(e) =>
+                  setCandidates((prev) =>
+                    prev.map((p, i) =>
+                      i === idx ? { ...p, quantity: parseFloat(e.target.value) || 0 } : p
+                    )
+                  )
+                }
+                className="w-24"
+              />
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <Button onClick={addAll}>Add all {candidates.length} items</Button>
+            <Button variant="outline" onClick={() => setCandidates([])}>
+              Discard all
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
