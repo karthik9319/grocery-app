@@ -17,11 +17,11 @@ export function Button({
 }) {
   const variants: Record<string, string> = {
     default:
-      "bg-brand-500 text-white hover:bg-brand-600 shadow-soft hover:shadow-medium",
+      "bg-gradient-to-b from-brand-400 to-brand-600 text-white hover:from-brand-500 hover:to-brand-700 shadow-glow hover:-translate-y-0.5",
     outline:
-      "border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700",
-    ghost: "hover:bg-neutral-100 text-neutral-600",
-    danger: "bg-red-50 text-red-600 hover:bg-red-100 border border-red-100",
+      "glass text-content hover:border-brand-300 hover:-translate-y-0.5",
+    ghost: "text-muted hover:bg-surface hover:text-content",
+    danger: "bg-red-500/10 text-red-500 dark:text-red-300 hover:bg-red-500/20 border border-red-500/20",
   };
   const sizes: Record<string, string> = {
     sm: "h-8 px-3 text-sm",
@@ -31,7 +31,7 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-all duration-150 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none cursor-pointer",
+        "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-200 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none cursor-pointer",
         variants[variant],
         sizes[size],
         className
@@ -41,11 +41,16 @@ export function Button({
   );
 }
 
-export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function Card({
+  className,
+  interactive = false,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { interactive?: boolean }) {
   return (
     <div
       className={cn(
-        "rounded-2xl border border-neutral-200/70 bg-white shadow-soft transition-shadow hover:shadow-medium",
+        "glass rounded-2xl text-content shadow-soft transition-all duration-200",
+        interactive && "card-hover hover:shadow-medium hover:border-brand-300/60",
         className
       )}
       {...props}
@@ -58,18 +63,20 @@ export function Badge({
   color = "neutral",
   ...props
 }: React.HTMLAttributes<HTMLSpanElement> & {
-  color?: "neutral" | "orange" | "red" | "brand";
+  color?: "neutral" | "orange" | "red" | "brand" | "veg" | "household";
 }) {
   const colors: Record<string, string> = {
-    neutral: "bg-neutral-100 text-neutral-600",
-    orange: "bg-orange-50 text-orange-600 ring-1 ring-orange-200",
-    red: "bg-red-50 text-red-600 ring-1 ring-red-200",
-    brand: "bg-brand-50 text-brand-700 ring-1 ring-brand-200",
+    neutral: "bg-content/5 text-muted ring-1 ring-line",
+    orange: "bg-orange-500/12 text-orange-600 dark:text-orange-300 ring-1 ring-orange-500/25",
+    red: "bg-red-500/12 text-red-600 dark:text-red-300 ring-1 ring-red-500/25",
+    brand: "bg-brand-500/12 text-brand-700 dark:text-brand-300 ring-1 ring-brand-500/25",
+    veg: "bg-veg-500/12 text-veg-600 dark:text-veg-500 ring-1 ring-veg-500/25",
+    household: "bg-household-500/12 text-household-600 dark:text-household-500 ring-1 ring-household-500/25",
   };
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium",
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
         colors[color],
         className
       )}
@@ -82,7 +89,7 @@ export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInp
   return (
     <input
       className={cn(
-        "h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm placeholder:text-neutral-400 outline-none transition-shadow focus:ring-2 focus:ring-brand-200 focus:border-brand-400",
+        "h-10 w-full rounded-xl border border-line bg-surface-solid px-3 text-sm text-content placeholder:text-subtle outline-none transition-shadow focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400",
         className
       )}
       {...props}
@@ -97,7 +104,7 @@ export function Textarea({
   return (
     <textarea
       className={cn(
-        "w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 outline-none transition-shadow focus:ring-2 focus:ring-brand-200 focus:border-brand-400",
+        "w-full rounded-xl border border-line bg-surface-solid px-3 py-2 text-sm text-content placeholder:text-subtle outline-none transition-shadow focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400",
         className
       )}
       {...props}
@@ -111,7 +118,7 @@ export function Label({
 }: React.ComponentProps<typeof LabelPrimitive.Root>) {
   return (
     <LabelPrimitive.Root
-      className={cn("text-sm font-medium text-neutral-700 mb-1 block", className)}
+      className={cn("text-sm font-medium text-content mb-1 block", className)}
       {...props}
     />
   );
@@ -124,7 +131,7 @@ export function Checkbox({
   return (
     <CheckboxPrimitive.Root
       className={cn(
-        "h-5 w-5 shrink-0 rounded-md border border-neutral-300 bg-white data-[state=checked]:bg-brand-500 data-[state=checked]:border-brand-500 flex items-center justify-center transition-colors cursor-pointer",
+        "h-5 w-5 shrink-0 rounded-md border border-line bg-surface-solid data-[state=checked]:bg-brand-500 data-[state=checked]:border-brand-500 flex items-center justify-center transition-colors cursor-pointer",
         className
       )}
       {...props}
@@ -140,7 +147,7 @@ export function Switch({ className, ...props }: React.ComponentProps<typeof Swit
   return (
     <SwitchPrimitive.Root
       className={cn(
-        "w-10 h-6 rounded-full bg-neutral-200 data-[state=checked]:bg-brand-500 relative transition-colors cursor-pointer outline-none",
+        "w-10 h-6 rounded-full bg-content/15 data-[state=checked]:bg-brand-500 relative transition-colors cursor-pointer outline-none",
         className
       )}
       {...props}
@@ -167,23 +174,23 @@ export function Select({
     <SelectPrimitive.Root value={value} onValueChange={onValueChange}>
       <SelectPrimitive.Trigger
         className={cn(
-          "h-10 w-full inline-flex items-center justify-between gap-2 rounded-xl border border-neutral-200 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-brand-200 cursor-pointer",
+          "h-10 w-full inline-flex items-center justify-between gap-2 rounded-xl border border-line bg-surface-solid px-3 text-sm text-content outline-none focus:ring-2 focus:ring-brand-400/40 cursor-pointer",
           className
         )}
       >
         <SelectPrimitive.Value placeholder={placeholder} />
         <SelectPrimitive.Icon>
-          <ChevronDown className="h-4 w-4 text-neutral-400" />
+          <ChevronDown className="h-4 w-4 text-subtle" />
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal>
-        <SelectPrimitive.Content className="overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-lifted z-50">
+        <SelectPrimitive.Content className="overflow-hidden rounded-xl border border-line bg-surface-solid text-content shadow-lifted z-50">
           <SelectPrimitive.Viewport className="p-1">
             {options.map((opt) => (
               <SelectPrimitive.Item
                 key={opt.value}
                 value={opt.value}
-                className="relative flex items-center rounded-lg px-3 py-2 text-sm text-neutral-700 outline-none cursor-pointer data-[highlighted]:bg-brand-50 data-[state=checked]:font-semibold"
+                className="relative flex items-center rounded-lg px-3 py-2 text-sm outline-none cursor-pointer data-[highlighted]:bg-brand-500/10 data-[state=checked]:font-semibold"
               >
                 <SelectPrimitive.ItemText>{opt.label}</SelectPrimitive.ItemText>
               </SelectPrimitive.Item>
@@ -205,10 +212,10 @@ export function EmptyState({
   description?: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-neutral-200 bg-neutral-50/60 py-12 text-center">
+    <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line bg-surface py-12 text-center">
       {icon && <div className="text-3xl mb-1 opacity-70">{icon}</div>}
-      <p className="font-medium text-neutral-700">{title}</p>
-      {description && <p className="text-sm text-neutral-400 max-w-sm">{description}</p>}
+      <p className="font-medium text-content">{title}</p>
+      {description && <p className="text-sm text-muted max-w-sm">{description}</p>}
     </div>
   );
 }
@@ -217,7 +224,7 @@ export function Spinner({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "h-5 w-5 rounded-full border-2 border-brand-200 border-t-brand-500 animate-spin",
+        "h-5 w-5 rounded-full border-2 border-brand-500/25 border-t-brand-500 animate-spin",
         className
       )}
     />

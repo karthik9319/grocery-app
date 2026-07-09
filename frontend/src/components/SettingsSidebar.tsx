@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Settings as SettingsIcon } from "lucide-react";
+import { ChevronDown, Download, Settings as SettingsIcon } from "lucide-react";
 import { api } from "@/lib/api";
-import { Button, Card, Input, Label } from "@/components/ui";
+import { Button, Input, Label } from "@/components/ui";
 
 export function SettingsSidebar() {
   const queryClient = useQueryClient();
@@ -28,43 +28,42 @@ export function SettingsSidebar() {
   });
 
   return (
-    <div className="space-y-5">
-      <Card className="p-4">
-        <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-neutral-600">
-          <SettingsIcon className="h-4 w-4" /> Settings
-        </h3>
-        <div className="space-y-3">
+    <div className="space-y-1">
+      <details className="group rounded-2xl">
+        <summary className="flex cursor-pointer items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-50">
+          <SettingsIcon className="h-[18px] w-[18px] text-neutral-400" />
+          Settings
+          <ChevronDown className="ml-auto h-4 w-4 text-neutral-400 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="space-y-3 px-3 pb-3 pt-2">
           <div>
-            <Label>Low stock threshold — count items</Label>
+            <Label className="text-xs">Alert threshold — counts</Label>
             <Input
               type="number"
               value={countThreshold}
               onChange={(e) => setCountThreshold(parseFloat(e.target.value) || 0)}
               onBlur={() => save.mutate()}
+              className="h-9"
             />
           </div>
           <div>
-            <Label>Low stock threshold — vegetables (grams)</Label>
+            <Label className="text-xs">Alert threshold — grams</Label>
             <Input
               type="number"
               value={weightThreshold}
               onChange={(e) => setWeightThreshold(parseFloat(e.target.value) || 0)}
               onBlur={() => save.mutate()}
+              className="h-9"
             />
           </div>
         </div>
-      </Card>
+      </details>
 
-      <Card className="p-4">
-        <h3 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-neutral-600">
-          <Download className="h-4 w-4" /> Backup
-        </h3>
-        <a href={api.exportCsvUrl()} download="inventory_backup.csv">
-          <Button variant="outline" className="w-full">
-            Download inventory as CSV
-          </Button>
-        </a>
-      </Card>
+      <a href={api.exportCsvUrl()} download="inventory_backup.csv" className="block">
+        <Button variant="ghost" size="sm" className="w-full justify-start px-3 text-neutral-600">
+          <Download className="h-[18px] w-[18px] text-neutral-400" /> Export CSV
+        </Button>
+      </a>
     </div>
   );
 }

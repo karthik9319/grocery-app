@@ -1,5 +1,8 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
 @import "tailwindcss";
+
+/* Enable class-based dark mode (.dark on <html>) */
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -15,50 +18,128 @@
   --color-brand-800: #0f412b;
   --color-brand-900: #0c3423;
 
+  --color-veg-50: #fff3e9;
+  --color-veg-200: #ffd3ac;
   --color-veg-500: #ff8c42;
+  --color-veg-600: #e6722a;
+
+  --color-household-50: #eeecff;
+  --color-household-200: #c9c3ff;
   --color-household-500: #6c63ff;
+  --color-household-600: #5349e0;
+
+  /* Semantic theme-aware tokens (resolved from :root / .dark vars below) */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-solid: var(--surface-solid);
+  --color-line: var(--line);
+  --color-content: var(--content);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
 
   --shadow-soft: 0 2px 10px rgba(15, 40, 25, 0.06);
   --shadow-medium: 0 8px 24px rgba(15, 40, 25, 0.10);
   --shadow-lifted: 0 16px 40px rgba(15, 40, 25, 0.16);
+  --shadow-glow: 0 0 0 1px rgba(45, 212, 140, 0.14), 0 18px 44px -16px rgba(45, 212, 140, 0.4);
 
-  --animate-fade-in: fade-in 0.25s ease-out;
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-pop: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 
   @keyframes fade-in {
-    from {
-      opacity: 0;
-      transform: translateY(4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes float {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(0, -16px) scale(1.05); }
+  }
+  @keyframes pop {
+    0% { opacity: 0; transform: scale(0.9) translateY(6px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
   }
 }
 
-html,
-body,
-#root {
-  height: 100%;
+/* ---------- Light theme ---------- */
+:root {
+  --canvas: #f4f7f5;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-solid: #ffffff;
+  --line: rgba(15, 40, 25, 0.10);
+  --content: #14201b;
+  --muted: #5b6b64;
+  --subtle: #94a29b;
+
+  --aurora-1: rgba(45, 212, 140, 0.20);
+  --aurora-2: rgba(255, 140, 66, 0.16);
+  --aurora-3: rgba(108, 99, 255, 0.14);
+  --grain-opacity: 0.035;
 }
 
+/* ---------- Dark (Aurora Glass) theme ---------- */
+.dark {
+  --canvas: #080b0a;
+  --surface: rgba(255, 255, 255, 0.045);
+  --surface-solid: #10161a;
+  --line: rgba(255, 255, 255, 0.09);
+  --content: #eef4f1;
+  --muted: #9aa8a2;
+  --subtle: #6a7873;
+
+  --aurora-1: rgba(45, 212, 140, 0.28);
+  --aurora-2: rgba(255, 140, 66, 0.18);
+  --aurora-3: rgba(108, 99, 255, 0.24);
+  --grain-opacity: 0.05;
+}
+
+html, body, #root { height: 100%; }
+
 body {
-  @apply bg-neutral-50 text-neutral-900 antialiased;
+  color: var(--content);
   font-family: var(--font-sans);
   margin: 0;
+  background: var(--canvas);
+  -webkit-font-smoothing: antialiased;
 }
+
+/* Aurora glow + grain fixed behind everything */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(48% 40% at 12% 8%, var(--aurora-1), transparent 60%),
+    radial-gradient(42% 38% at 92% 4%, var(--aurora-2), transparent 60%),
+    radial-gradient(52% 50% at 60% 102%, var(--aurora-3), transparent 60%);
+}
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--grain-opacity);
+  background-image: radial-gradient(#fff 1px, transparent 1px);
+  background-size: 3px 3px;
+}
+
+@utility glass {
+  background: var(--surface);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--line);
+}
+
+.card-hover {
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.card-hover:hover { transform: translateY(-3px); }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-brand-200) transparent;
+  scrollbar-color: var(--color-brand-300) transparent;
 }
-
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-thumb {
-  background-color: var(--color-brand-200);
-  border-radius: 999px;
-}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--color-brand-300); border-radius: 999px; }

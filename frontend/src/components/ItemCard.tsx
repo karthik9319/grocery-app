@@ -47,12 +47,19 @@ export function ItemCard({
   const step = unit === "g" ? 50 : 1;
 
   return (
-    <Card className="flex items-center gap-4 p-3 animate-fade-in">
-      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-neutral-100">
+    <Card
+      interactive
+      className="flex items-center gap-4 overflow-hidden border-l-4 p-3 animate-fade-in"
+      style={{ borderLeftColor: dotColor }}
+    >
+      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-neutral-100 ring-2 ring-white shadow-soft">
         {img ? (
           <img src={img} alt={item.title} className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center text-xl">
+          <div
+            className="flex h-full w-full items-center justify-center text-xl"
+            style={{ backgroundColor: `${dotColor}14` }}
+          >
             {meta.icons[item.category]}
           </div>
         )}
@@ -86,7 +93,7 @@ export function ItemCard({
         <button
           onClick={() => qtyMutation.mutate(Math.max(0, item.quantity - step))}
           className={cn(
-            "h-8 w-8 rounded-lg border border-neutral-200 text-neutral-500 hover:bg-neutral-50 cursor-pointer"
+            "h-8 w-8 rounded-lg border border-neutral-200 text-neutral-500 hover:bg-neutral-50 hover:border-brand-300 hover:text-brand-600 transition-colors cursor-pointer"
           )}
         >
           −
