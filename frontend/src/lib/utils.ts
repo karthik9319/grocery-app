@@ -29,3 +29,20 @@ export function imageUrl(path: string | null): string | null {
   if (!path) return null;
   return `/images/${path.split("/").pop()}`;
 }
+
+/** Cleans up a user-typed item name: trims, collapses extra spaces, and title-cases
+ * each word (e.g. "  apples " -> "Apples", "OLIVE oil" -> "Olive Oil"). */
+export function titleCase(input: string): string {
+  return input
+    .trim()
+    .replace(/\s+/g, " ")
+    .split(" ")
+    .map((word) =>
+      word
+        .split("-")
+        .map((part) => (part ? part[0].toUpperCase() + part.slice(1).toLowerCase() : part))
+        .join("-")
+    )
+    .join(" ");
+}
+

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Option 2 — Neon Nights</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Sora',sans-serif; background: radial-gradient(ellipse 80% 60% at 20% -10%, rgba(56,224,182,.25), transparent),
+    radial-gradient(ellipse 70% 50% at 90% 10%, rgba(255,72,190,.20), transparent),
+    radial-gradient(ellipse 60% 60% at 50% 100%, rgba(124,92,255,.20), transparent), #07070C; color:#EAF4F1;}
+  .glass{background: rgba(255,255,255,0.045); backdrop-filter: blur(18px); border:1px solid rgba(255,255,255,0.08);}
+  .neon-border{border:1px solid rgba(56,224,182,.5); box-shadow: 0 0 0 1px rgba(56,224,182,.15), 0 0 24px rgba(56,224,182,.25), inset 0 0 20px rgba(56,224,182,.05);}
+  .neon-pink{border:1px solid rgba(255,72,190,.5); box-shadow: 0 0 0 1px rgba(255,72,190,.15), 0 0 24px rgba(255,72,190,.25);}
+  .neon-purple{border:1px solid rgba(124,92,255,.5); box-shadow: 0 0 0 1px rgba(124,92,255,.15), 0 0 24px rgba(124,92,255,.25);}
+  .glow-text{text-shadow: 0 0 18px rgba(56,224,182,.6);}
+  .grid-lines{background-image: linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px); background-size: 32px 32px;}
+</style>
+</head>
+<body class="min-h-screen p-6 grid-lines">
+  <div class="mx-auto max-w-7xl grid grid-cols-[250px_1fr] gap-6">
+    <aside class="glass rounded-3xl p-4 h-fit sticky top-6">
+      <div class="flex items-center gap-2 mb-6 px-1">
+        <div class="w-10 h-10 rounded-2xl flex items-center justify-center text-xl neon-border">🛒</div>
+        <div class="font-800 text-lg tracking-wide glow-text">PANTRY<span class="text-[#38E0B6]">.OS</span></div>
+      </div>
+      <nav class="space-y-1.5 text-sm font-semibold">
+        <a class="flex items-center gap-2 rounded-2xl px-3 py-2.5 cursor-pointer" style="background:linear-gradient(120deg, rgba(56,224,182,.9), rgba(56,224,182,.5)); color:#04140F; box-shadow:0 8px 24px -8px rgba(56,224,182,.6);">➕ Add Items</a>
+        <a class="flex items-center gap-2 rounded-2xl px-3 py-2.5 cursor-pointer hover:bg-white/5 text-white/70">🥫 Groceries <span class="ml-auto rounded-full px-2 text-xs bg-white/10">12</span></a>
+        <a class="flex items-center gap-2 rounded-2xl px-3 py-2.5 cursor-pointer hover:bg-white/5 text-white/70">🥕 Vegetables <span class="ml-auto rounded-full px-2 text-xs bg-white/10">7</span></a>
+        <a class="flex items-center gap-2 rounded-2xl px-3 py-2.5 cursor-pointer hover:bg-white/5 text-white/70">🧴 Household <span class="ml-auto rounded-full px-2 text-xs bg-white/10">4</span></a>
+        <a class="flex items-center gap-2 rounded-2xl px-3 py-2.5 cursor-pointer hover:bg-white/5 text-white/70">🍿 Snacks <span class="ml-auto rounded-full px-2 text-xs bg-white/10">9</span></a>
+        <a class="flex items-center gap-2 rounded-2xl px-3 py-2.5 cursor-pointer hover:bg-white/5 text-white/70">🛍️ Shopping List</a>
+        <a class="flex items-center gap-2 rounded-2xl px-3 py-2.5 cursor-pointer hover:bg-white/5 text-white/70">📊 Charts</a>
+      </nav>
+    </aside>
+
+    <main class="space-y-6">
+      <div class="glass neon-border rounded-3xl p-6">
+        <h1 class="text-3xl font-800 glow-text">Welcome back, Chef 🌌</h1>
+        <p class="text-white/60 mt-1 text-sm">3 items are running low — restock before they run out.</p>
+      </div>
+
+      <div class="grid grid-cols-4 gap-4">
+        <div class="glass neon-border rounded-2xl p-4">
+          <p class="text-xs uppercase tracking-wider text-white/50">Total Items</p>
+          <p class="text-3xl font-800 mt-1">32</p>
+        </div>
+        <div class="glass neon-pink rounded-2xl p-4">
+          <p class="text-xs uppercase tracking-wider text-white/50">Low Stock</p>
+          <p class="text-3xl font-800 mt-1 text-[#FF48BE]">3</p>
+        </div>
+        <div class="glass neon-purple rounded-2xl p-4">
+          <p class="text-xs uppercase tracking-wider text-white/50">Expiring</p>
+          <p class="text-3xl font-800 mt-1 text-[#7C5CFF]">2</p>
+        </div>
+        <div class="glass neon-border rounded-2xl p-4">
+          <p class="text-xs uppercase tracking-wider text-white/50">Categories</p>
+          <p class="text-3xl font-800 mt-1">4</p>
+        </div>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-800 mb-3">🥕 Vegetables</h2>
+        <div class="grid grid-cols-3 gap-4">
+          <div class="glass rounded-2xl p-4 hover:neon-border transition-all">
+            <div class="rounded-xl h-28 mb-3 flex items-center justify-center text-5xl bg-white/5">🥔</div>
+            <p class="font-bold">Potatoes</p>
+            <p class="text-sm text-white/50">1.2 kg</p>
+            <span class="inline-block mt-2 text-xs font-bold px-2 py-1 rounded-full" style="background:rgba(255,72,190,.15); color:#FF48BE; border:1px solid rgba(255,72,190,.4);">LOW STOCK</span>
+          </div>
+          <div class="glass rounded-2xl p-4 hover:neon-border transition-all">
+            <div class="rounded-xl h-28 mb-3 flex items-center justify-center text-5xl bg-white/5">🥦</div>
+            <p class="font-bold">Broccoli</p>
+            <p class="text-sm text-white/50">500 g</p>
+          </div>
+          <div class="glass rounded-2xl p-4 hover:neon-border transition-all">
+            <div class="rounded-xl h-28 mb-3 flex items-center justify-center text-5xl bg-white/5">🍅</div>
+            <p class="font-bold">Tomatoes</p>
+            <p class="text-sm text-white/50">800 g</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

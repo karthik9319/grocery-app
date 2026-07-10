@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Download, Settings as SettingsIcon } from "lucide-react";
 import { api } from "@/lib/api";
 import { Button, Input, Label } from "@/components/ui";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function SettingsSidebar() {
   const queryClient = useQueryClient();
@@ -28,7 +29,11 @@ export function SettingsSidebar() {
   });
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
+      <div className="px-3">
+        <ThemeToggle />
+      </div>
+
       <details className="group rounded-2xl">
         <summary className="flex cursor-pointer items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-semibold text-muted hover:bg-surface">
           <SettingsIcon className="h-[18px] w-[18px] text-subtle" />

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Camera, FileSpreadsheet, Loader2, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Meta } from "@/types";
+import { titleCase } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/Tabs";
 import { Button, Card, Checkbox, Input, Select } from "@/components/ui";
 
@@ -95,7 +96,7 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
       const quantity = draft.unit === "kg" ? draft.quantity * 1000 : draft.quantity;
       try {
         const result = await api.createItem({
-          title: draft.title,
+          title: titleCase(draft.title),
           category: draft.category,
           quantity,
           notes: draft.notes || undefined,
@@ -122,7 +123,7 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
     <div className="space-y-4">
       <Card className="border-dashed p-6 text-center">
         <label className="flex cursor-pointer flex-col items-center gap-2">
-          <Upload className="h-8 w-8 text-brand-400" />
+          <Upload className="h-8 w-8 text-theme-400" />
           <span className="font-medium text-content">
             Upload one or more photos of groceries/vegetables/household items
           </span>
@@ -149,6 +150,7 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
               placeholder="e.g. Apples, Milk, Shampoo"
               value={draft.title}
               onChange={(e) => updateDraft(draft.id, { title: e.target.value })}
+              onBlur={() => updateDraft(draft.id, { title: titleCase(draft.title) })}
             />
             <Select
               value={draft.category}
@@ -257,7 +259,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
       }
       setCandidates(
         result.candidates.map((c) => ({
-          title: c.title,
+          title: titleCase(c.title),
           category: c.category,
           quantity: meta.units[c.category] === "g" ? 500 : 1,
         }))
@@ -279,7 +281,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
         continue;
       }
       const result = await api.createItem({
-        title: c.title,
+        title: titleCase(c.title),
         category: c.category,
         quantity: c.quantity,
       });
@@ -302,7 +304,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
       </p>
       <Card className="border-dashed p-6 text-center">
         <label className="flex cursor-pointer flex-col items-center gap-2">
-          <Camera className="h-8 w-8 text-brand-400" />
+          <Camera className="h-8 w-8 text-theme-400" />
           <span className="font-medium text-content">Upload a receipt photo</span>
           <input
             type="file"
@@ -340,6 +342,11 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
                 onChange={(e) =>
                   setCandidates((prev) =>
                     prev.map((p, i) => (i === idx ? { ...p, title: e.target.value } : p))
+                  )
+                }
+                onBlur={() =>
+                  setCandidates((prev) =>
+                    prev.map((p, i) => (i === idx ? { ...p, title: titleCase(p.title) } : p))
                   )
                 }
               />

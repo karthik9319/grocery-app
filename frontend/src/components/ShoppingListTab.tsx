@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { RefreshCw, X } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Meta } from "@/types";
+import { titleCase } from "@/lib/utils";
 import { Button, Card, Checkbox, EmptyState, Input, Select } from "@/components/ui";
 
 export function ShoppingListTab({ meta }: { meta: Meta }) {
@@ -24,7 +25,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
   });
 
   const addItem = useMutation({
-    mutationFn: () => api.addShoppingItem(newTitle, newCategory),
+    mutationFn: () => api.addShoppingItem(titleCase(newTitle), newCategory),
     onSuccess: () => {
       invalidate();
       setNewTitle("");
@@ -75,6 +76,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
             placeholder="e.g. Paper towels"
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
+            onBlur={() => setNewTitle((t) => titleCase(t))}
             className="flex-1"
           />
           <Select
@@ -118,8 +120,8 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
       </div>
 
       {checked.length > 0 && (
-        <details className="rounded-2xl border border-line p-3">
-          <summary className="cursor-pointer text-sm font-medium text-muted">
+        <details className="rounded-2xl border-[3px] border-content bg-surface-solid p-3">
+          <summary className="cursor-pointer text-sm font-bold text-muted">
             ✅ Checked off ({checked.length})
           </summary>
           <div className="mt-3 space-y-2">

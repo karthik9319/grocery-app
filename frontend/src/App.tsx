@@ -9,6 +9,7 @@ import { ShoppingListTab } from "@/components/ShoppingListTab";
 import { ChartsTab } from "@/components/ChartsTab";
 import { SettingsSidebar } from "@/components/SettingsSidebar";
 import { Spinner } from "@/components/ui";
+import { cn } from "@/lib/utils";
 
 type NavItem = {
   value: string;
@@ -46,7 +47,7 @@ function App() {
       value: "add-items",
       label: "Add Items",
       icon: <PlusCircle className="h-[18px] w-[18px]" />,
-      accent: "#1B7A4D",
+      accent: "var(--theme-500)",
     },
     ...meta.categories.map((c) => ({
       value: c,
@@ -76,34 +77,31 @@ function App() {
     <div className="mx-auto flex min-h-screen w-full max-w-[1680px] gap-6 px-4 py-6 lg:px-8 2xl:gap-8">
       {/* Left nav rail */}
       <aside className="sticky top-6 hidden h-[calc(100vh-3rem)] w-64 shrink-0 flex-col lg:flex 2xl:w-72">
-        <div className="glass flex flex-1 flex-col rounded-3xl p-3 shadow-soft">
+        <div className="glass flex flex-1 flex-col overflow-y-auto rounded-3xl p-3 shadow-[5px_5px_0_var(--line)]">
           <div className="mb-4 flex items-center gap-3 px-2 pt-2">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-400 via-brand-600 to-household-500 text-2xl shadow-glow">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border-[3px] border-content bg-theme-400 text-2xl shadow-[3px_3px_0_var(--line)]">
               🛒
             </div>
             <div className="leading-tight">
-              <p className="gradient-text text-sm font-extrabold">Pantry</p>
-              <p className="text-xs text-subtle">Tracker</p>
+              <p className="font-display text-sm text-content">Pantry</p>
+              <p className="text-xs font-semibold text-subtle">Tracker</p>
             </div>
           </div>
 
-          <nav className="flex flex-1 flex-col gap-1">
+          <nav className="flex flex-1 flex-col gap-2">
             {nav.map((item) => {
               const isActive = item.value === active;
               return (
                 <button
                   key={item.value}
                   onClick={() => setActive(item.value)}
-                  className="group relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 cursor-pointer"
-                  style={
+                  className={cn(
+                    "group relative flex items-center gap-3 rounded-2xl border-[3px] px-3 py-2.5 text-sm font-bold transition-all duration-150 cursor-pointer",
                     isActive
-                      ? {
-                          background: `linear-gradient(120deg, ${item.accent}, ${item.accent}cc)`,
-                          color: "#fff",
-                          boxShadow: `0 10px 24px -8px ${item.accent}99`,
-                        }
-                      : undefined
-                  }
+                      ? "border-content text-white -translate-x-0.5 -translate-y-0.5 shadow-[3px_3px_0_var(--line)]"
+                      : "border-transparent text-muted hover:border-content hover:bg-surface"
+                  )}
+                  style={isActive ? { backgroundColor: item.accent } : undefined}
                 >
                   <span
                     className={
@@ -119,11 +117,11 @@ function App() {
                   </span>
                   {item.badge != null && item.badge > 0 && (
                     <span
-                      className="ml-auto rounded-full px-2 py-0.5 text-xs font-bold"
+                      className="ml-auto rounded-full border-2 px-2 py-0.5 text-xs font-bold"
                       style={
                         isActive
-                          ? { backgroundColor: "rgba(255,255,255,0.25)", color: "#fff" }
-                          : { backgroundColor: `${item.accent}1f`, color: item.accent }
+                          ? { backgroundColor: "#fff", color: item.accent, borderColor: "var(--content)" }
+                          : { backgroundColor: `${item.accent}22`, color: item.accent, borderColor: item.accent }
                       }
                     >
                       {item.badge}
@@ -141,7 +139,7 @@ function App() {
       </aside>
 
       {/* Main content */}
-      <main className="min-w-0 flex-1 space-y-6">
+      <main className="min-w-0 flex-1 space-y-7">
         <Header meta={meta} />
 
         {/* Mobile nav (horizontal scroll) */}
@@ -152,12 +150,11 @@ function App() {
               <button
                 key={item.value}
                 onClick={() => setActive(item.value)}
-                className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-sm font-semibold transition-all cursor-pointer"
-                style={
-                  isActive
-                    ? { backgroundColor: item.accent, color: "white" }
-                    : { backgroundColor: "white", color: "#525252" }
-                }
+                className={cn(
+                  "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border-[3px] border-content px-3 py-2 text-sm font-bold transition-all cursor-pointer",
+                  isActive ? "text-white shadow-[3px_3px_0_var(--line)]" : "bg-surface-solid text-content"
+                )}
+                style={isActive ? { backgroundColor: item.accent } : undefined}
               >
                 {item.emoji ?? item.icon}
                 {item.label}
@@ -169,16 +166,16 @@ function App() {
         {/* Section header */}
         <div className="flex items-center gap-3">
           <span
-            className="flex h-10 w-10 items-center justify-center rounded-2xl text-xl shadow-soft"
-            style={{ backgroundColor: `${activeItem?.accent}18` }}
+            className="flex h-10 w-10 items-center justify-center rounded-2xl border-[3px] border-content text-xl shadow-[3px_3px_0_var(--line)]"
+            style={{ backgroundColor: `${activeItem?.accent}33` }}
           >
             {activeItem?.emoji ?? activeItem?.icon}
           </span>
           <div>
-            <h2 className="text-xl font-extrabold tracking-tight text-content">
+            <h2 className="font-display text-xl text-content">
               {activeItem?.label}
             </h2>
-            <p className="text-xs text-subtle">
+            <p className="text-xs font-semibold text-subtle">
               {active === "add-items" && "Snap a photo or scan a receipt to stock up"}
               {active === "shopping" && "Plan your next grocery run"}
               {active === "charts" && "Insights across your inventory"}

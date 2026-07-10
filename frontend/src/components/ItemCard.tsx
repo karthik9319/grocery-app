@@ -4,7 +4,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Item, Meta } from "@/types";
 import { api } from "@/lib/api";
-import { cn, daysUntil, formatQuantity, imageUrl } from "@/lib/utils";
+import { daysUntil, formatQuantity, imageUrl } from "@/lib/utils";
 import { Badge, Card } from "@/components/ui";
 import { EditItemDialog } from "@/components/EditItemDialog";
 
@@ -49,29 +49,31 @@ export function ItemCard({
   return (
     <Card
       interactive
-      className="flex items-center gap-4 overflow-hidden border-l-4 p-3 animate-fade-in"
-      style={{ borderLeftColor: dotColor }}
+      className="flex flex-wrap items-center gap-4 overflow-hidden p-4 animate-fade-in"
     >
-      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-content/5 ring-2 ring-surface-solid shadow-soft">
+      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 border-content">
         {img ? (
           <img src={img} alt={item.title} className="h-full w-full object-cover" />
         ) : (
           <div
             className="flex h-full w-full items-center justify-center text-xl"
-            style={{ backgroundColor: `${dotColor}14` }}
+            style={{ backgroundColor: `${dotColor}33` }}
           >
             {meta.icons[item.category]}
           </div>
         )}
       </div>
 
-      <div className="min-w-0 flex-1">
+      <div className="min-w-[150px] flex-1 basis-40">
         <div className="flex items-center gap-2">
           <span
-            className="h-2.5 w-2.5 shrink-0 rounded-full"
-            style={{ backgroundColor: dotColor }}
-          />
-          <p className="truncate font-semibold text-content">{item.title}</p>
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 border-content text-xs"
+            style={{ backgroundColor: `${dotColor}33` }}
+            title={item.category}
+          >
+            {meta.icons[item.category]}
+          </span>
+          <p className="min-w-0 truncate font-semibold text-content">{item.title}</p>
           <span className="shrink-0 text-sm text-subtle">
             ({formatQuantity(item.quantity, unit)})
           </span>
@@ -92,9 +94,7 @@ export function ItemCard({
       <div className="flex shrink-0 items-center gap-1">
         <button
           onClick={() => qtyMutation.mutate(Math.max(0, item.quantity - step))}
-          className={cn(
-            "h-8 w-8 rounded-lg border border-line text-muted hover:bg-surface hover:border-brand-400 hover:text-brand-500 transition-colors cursor-pointer"
-          )}
+          className="h-8 w-8 rounded-lg border-2 border-content font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
         >
           −
         </button>
@@ -105,11 +105,11 @@ export function ItemCard({
             const v = parseFloat(e.target.value);
             if (!Number.isNaN(v)) qtyMutation.mutate(v);
           }}
-          className="h-8 w-16 rounded-lg border border-line bg-surface-solid text-center text-sm text-content outline-none focus:ring-2 focus:ring-brand-400/40"
+          className="h-8 w-16 rounded-lg border-2 border-content bg-surface-solid text-center text-sm font-bold text-content outline-none"
         />
         <button
           onClick={() => qtyMutation.mutate(item.quantity + step)}
-          className="h-8 w-8 rounded-lg border border-line text-muted hover:bg-surface hover:border-brand-400 hover:text-brand-500 transition-colors cursor-pointer"
+          className="h-8 w-8 rounded-lg border-2 border-content font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
         >
           +
         </button>
@@ -118,7 +118,7 @@ export function ItemCard({
       <div className="flex shrink-0 gap-1">
         <button
           onClick={() => setEditOpen(true)}
-          className="h-9 w-9 flex items-center justify-center rounded-xl border border-line text-muted hover:bg-brand-500/10 hover:border-brand-400/60 hover:text-brand-500 cursor-pointer transition-colors"
+          className="h-9 w-9 flex items-center justify-center rounded-xl border-2 border-content text-content hover:bg-theme-200 cursor-pointer transition-colors"
         >
           <Pencil className="h-4 w-4" />
         </button>
@@ -126,7 +126,7 @@ export function ItemCard({
           onClick={() => {
             deleteMutation.mutate();
           }}
-          className="h-9 w-9 flex items-center justify-center rounded-xl border border-line text-muted hover:bg-red-500/10 hover:border-red-400/60 hover:text-red-500 cursor-pointer transition-colors"
+          className="h-9 w-9 flex items-center justify-center rounded-xl border-2 border-content text-content hover:bg-red-400 hover:text-white cursor-pointer transition-colors"
         >
           <Trash2 className="h-4 w-4" />
         </button>

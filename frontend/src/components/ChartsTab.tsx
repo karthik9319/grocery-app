@@ -47,7 +47,7 @@ export function ChartsTab({ meta }: { meta: Meta }) {
             <XAxis dataKey="category" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
             <Tooltip />
-            <Bar dataKey="items" radius={[8, 8, 0, 0]}>
+            <Bar dataKey="items" radius={[2, 2, 0, 0]}>
               {countsData.map((entry) => (
                 <Cell key={entry.category} fill={entry.fill} />
               ))}
@@ -75,7 +75,7 @@ export function ChartsTab({ meta }: { meta: Meta }) {
               <XAxis type="number" tick={{ fontSize: 12 }} label={{ value: `Quantity (${unit})`, position: "insideBottom", offset: -5, fontSize: 12 }} />
               <YAxis type="category" dataKey="title" tick={{ fontSize: 12 }} width={100} />
               <Tooltip />
-              <Bar dataKey="quantity" fill={meta.palette[category]} radius={[0, 8, 8, 0]} />
+              <Bar dataKey="quantity" fill={meta.palette[category]} radius={[0, 2, 2, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
@@ -92,7 +92,7 @@ export function ChartsTab({ meta }: { meta: Meta }) {
               <XAxis dataKey="date" tick={{ fontSize: 12 }} />
               <YAxis tick={{ fontSize: 12 }} label={{ value: `Quantity (${unit})`, angle: -90, position: "insideLeft", fontSize: 12 }} />
               <Tooltip />
-              <Bar dataKey="quantity" fill={meta.palette[category]} radius={[8, 8, 0, 0]} />
+              <Bar dataKey="quantity" fill={meta.palette[category]} radius={[2, 2, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (

@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { Item, Meta } from "@/types";
 import { api } from "@/lib/api";
+import { titleCase } from "@/lib/utils";
 import { Dialog, DialogContent } from "@/components/Dialog";
 import { Button, Checkbox, Input, Label, Select, Textarea } from "@/components/ui";
 
@@ -32,8 +33,9 @@ export function EditItemDialog({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const cleanTitle = titleCase(title);
       await api.updateItem(item.id, {
-        title,
+        title: cleanTitle,
         category,
         quantity,
         notes,
@@ -42,7 +44,7 @@ export function EditItemDialog({
         image: newImage,
       });
       if (isFavorite) {
-        await api.addFavorite(title, category, favoriteQty);
+        await api.addFavorite(cleanTitle, category, favoriteQty);
       } else {
         await api.removeFavorite(item.title, item.category);
       }
@@ -65,7 +67,11 @@ export function EditItemDialog({
         <div className="space-y-4">
           <div>
             <Label>Title</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={() => setTitle((t) => titleCase(t))}
+            />
           </div>
 
           <div>
@@ -142,7 +148,7 @@ export function EditItemDialog({
               type="file"
               accept="image/png,image/jpeg,.heic,.heif"
               onChange={(e) => setNewImage(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-gradient-to-r file:from-brand-500 file:to-household-500 file:px-3 file:py-1.5 file:text-white file:font-semibold"
+              className="block w-full text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-lg file:border-2 file:border-content file:bg-theme-400 file:px-3 file:py-1.5 file:text-white file:font-bold"
             />
           </div>
 

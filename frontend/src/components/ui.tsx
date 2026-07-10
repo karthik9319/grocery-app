@@ -17,11 +17,12 @@ export function Button({
 }) {
   const variants: Record<string, string> = {
     default:
-      "bg-gradient-to-b from-brand-400 to-brand-600 text-white hover:from-brand-500 hover:to-brand-700 shadow-glow hover:-translate-y-0.5",
+      "bg-theme-500 text-white border-[3px] border-content shadow-[4px_4px_0_var(--line)] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_var(--line)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none",
     outline:
-      "glass text-content hover:border-brand-300 hover:-translate-y-0.5",
-    ghost: "text-muted hover:bg-surface hover:text-content",
-    danger: "bg-red-500/10 text-red-500 dark:text-red-300 hover:bg-red-500/20 border border-red-500/20",
+      "bg-surface-solid text-content border-[3px] border-content shadow-[4px_4px_0_var(--line)] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_var(--line)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none",
+    ghost: "text-muted border-[3px] border-transparent hover:bg-surface hover:text-content",
+    danger:
+      "bg-red-500 text-white border-[3px] border-content shadow-[4px_4px_0_var(--line)] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_var(--line)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none",
   };
   const sizes: Record<string, string> = {
     sm: "h-8 px-3 text-sm",
@@ -31,7 +32,7 @@ export function Button({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-all duration-200 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none cursor-pointer",
+        "inline-flex items-center justify-center gap-2 rounded-xl font-bold transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none cursor-pointer",
         variants[variant],
         sizes[size],
         className
@@ -49,8 +50,8 @@ export function Card({
   return (
     <div
       className={cn(
-        "glass rounded-2xl text-content shadow-soft transition-all duration-200",
-        interactive && "card-hover hover:shadow-medium hover:border-brand-300/60",
+        "glass rounded-2xl text-content shadow-[4px_4px_0_var(--line)] transition-all duration-150",
+        interactive && "card-hover cursor-pointer hover:shadow-[6px_6px_0_var(--line)]",
         className
       )}
       {...props}
@@ -66,19 +67,19 @@ export function Badge({
   color?: "neutral" | "orange" | "red" | "brand" | "veg" | "household" | "snack" | "accent";
 }) {
   const colors: Record<string, string> = {
-    neutral: "bg-content/5 text-muted ring-1 ring-line",
-    orange: "bg-orange-500/15 text-orange-600 dark:text-orange-300 ring-1 ring-orange-500/30",
-    red: "bg-red-500/15 text-red-600 dark:text-red-300 ring-1 ring-red-500/30",
-    brand: "bg-brand-500/15 text-brand-700 dark:text-brand-300 ring-1 ring-brand-500/30",
-    veg: "bg-veg-500/15 text-veg-600 dark:text-veg-500 ring-1 ring-veg-500/30",
-    household: "bg-household-500/15 text-household-600 dark:text-household-500 ring-1 ring-household-500/30",
-    snack: "bg-snack-500/15 text-snack-600 dark:text-snack-200 ring-1 ring-snack-500/30",
-    accent: "bg-accent-500/15 text-accent-600 dark:text-accent-200 ring-1 ring-accent-500/30",
+    neutral: "bg-surface-solid text-content",
+    orange: "bg-veg-200 text-content",
+    red: "bg-red-400 text-content",
+    brand: "bg-theme-200 text-content",
+    veg: "bg-veg-200 text-content",
+    household: "bg-household-200 text-content",
+    snack: "bg-snack-200 text-content",
+    accent: "bg-accent-200 text-content",
   };
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold",
+        "inline-flex items-center gap-1 rounded-full border-2 border-content px-2.5 py-1 text-xs font-bold shadow-[2px_2px_0_var(--line)]",
         colors[color],
         className
       )}
@@ -91,7 +92,7 @@ export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInp
   return (
     <input
       className={cn(
-        "h-10 w-full rounded-xl border border-line bg-surface-solid px-3 text-sm text-content placeholder:text-subtle outline-none transition-shadow focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400",
+        "h-10 w-full rounded-xl border-[3px] border-content bg-surface-solid px-3 text-sm font-semibold text-content placeholder:text-subtle placeholder:font-normal outline-none transition-all focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[3px_3px_0_var(--line)]",
         className
       )}
       {...props}
@@ -106,7 +107,7 @@ export function Textarea({
   return (
     <textarea
       className={cn(
-        "w-full rounded-xl border border-line bg-surface-solid px-3 py-2 text-sm text-content placeholder:text-subtle outline-none transition-shadow focus:ring-2 focus:ring-brand-400/40 focus:border-brand-400",
+        "w-full rounded-xl border-[3px] border-content bg-surface-solid px-3 py-2 text-sm font-semibold text-content placeholder:text-subtle placeholder:font-normal outline-none transition-all focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[3px_3px_0_var(--line)]",
         className
       )}
       {...props}
@@ -133,13 +134,13 @@ export function Checkbox({
   return (
     <CheckboxPrimitive.Root
       className={cn(
-        "h-5 w-5 shrink-0 rounded-md border border-line bg-surface-solid data-[state=checked]:bg-brand-500 data-[state=checked]:border-brand-500 flex items-center justify-center transition-colors cursor-pointer",
+        "h-5 w-5 shrink-0 rounded-md border-2 border-content bg-surface-solid data-[state=checked]:bg-theme-500 flex items-center justify-center transition-colors cursor-pointer",
         className
       )}
       {...props}
     >
       <CheckboxPrimitive.Indicator>
-        <Check className="h-3.5 w-3.5 text-white" strokeWidth={3} />
+        <Check className="h-3.5 w-3.5 text-white" strokeWidth={3.5} />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   );
@@ -149,12 +150,12 @@ export function Switch({ className, ...props }: React.ComponentProps<typeof Swit
   return (
     <SwitchPrimitive.Root
       className={cn(
-        "w-10 h-6 rounded-full bg-content/15 data-[state=checked]:bg-brand-500 relative transition-colors cursor-pointer outline-none",
+        "w-10 h-6 rounded-full border-2 border-content bg-surface-solid data-[state=checked]:bg-theme-500 relative transition-colors cursor-pointer outline-none",
         className
       )}
       {...props}
     >
-      <SwitchPrimitive.Thumb className="block h-5 w-5 translate-x-0.5 rounded-full bg-white shadow-sm transition-transform data-[state=checked]:translate-x-[18px]" />
+      <SwitchPrimitive.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full border-2 border-content bg-surface-solid transition-transform data-[state=checked]:translate-x-[17px] data-[state=checked]:bg-white" />
     </SwitchPrimitive.Root>
   );
 }
@@ -176,7 +177,7 @@ export function Select({
     <SelectPrimitive.Root value={value} onValueChange={onValueChange}>
       <SelectPrimitive.Trigger
         className={cn(
-          "h-10 w-full inline-flex items-center justify-between gap-2 rounded-xl border border-line bg-surface-solid px-3 text-sm text-content outline-none focus:ring-2 focus:ring-brand-400/40 cursor-pointer",
+          "h-10 w-full inline-flex items-center justify-between gap-2 rounded-xl border-[3px] border-content bg-surface-solid px-3 text-sm font-semibold text-content outline-none cursor-pointer transition-all focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[3px_3px_0_var(--line)]",
           className
         )}
       >
@@ -186,13 +187,13 @@ export function Select({
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal>
-        <SelectPrimitive.Content className="overflow-hidden rounded-xl border border-line bg-surface-solid text-content shadow-lifted z-50">
+        <SelectPrimitive.Content className="overflow-hidden rounded-xl border-[3px] border-content bg-surface-solid text-content shadow-[6px_6px_0_var(--line)] z-50">
           <SelectPrimitive.Viewport className="p-1">
             {options.map((opt) => (
               <SelectPrimitive.Item
                 key={opt.value}
                 value={opt.value}
-                className="relative flex items-center rounded-lg px-3 py-2 text-sm outline-none cursor-pointer data-[highlighted]:bg-brand-500/10 data-[state=checked]:font-semibold"
+                className="relative flex items-center rounded-lg px-3 py-2 text-sm font-semibold outline-none cursor-pointer data-[highlighted]:bg-brand-200 data-[state=checked]:font-extrabold"
               >
                 <SelectPrimitive.ItemText>{opt.label}</SelectPrimitive.ItemText>
               </SelectPrimitive.Item>
@@ -214,9 +215,9 @@ export function EmptyState({
   description?: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line bg-surface py-12 text-center">
+    <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border-[3px] border-dashed border-content bg-surface-solid py-12 text-center">
       {icon && <div className="text-3xl mb-1 opacity-70">{icon}</div>}
-      <p className="font-medium text-content">{title}</p>
+      <p className="font-bold text-content">{title}</p>
       {description && <p className="text-sm text-muted max-w-sm">{description}</p>}
     </div>
   );

@@ -28,36 +28,27 @@ export function Header({ meta }: { meta: Meta }) {
   });
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Hero */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-500 via-brand-600 to-brand-800 px-8 py-8 text-white shadow-lifted">
+      <div className="relative overflow-hidden rounded-3xl border-[3px] border-content bg-theme-200 px-8 py-8 shadow-[8px_8px_0_var(--line)]">
         <div
-          className="pointer-events-none absolute -right-10 -top-16 h-56 w-56 rounded-full bg-white/10 blur-2xl animate-float"
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute -bottom-16 left-1/3 h-48 w-48 rounded-full bg-veg-500/20 blur-3xl animate-float"
-          style={{ animationDelay: "-2s" }}
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.06]"
+          className="pointer-events-none absolute inset-0 opacity-[0.15]"
           style={{
             backgroundImage:
-              "radial-gradient(circle, white 1px, transparent 1px)",
-            backgroundSize: "18px 18px",
+              "radial-gradient(circle at 1px 1px, var(--content) 1.4px, transparent 0)",
+            backgroundSize: "20px 20px",
           }}
           aria-hidden
         />
         <div className="relative flex items-center gap-5">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15 text-4xl shadow-inner ring-1 ring-white/25 backdrop-blur">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-[3px] border-content bg-surface-solid text-4xl shadow-[4px_4px_0_var(--line)]">
             🛒
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight drop-shadow-sm sm:text-3xl">
-              Grocery &amp; Vegetable Tracker
+            <h1 className="font-display text-2xl text-content sm:text-3xl">
+              Pantry Pilot
             </h1>
-            <p className="mt-1 text-brand-50/90">
+            <p className="mt-1 font-semibold text-content/80">
               Snap a photo, name it, and keep track of what's left in the house.
             </p>
           </div>
@@ -65,43 +56,40 @@ export function Header({ meta }: { meta: Meta }) {
       </div>
 
       {summary?.total_rows === 0 && (
-        <Card className="p-4 text-sm text-brand-800 bg-brand-50 border-brand-200">
+        <Card className="p-4 text-sm font-semibold text-content bg-theme-200">
           👋 <strong>Welcome!</strong> Your inventory is empty. Head to the{" "}
           <strong>Add Items</strong> tab to snap a photo, take a picture, or scan a receipt.
         </Card>
       )}
 
       {/* Metrics */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <Card interactive className="p-4">
-          <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500/15 text-lg ring-1 ring-brand-500/25">
+      <div className="flex flex-wrap gap-4">
+        <Card interactive className="min-w-[150px] flex-1 p-4">
+          <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl border-2 border-content bg-theme-200 text-lg">
             📦
           </div>
-          <p className="text-xs font-medium text-muted">Total Items</p>
-          <p className="mt-0.5 text-2xl font-extrabold text-brand-600 dark:text-brand-300">{summary?.total_rows ?? "–"}</p>
+          <p className="text-xs font-bold text-muted">Total Items</p>
+          <p className="mt-0.5 text-2xl font-display text-content">{summary?.total_rows ?? "–"}</p>
         </Card>
-        <Card interactive className="p-4">
-          <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500/15 text-lg ring-1 ring-orange-500/25">
+        <Card interactive className="min-w-[150px] flex-1 p-4">
+          <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl border-2 border-content bg-veg-200 text-lg">
             ⚠️
           </div>
-          <p className="text-xs font-medium text-muted">Low Stock</p>
-          <p className="mt-0.5 text-2xl font-extrabold text-orange-600 dark:text-orange-400">
+          <p className="text-xs font-bold text-muted">Low Stock</p>
+          <p className="mt-0.5 text-2xl font-display text-content">
             {summary?.low_stock_items.length ?? "–"}
           </p>
         </Card>
         {meta.categories.map((cat) => (
-          <Card key={cat} interactive className="p-4">
+          <Card key={cat} interactive className="min-w-[150px] flex-1 p-4">
             <div
-              className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl text-lg ring-1"
-              style={{
-                backgroundColor: `${meta.palette[cat]}22`,
-                boxShadow: `inset 0 0 0 1px ${meta.palette[cat]}40`,
-              }}
+              className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl border-2 border-content text-lg"
+              style={{ backgroundColor: `${meta.palette[cat]}55` }}
             >
               {meta.icons[cat]}
             </div>
-            <p className="text-xs font-medium text-muted">{cat}</p>
-            <p className="mt-0.5 text-2xl font-extrabold" style={{ color: meta.palette[cat] }}>
+            <p className="text-xs font-bold text-muted">{cat}</p>
+            <p className="mt-0.5 text-2xl font-display" style={{ color: meta.palette[cat] }}>
               {summary ? formatQuantity(summary.category_totals[cat] ?? 0, meta.units[cat]) : "–"}
             </p>
           </Card>
@@ -111,20 +99,20 @@ export function Header({ meta }: { meta: Meta }) {
       {/* Favorites quick-add */}
       {favorites && favorites.length > 0 && (
         <div>
-          <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-content">
+          <h3 className="mb-3 flex items-center gap-1.5 text-sm font-bold text-content">
             <Star className="h-4 w-4 fill-amber-400 text-amber-400" /> Quick Add Favorites
           </h3>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2.5">
             {favorites.map((fav) => (
               <div
                 key={fav.id}
-                className="glass card-hover group flex items-center gap-1 rounded-full pl-1 pr-1.5 py-1 shadow-soft hover:shadow-medium hover:border-brand-300/60"
+                className="glass card-hover group flex items-center gap-1 rounded-full pl-1 pr-1.5 py-1 shadow-[3px_3px_0_var(--line)] hover:shadow-[4px_4px_0_var(--line)]"
               >
                 <button
                   onClick={() => quickAdd.mutate(fav.id)}
-                  className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-semibold text-content hover:text-brand-500 cursor-pointer"
+                  className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-bold text-content cursor-pointer"
                 >
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-xs text-white">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-content bg-brand-400 text-xs text-white">
                     +
                   </span>
                   {meta.icons[fav.category]} {fav.title}
@@ -143,10 +131,10 @@ export function Header({ meta }: { meta: Meta }) {
 
       {/* Alerts */}
       {summary && (summary.low_stock_items.length > 0 || summary.expiring_items.length > 0) && (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2">
           {summary.low_stock_items.length > 0 && (
-            <Card className="overflow-hidden border-l-4 border-l-orange-400 p-4">
-              <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-orange-600">
+            <Card className="overflow-hidden p-4">
+              <h3 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-content">
                 <AlertTriangle className="h-4 w-4" /> Low stock ({summary.low_stock_items.length})
               </h3>
               <ul className="space-y-1 text-sm text-muted">
@@ -164,8 +152,8 @@ export function Header({ meta }: { meta: Meta }) {
             </Card>
           )}
           {summary.expiring_items.length > 0 && (
-            <Card className="overflow-hidden border-l-4 border-l-red-400 p-4">
-              <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-red-500">
+            <Card className="overflow-hidden p-4">
+              <h3 className="mb-2 flex items-center gap-1.5 text-sm font-bold text-content">
                 <Clock className="h-4 w-4" /> Expiring soon / expired ({summary.expiring_items.length})
               </h3>
               <ul className="space-y-1 text-sm text-muted">
