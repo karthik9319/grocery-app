@@ -1,5 +1,6 @@
 """SQLite-backed storage for grocery/vegetable inventory items."""
 import sqlite3
+import uuid as uuid_lib
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -64,6 +65,7 @@ def init_db() -> None:
         _migrate_add_notes_column(conn)
         _migrate_add_custom_threshold_column(conn)
         _migrate_add_expiration_column(conn)
+        _migrate_add_uuid_column(conn)
 
 
 def _migrate_legacy_category_check(conn: sqlite3.Connection) -> None:
@@ -118,6 +120,24 @@ def _migrate_add_expiration_column(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE items ADD COLUMN expiration_date TEXT")
         conn.commit()
 
+def _migrate_add_uuid_column(conn: sqlite3.Connection) -> None:
+    """Older DBs don't have a stable uuid per item - add it, backfill existing rows with
+    a random unique value (so pre-existing items get a permanent identity too), then
+    enforce uniqueness so CSV re-imports can reliably dedupe by uuid."""
+    cols = [row["name"] for row in conn.execute("PRAGMA table_info(items)").fetchall()]
+    if "uuid" not in cols:
+        conn.execute("ALTER TABLE items ADD COLUMN uuid TEXT")
+        conn.execute(
+            """
+            UPDATE items SET uuid = (
+                lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' ||
+                hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(6)))
+            ) WHERE uuid IS NULL
+            """
+        )
+        conn.commit()
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_items_uuid ON items(uuid)")
+    conn.commit()
 
 @contextmanager
 def get_connection():
@@ -137,11 +157,12 @@ def add_item(
     notes: Optional[str] = None,
     custom_threshold: Optional[float] = None,
     expiration_date: Optional[str] = None,
+    item_uuid: Optional[str] = None,
 ) -> None:
     with get_connection() as conn:
         conn.execute(
             "INSERT INTO items (title, category, quantity, image_path, notes, "
-            "custom_threshold, expiration_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "custom_threshold, expiration_date, uuid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 title.strip(),
                 category,
@@ -150,6 +171,7 @@ def add_item(
                 notes,
                 custom_threshold,
                 expiration_date,
+                item_uuid or str(uuid_lib.uuid4()),
                 datetime.now().isoformat(),
             ),
         )
@@ -164,6 +186,32 @@ def find_item_by_title(title: str, category: str):
             (title.strip(), category),
         ).fetchone()
         return dict(row) if row else None
+
+
+def find_item_by_uuid(item_uuid: str):
+    """Return an existing item with this uuid, if any - used by CSV import to skip rows
+    that were already imported/exported before, rather than merging/overwriting by title."""
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM items WHERE uuid = ? LIMIT 1", (item_uuid,)).fetchone()
+        return dict(row) if row else None
+
+
+def backfill_missing_uuids() -> int:
+    """Defensive safety net: ensure every item has a uuid, in case any row ever slips
+    through without one (the startup migration already backfills old rows once, but this
+    can be called again any time - e.g. right before a CSV export - to guarantee nothing
+    exports with a blank uuid). Returns how many rows were backfilled."""
+    with get_connection() as conn:
+        cur = conn.execute(
+            """
+            UPDATE items SET uuid = (
+                lower(hex(randomblob(4)) || '-' || hex(randomblob(2)) || '-' ||
+                hex(randomblob(2)) || '-' || hex(randomblob(2)) || '-' || hex(randomblob(6)))
+            ) WHERE uuid IS NULL OR uuid = ''
+            """
+        )
+        conn.commit()
+        return cur.rowcount
 
 
 def get_items_by_category(category: str):

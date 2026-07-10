@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, PlusCircle, ShoppingBag } from "lucide-react";
+import { BarChart3, PlusCircle, Search, ShoppingBag } from "lucide-react";
 import { api } from "@/lib/api";
 import { Header } from "@/components/Header";
 import { AddItemsTab } from "@/components/AddItemsTab";
 import { CategoryView } from "@/components/CategoryView";
+import { GlobalSearchTab } from "@/components/GlobalSearchTab";
 import { ShoppingListTab } from "@/components/ShoppingListTab";
 import { ChartsTab } from "@/components/ChartsTab";
 import { SettingsSidebar } from "@/components/SettingsSidebar";
@@ -48,6 +49,12 @@ function App() {
       label: "Add Items",
       icon: <PlusCircle className="h-[18px] w-[18px]" />,
       accent: "var(--theme-500)",
+    },
+    {
+      value: "search",
+      label: "Search",
+      icon: <Search className="h-[18px] w-[18px]" />,
+      accent: "var(--theme-600)",
     },
     ...meta.categories.map((c) => ({
       value: c,
@@ -177,6 +184,7 @@ function App() {
             </h2>
             <p className="text-xs font-semibold text-subtle">
               {active === "add-items" && "Snap a photo or scan a receipt to stock up"}
+              {active === "search" && "Find any item across every category"}
               {active === "shopping" && "Plan your next grocery run"}
               {active === "charts" && "Insights across your inventory"}
               {meta.categories.includes(active) && `Everything in your ${active.toLowerCase()}`}
@@ -186,6 +194,7 @@ function App() {
 
         <div className="animate-fade-in">
           {active === "add-items" && <AddItemsTab meta={meta} />}
+          {active === "search" && <GlobalSearchTab meta={meta} />}
           {meta.categories.map(
             (c) => active === c && <CategoryView key={c} category={c} meta={meta} />
           )}

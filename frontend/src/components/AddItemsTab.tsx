@@ -7,6 +7,7 @@ import type { Meta } from "@/types";
 import { titleCase } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/Tabs";
 import { Button, Card, Checkbox, Input, Select } from "@/components/ui";
+import { TitleAutocomplete } from "@/components/TitleAutocomplete";
 
 type DraftEntry = {
   id: string;
@@ -146,11 +147,19 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
         <Card key={draft.id} className="flex gap-4 p-4">
           <img src={draft.previewUrl} className="h-24 w-24 shrink-0 rounded-xl object-cover" />
           <div className="grid flex-1 gap-3 sm:grid-cols-2">
-            <Input
+            <TitleAutocomplete
               placeholder="e.g. Apples, Milk, Shampoo"
               value={draft.title}
-              onChange={(e) => updateDraft(draft.id, { title: e.target.value })}
+              onChange={(title) => updateDraft(draft.id, { title })}
               onBlur={() => updateDraft(draft.id, { title: titleCase(draft.title) })}
+              onSelectSuggestion={(s) =>
+                updateDraft(draft.id, {
+                  title: s.title,
+                  category: s.category,
+                  unit: meta.units[s.category] === "g" ? "g" : "count",
+                  quantity: meta.units[s.category] === "g" ? 500 : 1,
+                })
+              }
             />
             <Select
               value={draft.category}

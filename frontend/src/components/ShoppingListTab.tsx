@@ -5,7 +5,8 @@ import { RefreshCw, X } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Meta } from "@/types";
 import { titleCase } from "@/lib/utils";
-import { Button, Card, Checkbox, EmptyState, Input, Select } from "@/components/ui";
+import { Button, Card, Checkbox, EmptyState, Select } from "@/components/ui";
+import { TitleAutocomplete } from "@/components/TitleAutocomplete";
 
 export function ShoppingListTab({ meta }: { meta: Meta }) {
   const queryClient = useQueryClient();
@@ -72,11 +73,15 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
             if (newTitle.trim()) addItem.mutate();
           }}
         >
-          <Input
+          <TitleAutocomplete
             placeholder="e.g. Paper towels"
             value={newTitle}
-            onChange={(e) => setNewTitle(e.target.value)}
+            onChange={setNewTitle}
             onBlur={() => setNewTitle((t) => titleCase(t))}
+            onSelectSuggestion={(s) => {
+              setNewTitle(s.title);
+              setNewCategory(s.category);
+            }}
             className="flex-1"
           />
           <Select

@@ -1,49 +1,20 @@
 import { useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Search, X } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
-import type { Item, Meta } from "@/types";
+import type { Meta } from "@/types";
 import { ItemCard, useUndoableDelete } from "@/components/ItemCard";
-import { EmptyState, Input, Select, Switch } from "@/components/ui";
-
-const SORT_OPTIONS = [
-  { value: "newest", label: "Newest first" },
-  { value: "oldest", label: "Oldest first" },
-  { value: "name-asc", label: "Name (A-Z)" },
-  { value: "name-desc", label: "Name (Z-A)" },
-  { value: "qty-desc", label: "Quantity (high to low)" },
-  { value: "qty-asc", label: "Quantity (low to high)" },
-  { value: "expiring", label: "Expiring soonest" },
-];
-
-function sortItems(items: Item[], sort: string): Item[] {
-  const copy = [...items];
-  switch (sort) {
-    case "newest":
-      return copy.sort((a, b) => b.created_at.localeCompare(a.created_at));
-    case "oldest":
-      return copy.sort((a, b) => a.created_at.localeCompare(b.created_at));
-    case "name-asc":
-      return copy.sort((a, b) => a.title.localeCompare(b.title));
-    case "name-desc":
-      return copy.sort((a, b) => b.title.localeCompare(a.title));
-    case "qty-desc":
-      return copy.sort((a, b) => b.quantity - a.quantity);
-    case "qty-asc":
-      return copy.sort((a, b) => a.quantity - b.quantity);
-    case "expiring":
-      return copy.sort((a, b) => (a.expiration_date ?? "9999-99-99").localeCompare(
-        b.expiration_date ?? "9999-99-99"
-      ));
-    default:
-      return copy;
-  }
-}
+import { EmptyState, Button, Input, Select, Switch } from "@/components/ui";
+import { SORT_OPTIONS, sortItems } from "@/lib/utils";
 
 export function CategoryView({ category, meta }: { category: string; meta: Meta }) {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("newest");
   const [lowOnly, setLowOnly] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkTargetCategory, setBulkTargetCategory] = useState(category);
   const queryClient = useQueryClient();
   const notifyDeleted = useUndoableDelete();
 
@@ -67,6 +38,62 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
     return sortItems(result, sort);
   }, [items, search, lowOnly, sort, threshold]);
 
+  function toggleId(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }
+
+  const invalidateAfterBulk = () => {
+    queryClient.invalidateQueries({ queryKey: ["items"] });
+    queryClient.invalidateQueries({ queryKey: ["summary"] });
+    queryClient.invalidateQueries({ queryKey: ["charts"] });
+  };
+
+  const bulkDelete = useMutation({
+    mutationFn: async () => {
+      await Promise.all(Array.from(selectedIds).map((id) => api.deleteItem(id)));
+    },
+    onSuccess: () => {
+      toast.success(`Deleted ${selectedIds.size} item(s)`);
+      invalidateAfterBulk();
+      exitSelectMode();
+    },
+  });
+
+  const bulkMove = useMutation({
+    mutationFn: async () => {
+      const byId = new Map((items ?? []).map((i) => [i.id, i]));
+      await Promise.all(
+        Array.from(selectedIds).map((id) => {
+          const item = byId.get(id);
+          if (!item) return Promise.resolve();
+          return api.updateItem(id, {
+            title: item.title,
+            category: bulkTargetCategory,
+            quantity: item.quantity,
+            notes: item.notes ?? undefined,
+            custom_threshold: item.custom_threshold,
+            expiration_date: item.expiration_date,
+          });
+        })
+      );
+    },
+    onSuccess: () => {
+      toast.success(`Moved ${selectedIds.size} item(s) to ${bulkTargetCategory}`);
+      invalidateAfterBulk();
+      exitSelectMode();
+    },
+  });
+
   return (
     <div className="space-y-5">
       <div className="glass flex flex-col gap-3 rounded-2xl p-4 shadow-[4px_4px_0_var(--line)] sm:flex-row sm:items-center">
@@ -80,11 +107,55 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
           />
         </div>
         <Select value={sort} onValueChange={setSort} options={SORT_OPTIONS} className="sm:max-w-[200px]" />
-        <label className="flex items-center gap-2 text-sm font-medium text-muted sm:ml-auto">
+        <label className="flex items-center gap-2 text-sm font-medium text-muted">
           <Switch checked={lowOnly} onCheckedChange={(v) => setLowOnly(v === true)} />
           Low stock only
         </label>
+        <Button
+          variant={selectMode ? "default" : "outline"}
+          size="sm"
+          className="sm:ml-auto"
+          onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+        >
+          {selectMode ? "Cancel" : "Select"}
+        </Button>
       </div>
+
+      {selectMode && (
+        <div className="glass flex flex-wrap items-center gap-3 rounded-2xl p-3 shadow-[4px_4px_0_var(--line)]">
+          <span className="text-sm font-bold text-content">
+            {selectedIds.size} selected
+          </span>
+          <Select
+            value={bulkTargetCategory}
+            onValueChange={setBulkTargetCategory}
+            options={meta.categories.map((c) => ({ value: c, label: `${meta.icons[c]} ${c}` }))}
+            className="w-44"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={selectedIds.size === 0 || bulkMove.isPending}
+            onClick={() => bulkMove.mutate()}
+          >
+            Move to category
+          </Button>
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={selectedIds.size === 0 || bulkDelete.isPending}
+            onClick={() => bulkDelete.mutate()}
+          >
+            Delete selected
+          </Button>
+          <button
+            onClick={exitSelectMode}
+            className="ml-auto rounded-full p-1 text-subtle hover:bg-red-500/10 hover:text-red-500 cursor-pointer"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {isLoading && <p className="text-sm text-subtle">Loading...</p>}
 
@@ -103,6 +174,9 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
             item={item}
             meta={meta}
             threshold={item.custom_threshold ?? threshold}
+            selectable={selectMode}
+            selected={selectedIds.has(item.id)}
+            onToggleSelect={toggleId}
             onDeleted={(deleted) => {
               notifyDeleted(deleted);
               queryClient.invalidateQueries({ queryKey: ["items"] });

@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { titleCase } from "@/lib/utils";
 import { Dialog, DialogContent } from "@/components/Dialog";
 import { Button, Checkbox, Input, Label, Select, Textarea } from "@/components/ui";
+import { TitleAutocomplete } from "@/components/TitleAutocomplete";
 
 export function EditItemDialog({
   item,
@@ -67,10 +68,14 @@ export function EditItemDialog({
         <div className="space-y-4">
           <div>
             <Label>Title</Label>
-            <Input
+            <TitleAutocomplete
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={setTitle}
               onBlur={() => setTitle((t) => titleCase(t))}
+              onSelectSuggestion={(s) => {
+                setTitle(s.title);
+                setCategory(s.category);
+              }}
             />
           </div>
 

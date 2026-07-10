@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import type { Item } from "@/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -44,5 +45,39 @@ export function titleCase(input: string): string {
         .join("-")
     )
     .join(" ");
+}
+
+export const SORT_OPTIONS = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "name-asc", label: "Name (A-Z)" },
+  { value: "name-desc", label: "Name (Z-A)" },
+  { value: "qty-desc", label: "Quantity (high to low)" },
+  { value: "qty-asc", label: "Quantity (low to high)" },
+  { value: "expiring", label: "Expiring soonest" },
+];
+
+export function sortItems(items: Item[], sort: string): Item[] {
+  const copy = [...items];
+  switch (sort) {
+    case "newest":
+      return copy.sort((a, b) => b.created_at.localeCompare(a.created_at));
+    case "oldest":
+      return copy.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    case "name-asc":
+      return copy.sort((a, b) => a.title.localeCompare(b.title));
+    case "name-desc":
+      return copy.sort((a, b) => b.title.localeCompare(a.title));
+    case "qty-desc":
+      return copy.sort((a, b) => b.quantity - a.quantity);
+    case "qty-asc":
+      return copy.sort((a, b) => a.quantity - b.quantity);
+    case "expiring":
+      return copy.sort((a, b) =>
+        (a.expiration_date ?? "9999-99-99").localeCompare(b.expiration_date ?? "9999-99-99")
+      );
+    default:
+      return copy;
+  }
 }
 

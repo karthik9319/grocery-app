@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import type { Item, Meta } from "@/types";
 import { api } from "@/lib/api";
 import { daysUntil, formatQuantity, imageUrl } from "@/lib/utils";
-import { Badge, Card } from "@/components/ui";
+import { Badge, Card, Checkbox } from "@/components/ui";
 import { EditItemDialog } from "@/components/EditItemDialog";
 
 export function ItemCard({
@@ -13,11 +13,17 @@ export function ItemCard({
   meta,
   threshold,
   onDeleted,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
 }: {
   item: Item;
   meta: Meta;
   threshold: number;
   onDeleted: (item: Item) => void;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: number) => void;
 }) {
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
@@ -50,7 +56,16 @@ export function ItemCard({
     <Card
       interactive
       className="flex flex-wrap items-center gap-4 overflow-hidden p-4 animate-fade-in"
+      onClick={selectable ? () => onToggleSelect?.(item.id) : undefined}
     >
+      {selectable && (
+        <Checkbox
+          checked={selected}
+          onCheckedChange={() => onToggleSelect?.(item.id)}
+          onClick={(e) => e.stopPropagation()}
+          className="shrink-0"
+        />
+      )}
       <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 border-content">
         {img ? (
           <img src={img} alt={item.title} className="h-full w-full object-cover" />
@@ -92,45 +107,51 @@ export function ItemCard({
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
-        <button
-          onClick={() => qtyMutation.mutate(Math.max(0, item.quantity - step))}
-          className="h-8 w-8 rounded-lg border-2 border-content font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
-        >
-          −
-        </button>
-        <input
-          type="number"
-          value={item.quantity}
-          onChange={(e) => {
-            const v = parseFloat(e.target.value);
-            if (!Number.isNaN(v)) qtyMutation.mutate(v);
-          }}
-          className="h-8 w-16 rounded-lg border-2 border-content bg-surface-solid text-center text-sm font-bold text-content outline-none"
-        />
-        <button
-          onClick={() => qtyMutation.mutate(item.quantity + step)}
-          className="h-8 w-8 rounded-lg border-2 border-content font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
-        >
-          +
-        </button>
+        {!selectable && (
+          <>
+            <button
+              onClick={() => qtyMutation.mutate(Math.max(0, item.quantity - step))}
+              className="h-8 w-8 rounded-lg border-2 border-content font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
+            >
+              −
+            </button>
+            <input
+              type="number"
+              value={item.quantity}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value);
+                if (!Number.isNaN(v)) qtyMutation.mutate(v);
+              }}
+              className="h-8 w-16 rounded-lg border-2 border-content bg-surface-solid text-center text-sm font-bold text-content outline-none"
+            />
+            <button
+              onClick={() => qtyMutation.mutate(item.quantity + step)}
+              className="h-8 w-8 rounded-lg border-2 border-content font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
+            >
+              +
+            </button>
+          </>
+        )}
       </div>
 
-      <div className="flex shrink-0 gap-1">
-        <button
-          onClick={() => setEditOpen(true)}
-          className="h-9 w-9 flex items-center justify-center rounded-xl border-2 border-content text-content hover:bg-theme-200 cursor-pointer transition-colors"
-        >
-          <Pencil className="h-4 w-4" />
-        </button>
-        <button
-          onClick={() => {
-            deleteMutation.mutate();
-          }}
-          className="h-9 w-9 flex items-center justify-center rounded-xl border-2 border-content text-content hover:bg-red-400 hover:text-white cursor-pointer transition-colors"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
-      </div>
+      {!selectable && (
+        <div className="flex shrink-0 gap-1">
+          <button
+            onClick={() => setEditOpen(true)}
+            className="h-9 w-9 flex items-center justify-center rounded-xl border-2 border-content text-content hover:bg-theme-200 cursor-pointer transition-colors"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => {
+              deleteMutation.mutate();
+            }}
+            className="h-9 w-9 flex items-center justify-center rounded-xl border-2 border-content text-content hover:bg-red-400 hover:text-white cursor-pointer transition-colors"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       <EditItemDialog item={item} meta={meta} open={editOpen} onOpenChange={setEditOpen} />
     </Card>

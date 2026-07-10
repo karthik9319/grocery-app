@@ -1,5 +1,6 @@
 export interface Item {
   id: number;
+  uuid: string;
   title: string;
   category: string;
   quantity: number;
@@ -51,6 +52,11 @@ export interface ShoppingListItem {
 }
 
 export interface ReceiptCandidate {
+  title: string;
+  category: string;
+}
+
+export interface Suggestion {
   title: string;
   category: string;
 }

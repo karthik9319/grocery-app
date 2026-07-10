@@ -150,6 +150,27 @@ def list_items(category: Optional[str] = None):
     return [item for cat in CATEGORIES for item in inventory.get_items_by_category(cat)]
 
 
+@app.get("/api/suggestions")
+def get_suggestions(q: str = ""):
+    """Title autocomplete: merges existing inventory titles with the COMMON_ITEMS keyword
+    list, so both "things you already track" and "common groceries" show up, each paired
+    with a guessed category to auto-fill the Add Item form."""
+    q_lower = q.strip().lower()
+    if not q_lower:
+        return []
+    pool: dict[str, dict] = {}
+    for cat in CATEGORIES:
+        for item in inventory.get_items_by_category(cat):
+            key = item["title"].lower()
+            pool.setdefault(key, {"title": item["title"], "category": item["category"]})
+    for keyword, (cat, _) in COMMON_ITEMS.items():
+        pool.setdefault(keyword, {"title": keyword.title(), "category": cat})
+
+    starts = [v for k, v in pool.items() if k.startswith(q_lower)]
+    contains = [v for k, v in pool.items() if q_lower in k and not k.startswith(q_lower)]
+    return (starts + contains)[:8]
+
+
 @app.post("/api/items")
 def create_item(
     title: str = Form(...),
@@ -235,6 +256,7 @@ def restore_item(item: dict):
         item.get("notes"),
         item.get("custom_threshold"),
         item.get("expiration_date"),
+        item.get("uuid"),
     )
     return {"status": "restored"}
 
@@ -379,13 +401,14 @@ def chart_added_over_time(category: str):
 # --- Export ---
 @app.get("/api/export/csv", response_class=PlainTextResponse)
 def export_csv():
+    inventory.backfill_missing_uuids()
     all_items = [item for cat in CATEGORIES for item in inventory.get_items_by_category(cat)]
-    lines = ["title,category,quantity,unit,notes,expiration_date,created_at"]
+    lines = ["uuid,title,category,quantity,unit,notes,expiration_date,created_at"]
     for item in all_items:
         unit = CATEGORY_UNITS[item["category"]]
         notes = (item.get("notes") or "").replace(",", ";")
         lines.append(
-            f"{item['title']},{item['category']},{item['quantity']},{unit},"
+            f"{item.get('uuid') or ''},{item['title']},{item['category']},{item['quantity']},{unit},"
             f"{notes},{item.get('expiration_date') or ''},{item['created_at']}"
         )
     return "\n".join(lines)
@@ -394,15 +417,17 @@ def export_csv():
 # --- Import ---
 @app.post("/api/import/csv")
 async def import_csv(file: UploadFile = File(...), mode: str = Form("merge")):
-    """Bulk-import items from a previously exported CSV (title,category,quantity,unit,
+    """Bulk-import items from a previously exported CSV (uuid,title,category,quantity,unit,
     notes,expiration_date,created_at - only title/category/quantity are required, extra/
-    missing columns are tolerated). Matches existing items by case-insensitive
-    title+category (same rule used by the regular add-item form); on a match, `mode`
-    controls what happens: "merge" (default) adds the CSV quantity onto the existing
-    quantity (same convention as the regular add-item/receipt-scan flows), "overwrite"
-    replaces the existing quantity with the CSV's value instead (useful for restoring an
-    exact snapshot without doubling counts on repeat imports). Items with no match are
-    always inserted as new rows either way.
+    missing columns are tolerated). Each row's `uuid` (if present and already in the
+    database - i.e. this row was exported from here before) is ALWAYS skipped, regardless
+    of `mode` - this is what makes re-importing the same backup idempotent. Rows with no
+    uuid, or a uuid not seen before, fall back to matching by case-insensitive
+    title+category (same rule used by the regular add-item form): on a match, `mode`
+    controls what happens - "merge" (default) adds the CSV quantity onto the existing
+    quantity, "overwrite" replaces the existing quantity with the CSV's value instead.
+    Items with no match are always inserted as new rows (keeping the CSV's uuid, if any,
+    so a later re-import of the same file will then correctly skip them).
     """
     if mode not in ("merge", "overwrite"):
         raise HTTPException(400, "mode must be 'merge' or 'overwrite'.")
@@ -423,6 +448,12 @@ async def import_csv(file: UploadFile = File(...), mode: str = Form("merge")):
     for row in reader:
         title = (row.get("title") or "").strip()
         if not title:
+            skipped += 1
+            continue
+
+        row_uuid = (row.get("uuid") or "").strip() or None
+        if row_uuid and inventory.find_item_by_uuid(row_uuid):
+            # Already imported (or originally created) here before - never re-add/merge it.
             skipped += 1
             continue
 
@@ -454,7 +485,7 @@ async def import_csv(file: UploadFile = File(...), mode: str = Form("merge")):
             )
             merged += 1
         else:
-            inventory.add_item(title, category, quantity, None, notes, None, expiration_date)
+            inventory.add_item(title, category, quantity, None, notes, None, expiration_date, row_uuid)
             added += 1
 
     return {"added": added, "merged": merged, "skipped": skipped}

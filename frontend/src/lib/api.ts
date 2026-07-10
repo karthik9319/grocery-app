@@ -6,6 +6,7 @@ import type {
   ReceiptCandidate,
   Settings,
   ShoppingListItem,
+  Suggestion,
   Summary,
 } from "@/types";
 
@@ -28,6 +29,9 @@ export const api = {
     client
       .get<Item[]>("/items", { params: category ? { category } : {} })
       .then((r) => r.data),
+
+  suggestTitles: (q: string) =>
+    client.get<Suggestion[]>("/suggestions", { params: { q } }).then((r) => r.data),
 
   createItem: (data: {
     title: string;
