@@ -69,9 +69,9 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 rounded-2xl border border-neutral-200/60 bg-white/70 p-3 shadow-soft backdrop-blur sm:flex-row sm:items-center">
+      <div className="glass flex flex-col gap-3 rounded-2xl p-3 shadow-soft sm:flex-row sm:items-center">
         <div className="relative sm:max-w-xs sm:flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
           <Input
             placeholder="Filter by name..."
             value={search}
@@ -80,13 +80,13 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
           />
         </div>
         <Select value={sort} onValueChange={setSort} options={SORT_OPTIONS} className="sm:max-w-[200px]" />
-        <label className="flex items-center gap-2 text-sm font-medium text-neutral-600 sm:ml-auto">
+        <label className="flex items-center gap-2 text-sm font-medium text-muted sm:ml-auto">
           <Switch checked={lowOnly} onCheckedChange={(v) => setLowOnly(v === true)} />
           Low stock only
         </label>
       </div>
 
-      {isLoading && <p className="text-sm text-neutral-400">Loading...</p>}
+      {isLoading && <p className="text-sm text-subtle">Loading...</p>}
 
       {!isLoading && filtered.length === 0 && (
         <EmptyState

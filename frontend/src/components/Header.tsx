@@ -74,18 +74,18 @@ export function Header({ meta }: { meta: Meta }) {
       {/* Metrics */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Card interactive className="p-4">
-          <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-lg ring-1 ring-brand-100">
+          <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-brand-500/15 text-lg ring-1 ring-brand-500/25">
             📦
           </div>
-          <p className="text-xs font-medium text-neutral-400">Total Items</p>
-          <p className="mt-0.5 text-2xl font-extrabold text-brand-700">{summary?.total_rows ?? "–"}</p>
+          <p className="text-xs font-medium text-muted">Total Items</p>
+          <p className="mt-0.5 text-2xl font-extrabold text-brand-600 dark:text-brand-300">{summary?.total_rows ?? "–"}</p>
         </Card>
         <Card interactive className="p-4">
-          <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-orange-50 text-lg ring-1 ring-orange-100">
+          <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500/15 text-lg ring-1 ring-orange-500/25">
             ⚠️
           </div>
-          <p className="text-xs font-medium text-neutral-400">Low Stock</p>
-          <p className="mt-0.5 text-2xl font-extrabold text-orange-600">
+          <p className="text-xs font-medium text-muted">Low Stock</p>
+          <p className="mt-0.5 text-2xl font-extrabold text-orange-600 dark:text-orange-400">
             {summary?.low_stock_items.length ?? "–"}
           </p>
         </Card>
@@ -94,13 +94,13 @@ export function Header({ meta }: { meta: Meta }) {
             <div
               className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl text-lg ring-1"
               style={{
-                backgroundColor: `${meta.palette[cat]}18`,
-                boxShadow: `inset 0 0 0 1px ${meta.palette[cat]}30`,
+                backgroundColor: `${meta.palette[cat]}22`,
+                boxShadow: `inset 0 0 0 1px ${meta.palette[cat]}40`,
               }}
             >
               {meta.icons[cat]}
             </div>
-            <p className="text-xs font-medium text-neutral-400">{cat}</p>
+            <p className="text-xs font-medium text-muted">{cat}</p>
             <p className="mt-0.5 text-2xl font-extrabold" style={{ color: meta.palette[cat] }}>
               {summary ? formatQuantity(summary.category_totals[cat] ?? 0, meta.units[cat]) : "–"}
             </p>
@@ -111,27 +111,27 @@ export function Header({ meta }: { meta: Meta }) {
       {/* Favorites quick-add */}
       {favorites && favorites.length > 0 && (
         <div>
-          <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-neutral-600">
+          <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-content">
             <Star className="h-4 w-4 fill-amber-400 text-amber-400" /> Quick Add Favorites
           </h3>
           <div className="flex flex-wrap gap-2">
             {favorites.map((fav) => (
               <div
                 key={fav.id}
-                className="group flex items-center gap-1 rounded-full border border-neutral-200/70 bg-white pl-1 pr-1.5 py-1 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-medium hover:border-brand-200"
+                className="glass card-hover group flex items-center gap-1 rounded-full pl-1 pr-1.5 py-1 shadow-soft hover:shadow-medium hover:border-brand-300/60"
               >
                 <button
                   onClick={() => quickAdd.mutate(fav.id)}
-                  className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-semibold text-neutral-700 hover:text-brand-700 cursor-pointer"
+                  className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-semibold text-content hover:text-brand-500 cursor-pointer"
                 >
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-500 text-xs text-white">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-xs text-white">
                     +
                   </span>
                   {meta.icons[fav.category]} {fav.title}
                 </button>
                 <button
                   onClick={() => removeFav.mutate({ title: fav.title, category: fav.category })}
-                  className="rounded-full p-1 text-neutral-300 opacity-0 group-hover:opacity-100 hover:bg-red-50 hover:text-red-500 cursor-pointer"
+                  className="rounded-full p-1 text-subtle opacity-0 group-hover:opacity-100 hover:bg-red-500/10 hover:text-red-500 cursor-pointer"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -149,7 +149,7 @@ export function Header({ meta }: { meta: Meta }) {
               <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-orange-600">
                 <AlertTriangle className="h-4 w-4" /> Low stock ({summary.low_stock_items.length})
               </h3>
-              <ul className="space-y-1 text-sm text-neutral-600">
+              <ul className="space-y-1 text-sm text-muted">
                 {summary.low_stock_items.map((item) => (
                   <li key={item.id} className="flex items-center justify-between">
                     <span>
@@ -168,7 +168,7 @@ export function Header({ meta }: { meta: Meta }) {
               <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-red-500">
                 <Clock className="h-4 w-4" /> Expiring soon / expired ({summary.expiring_items.length})
               </h3>
-              <ul className="space-y-1 text-sm text-neutral-600">
+              <ul className="space-y-1 text-sm text-muted">
                 {summary.expiring_items.map(({ item, days_left }) => (
                   <li key={item.id} className="flex items-center justify-between">
                     <span>

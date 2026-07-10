@@ -30,10 +30,10 @@ export function SettingsSidebar() {
   return (
     <div className="space-y-1">
       <details className="group rounded-2xl">
-        <summary className="flex cursor-pointer items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-semibold text-neutral-600 hover:bg-neutral-50">
-          <SettingsIcon className="h-[18px] w-[18px] text-neutral-400" />
+        <summary className="flex cursor-pointer items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-semibold text-muted hover:bg-surface">
+          <SettingsIcon className="h-[18px] w-[18px] text-subtle" />
           Settings
-          <ChevronDown className="ml-auto h-4 w-4 text-neutral-400 transition-transform group-open:rotate-180" />
+          <ChevronDown className="ml-auto h-4 w-4 text-subtle transition-transform group-open:rotate-180" />
         </summary>
         <div className="space-y-3 px-3 pb-3 pt-2">
           <div>
@@ -60,8 +60,8 @@ export function SettingsSidebar() {
       </details>
 
       <a href={api.exportCsvUrl()} download="inventory_backup.csv" className="block">
-        <Button variant="ghost" size="sm" className="w-full justify-start px-3 text-neutral-600">
-          <Download className="h-[18px] w-[18px] text-neutral-400" /> Export CSV
+        <Button variant="ghost" size="sm" className="w-full justify-start px-3 text-muted">
+          <Download className="h-[18px] w-[18px] text-subtle" /> Export CSV
         </Button>
       </a>
     </div>

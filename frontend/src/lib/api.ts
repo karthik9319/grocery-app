@@ -140,9 +140,10 @@ export const api = {
       .then((r) => r.data),
 
   exportCsvUrl: () => "/api/export/csv",
-  importCsv: (file: File) => {
+  importCsv: (file: File, mode: "merge" | "overwrite" = "merge") => {
     const form = new FormData();
     form.append("file", file);
+    form.append("mode", mode);
     return client
       .post<{ added: number; merged: number; skipped: number }>("/import/csv", form)
       .then((r) => r.data);

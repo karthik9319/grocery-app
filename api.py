@@ -393,13 +393,20 @@ def export_csv():
 
 # --- Import ---
 @app.post("/api/import/csv")
-async def import_csv(file: UploadFile = File(...)):
+async def import_csv(file: UploadFile = File(...), mode: str = Form("merge")):
     """Bulk-import items from a previously exported CSV (title,category,quantity,unit,
     notes,expiration_date,created_at - only title/category/quantity are required, extra/
-    missing columns are tolerated). Merges into existing items by case-insensitive
-    title+category match (same rule used by the regular add-item form), otherwise
-    inserts a new row.
+    missing columns are tolerated). Matches existing items by case-insensitive
+    title+category (same rule used by the regular add-item form); on a match, `mode`
+    controls what happens: "merge" (default) adds the CSV quantity onto the existing
+    quantity (same convention as the regular add-item/receipt-scan flows), "overwrite"
+    replaces the existing quantity with the CSV's value instead (useful for restoring an
+    exact snapshot without doubling counts on repeat imports). Items with no match are
+    always inserted as new rows either way.
     """
+    if mode not in ("merge", "overwrite"):
+        raise HTTPException(400, "mode must be 'merge' or 'overwrite'.")
+
     raw_bytes = await file.read()
     try:
         text = raw_bytes.decode("utf-8-sig")
@@ -434,7 +441,7 @@ async def import_csv(file: UploadFile = File(...)):
 
         existing = inventory.find_item_by_title(title, category)
         if existing:
-            new_total = existing["quantity"] + quantity
+            new_total = quantity if mode == "overwrite" else existing["quantity"] + quantity
             inventory.update_item(
                 existing["id"],
                 existing["title"],

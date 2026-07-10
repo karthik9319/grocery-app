@@ -100,7 +100,7 @@ export function EditItemDialog({
               checked={useCustomThreshold}
               onCheckedChange={(v) => setUseCustomThreshold(v === true)}
             />
-            <span className="text-sm text-neutral-700">Custom low-stock threshold</span>
+            <span className="text-sm text-content">Custom low-stock threshold</span>
           </label>
           {useCustomThreshold && (
             <Input
@@ -113,7 +113,7 @@ export function EditItemDialog({
 
           <label className="flex items-center gap-2 cursor-pointer">
             <Checkbox checked={trackExpiry} onCheckedChange={(v) => setTrackExpiry(v === true)} />
-            <span className="text-sm text-neutral-700">Track expiration</span>
+            <span className="text-sm text-content">Track expiration</span>
           </label>
           {trackExpiry && (
             <Input
@@ -125,7 +125,7 @@ export function EditItemDialog({
 
           <label className="flex items-center gap-2 cursor-pointer">
             <Checkbox checked={isFavorite} onCheckedChange={(v) => setIsFavorite(v === true)} />
-            <span className="text-sm text-neutral-700">⭐ Favorite (quick re-add from home)</span>
+            <span className="text-sm text-content">⭐ Favorite (quick re-add from home)</span>
           </label>
           {isFavorite && (
             <Input
@@ -142,7 +142,7 @@ export function EditItemDialog({
               type="file"
               accept="image/png,image/jpeg,.heic,.heif"
               onChange={(e) => setNewImage(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-neutral-500 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-brand-700"
+              className="block w-full text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-gradient-to-r file:from-brand-500 file:to-household-500 file:px-3 file:py-1.5 file:text-white file:font-semibold"
             />
           </div>
 

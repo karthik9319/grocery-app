@@ -28,6 +28,16 @@
   --color-household-500: #6c63ff;
   --color-household-600: #5349e0;
 
+  --color-snack-50: #fde7f0;
+  --color-snack-200: #f6b8d3;
+  --color-snack-500: #c2185b;
+  --color-snack-600: #a01249;
+
+  --color-accent-50: #fff7e6;
+  --color-accent-200: #ffe2a8;
+  --color-accent-500: #f5a524;
+  --color-accent-600: #d9880a;
+
   /* Semantic theme-aware tokens (resolved from :root / .dark vars below) */
   --color-canvas: var(--canvas);
   --color-surface: var(--surface);
@@ -130,6 +140,23 @@ body::after {
   backdrop-filter: blur(20px) saturate(1.2);
   -webkit-backdrop-filter: blur(20px) saturate(1.2);
   border: 1px solid var(--line);
+}
+
+@utility gradient-text {
+  background: linear-gradient(135deg, var(--color-brand-500), var(--color-household-500) 60%, var(--color-snack-500));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility rainbow-bar {
+  background: linear-gradient(
+    90deg,
+    var(--color-brand-500),
+    var(--color-veg-500),
+    var(--color-snack-500),
+    var(--color-household-500)
+  );
 }
 
 .card-hover {

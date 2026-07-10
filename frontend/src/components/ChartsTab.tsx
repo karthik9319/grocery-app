@@ -40,7 +40,7 @@ export function ChartsTab({ meta }: { meta: Meta }) {
   return (
     <div className="space-y-6">
       <Card className="p-5">
-        <h3 className="mb-3 font-semibold text-neutral-700">📁 Items per category</h3>
+        <h3 className="mb-3 font-semibold text-content">📁 Items per category</h3>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={countsData}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
@@ -65,7 +65,7 @@ export function ChartsTab({ meta }: { meta: Meta }) {
       </div>
 
       <Card className="p-5">
-        <h3 className="mb-3 font-semibold text-neutral-700">
+        <h3 className="mb-3 font-semibold text-content">
           📦 Stock by item — {meta.icons[category]} {category}
         </h3>
         {stockByItem && stockByItem.length > 0 ? (
@@ -79,12 +79,12 @@ export function ChartsTab({ meta }: { meta: Meta }) {
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <p className="text-sm text-neutral-400">No {category.toLowerCase()} yet.</p>
+          <p className="text-sm text-subtle">No {category.toLowerCase()} yet.</p>
         )}
       </Card>
 
       <Card className="p-5">
-        <h3 className="mb-3 font-semibold text-neutral-700">📈 {category} added over time</h3>
+        <h3 className="mb-3 font-semibold text-content">📈 {category} added over time</h3>
         {addedOverTime && addedOverTime.length > 0 ? (
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={addedOverTime}>
@@ -96,7 +96,7 @@ export function ChartsTab({ meta }: { meta: Meta }) {
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <p className="text-sm text-neutral-400">No data yet.</p>
+          <p className="text-sm text-subtle">No data yet.</p>
         )}
       </Card>
     </div>

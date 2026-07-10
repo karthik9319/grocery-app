@@ -123,10 +123,10 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
       <Card className="border-dashed p-6 text-center">
         <label className="flex cursor-pointer flex-col items-center gap-2">
           <Upload className="h-8 w-8 text-brand-400" />
-          <span className="font-medium text-neutral-700">
+          <span className="font-medium text-content">
             Upload one or more photos of groceries/vegetables/household items
           </span>
-          <span className="text-xs text-neutral-400">PNG, JPG, HEIC, HEIF - select multiple at once</span>
+          <span className="text-xs text-subtle">PNG, JPG, HEIC, HEIF - select multiple at once</span>
           <input
             type="file"
             multiple
@@ -136,7 +136,7 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
           />
         </label>
       </Card>
-      <p className="text-xs text-neutral-400">
+      <p className="text-xs text-subtle">
         Tip: open this app on your iPhone's browser over the same Wi-Fi (see the terminal for the
         network URL) to upload straight from your phone's camera roll or camera.
       </p>
@@ -190,7 +190,7 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
               value={draft.notes}
               onChange={(e) => updateDraft(draft.id, { notes: e.target.value })}
             />
-            <label className="flex items-center gap-2 text-sm text-neutral-600">
+            <label className="flex items-center gap-2 text-sm text-muted">
               <Checkbox
                 checked={draft.useThreshold}
                 onCheckedChange={(v) => updateDraft(draft.id, { useThreshold: v === true })}
@@ -204,7 +204,7 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
                 onChange={(e) => updateDraft(draft.id, { threshold: parseFloat(e.target.value) || 0 })}
               />
             )}
-            <label className="flex items-center gap-2 text-sm text-neutral-600">
+            <label className="flex items-center gap-2 text-sm text-muted">
               <Checkbox
                 checked={draft.trackExpiry}
                 onCheckedChange={(v) => updateDraft(draft.id, { trackExpiry: v === true })}
@@ -221,7 +221,7 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
           </div>
           <button
             onClick={() => setDrafts((prev) => prev.filter((d) => d.id !== draft.id))}
-            className="self-start text-xs text-neutral-400 hover:text-red-500 cursor-pointer"
+            className="self-start text-xs text-subtle hover:text-red-500 cursor-pointer"
           >
             Remove
           </button>
@@ -296,14 +296,14 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-muted">
         Upload a photo of a receipt — text is read locally on your Mac (no cloud), then you
         review/edit each detected line before adding.
       </p>
       <Card className="border-dashed p-6 text-center">
         <label className="flex cursor-pointer flex-col items-center gap-2">
           <Camera className="h-8 w-8 text-brand-400" />
-          <span className="font-medium text-neutral-700">Upload a receipt photo</span>
+          <span className="font-medium text-content">Upload a receipt photo</span>
           <input
             type="file"
             accept="image/png,image/jpeg,.heic,.heif"
@@ -329,7 +329,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
 
       {candidates.length > 0 && (
         <div className="space-y-3">
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-muted">
             Found {candidates.length} candidate line(s) — review before adding (clear a title to
             skip that line):
           </p>
@@ -381,13 +381,17 @@ function CsvImportPanel() {
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [overwrite, setOverwrite] = useState(false);
   const [importing, setImporting] = useState(false);
 
   async function importCsv() {
     if (!file) return;
     setImporting(true);
     try {
-      const { added, merged, skipped } = await api.importCsv(file);
+      const { added, merged, skipped } = await api.importCsv(
+        file,
+        overwrite ? "overwrite" : "merge"
+      );
       queryClient.invalidateQueries({ queryKey: ["items"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
       queryClient.invalidateQueries({ queryKey: ["charts"] });
@@ -406,18 +410,18 @@ function CsvImportPanel() {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-muted">
         Restore or bulk-add items from a previously exported CSV (the same file you get from
-        Settings → Export CSV). Rows are matched to existing items by title + category and merged
-        (quantities added together); everything else is inserted as a new item.
+        Settings → Export CSV). Rows are matched to existing items by title + category;
+        everything else is inserted as a new item.
       </p>
       <Card className="border-dashed p-6 text-center">
         <label className="flex cursor-pointer flex-col items-center gap-2">
           <FileSpreadsheet className="h-8 w-8 text-brand-400" />
-          <span className="font-medium text-neutral-700">
+          <span className="font-medium text-content">
             {file ? file.name : "Choose a CSV file"}
           </span>
-          <span className="text-xs text-neutral-400">
+          <span className="text-xs text-subtle">
             Expected columns: title, category, quantity (unit, notes, expiration_date optional)
           </span>
           <input
@@ -429,6 +433,16 @@ function CsvImportPanel() {
           />
         </label>
       </Card>
+
+      <label className="flex items-start gap-2 text-sm text-muted">
+        <Checkbox checked={overwrite} onCheckedChange={(v) => setOverwrite(v === true)} />
+        <span>
+          <span className="text-content">Overwrite quantities instead of adding</span>
+          <br />
+          For matching items, set the quantity to the CSV's value instead of adding to what's
+          already there — use this to re-import the same backup without doubling counts.
+        </span>
+      </label>
 
       {file && (
         <Button onClick={importCsv} disabled={importing} className="w-full sm:w-auto">

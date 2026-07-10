@@ -63,20 +63,22 @@ export function Badge({
   color = "neutral",
   ...props
 }: React.HTMLAttributes<HTMLSpanElement> & {
-  color?: "neutral" | "orange" | "red" | "brand" | "veg" | "household";
+  color?: "neutral" | "orange" | "red" | "brand" | "veg" | "household" | "snack" | "accent";
 }) {
   const colors: Record<string, string> = {
     neutral: "bg-content/5 text-muted ring-1 ring-line",
-    orange: "bg-orange-500/12 text-orange-600 dark:text-orange-300 ring-1 ring-orange-500/25",
-    red: "bg-red-500/12 text-red-600 dark:text-red-300 ring-1 ring-red-500/25",
-    brand: "bg-brand-500/12 text-brand-700 dark:text-brand-300 ring-1 ring-brand-500/25",
-    veg: "bg-veg-500/12 text-veg-600 dark:text-veg-500 ring-1 ring-veg-500/25",
-    household: "bg-household-500/12 text-household-600 dark:text-household-500 ring-1 ring-household-500/25",
+    orange: "bg-orange-500/15 text-orange-600 dark:text-orange-300 ring-1 ring-orange-500/30",
+    red: "bg-red-500/15 text-red-600 dark:text-red-300 ring-1 ring-red-500/30",
+    brand: "bg-brand-500/15 text-brand-700 dark:text-brand-300 ring-1 ring-brand-500/30",
+    veg: "bg-veg-500/15 text-veg-600 dark:text-veg-500 ring-1 ring-veg-500/30",
+    household: "bg-household-500/15 text-household-600 dark:text-household-500 ring-1 ring-household-500/30",
+    snack: "bg-snack-500/15 text-snack-600 dark:text-snack-200 ring-1 ring-snack-500/30",
+    accent: "bg-accent-500/15 text-accent-600 dark:text-accent-200 ring-1 ring-accent-500/30",
   };
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
+        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold",
         colors[color],
         className
       )}

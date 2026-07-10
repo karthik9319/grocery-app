@@ -52,7 +52,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-muted">
         Check items off as you shop. Populate it from low-stock items or add your own.
       </p>
 
@@ -103,13 +103,13 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
                 checked={false}
                 onCheckedChange={() => toggleChecked.mutate({ id: item.id, checked: true })}
               />
-              <span className="text-sm text-neutral-700">
+              <span className="text-sm text-content">
                 {item.category ? meta.icons[item.category] : ""} {item.title}
               </span>
             </label>
             <button
               onClick={() => deleteItem.mutate(item.id)}
-              className="rounded-full p-1 text-neutral-300 hover:bg-red-50 hover:text-red-500 cursor-pointer"
+              className="rounded-full p-1 text-subtle hover:bg-red-500/10 hover:text-red-500 cursor-pointer"
             >
               <X className="h-4 w-4" />
             </button>
@@ -118,8 +118,8 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
       </div>
 
       {checked.length > 0 && (
-        <details className="rounded-2xl border border-neutral-200 p-3">
-          <summary className="cursor-pointer text-sm font-medium text-neutral-600">
+        <details className="rounded-2xl border border-line p-3">
+          <summary className="cursor-pointer text-sm font-medium text-muted">
             ✅ Checked off ({checked.length})
           </summary>
           <div className="mt-3 space-y-2">
@@ -130,7 +130,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
                     checked
                     onCheckedChange={() => toggleChecked.mutate({ id: item.id, checked: false })}
                   />
-                  <span className="text-sm text-neutral-400 line-through">
+                  <span className="text-sm text-subtle line-through">
                     {item.category ? meta.icons[item.category] : ""} {item.title}
                   </span>
                 </label>

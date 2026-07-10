@@ -52,7 +52,7 @@ export function ItemCard({
       className="flex items-center gap-4 overflow-hidden border-l-4 p-3 animate-fade-in"
       style={{ borderLeftColor: dotColor }}
     >
-      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-neutral-100 ring-2 ring-white shadow-soft">
+      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-content/5 ring-2 ring-surface-solid shadow-soft">
         {img ? (
           <img src={img} alt={item.title} className="h-full w-full object-cover" />
         ) : (
@@ -71,12 +71,12 @@ export function ItemCard({
             className="h-2.5 w-2.5 shrink-0 rounded-full"
             style={{ backgroundColor: dotColor }}
           />
-          <p className="truncate font-semibold text-neutral-800">{item.title}</p>
-          <span className="shrink-0 text-sm text-neutral-400">
+          <p className="truncate font-semibold text-content">{item.title}</p>
+          <span className="shrink-0 text-sm text-subtle">
             ({formatQuantity(item.quantity, unit)})
           </span>
         </div>
-        {item.notes && <p className="mt-0.5 truncate text-xs text-neutral-400">{item.notes}</p>}
+        {item.notes && <p className="mt-0.5 truncate text-xs text-subtle">{item.notes}</p>}
         <div className="mt-1 flex flex-wrap gap-1.5">
           {isLow && <Badge color="orange">⚠️ Low stock</Badge>}
           {expDays != null && expDays < 0 && <Badge color="red">❌ Expired</Badge>}
@@ -93,7 +93,7 @@ export function ItemCard({
         <button
           onClick={() => qtyMutation.mutate(Math.max(0, item.quantity - step))}
           className={cn(
-            "h-8 w-8 rounded-lg border border-neutral-200 text-neutral-500 hover:bg-neutral-50 hover:border-brand-300 hover:text-brand-600 transition-colors cursor-pointer"
+            "h-8 w-8 rounded-lg border border-line text-muted hover:bg-surface hover:border-brand-400 hover:text-brand-500 transition-colors cursor-pointer"
           )}
         >
           −
@@ -105,11 +105,11 @@ export function ItemCard({
             const v = parseFloat(e.target.value);
             if (!Number.isNaN(v)) qtyMutation.mutate(v);
           }}
-          className="h-8 w-16 rounded-lg border border-neutral-200 text-center text-sm outline-none focus:ring-2 focus:ring-brand-200"
+          className="h-8 w-16 rounded-lg border border-line bg-surface-solid text-center text-sm text-content outline-none focus:ring-2 focus:ring-brand-400/40"
         />
         <button
           onClick={() => qtyMutation.mutate(item.quantity + step)}
-          className="h-8 w-8 rounded-lg border border-neutral-200 text-neutral-500 hover:bg-neutral-50 cursor-pointer"
+          className="h-8 w-8 rounded-lg border border-line text-muted hover:bg-surface hover:border-brand-400 hover:text-brand-500 transition-colors cursor-pointer"
         >
           +
         </button>
@@ -118,7 +118,7 @@ export function ItemCard({
       <div className="flex shrink-0 gap-1">
         <button
           onClick={() => setEditOpen(true)}
-          className="h-9 w-9 flex items-center justify-center rounded-xl border border-neutral-200 text-neutral-500 hover:bg-brand-50 hover:text-brand-600 cursor-pointer"
+          className="h-9 w-9 flex items-center justify-center rounded-xl border border-line text-muted hover:bg-brand-500/10 hover:border-brand-400/60 hover:text-brand-500 cursor-pointer transition-colors"
         >
           <Pencil className="h-4 w-4" />
         </button>
@@ -126,7 +126,7 @@ export function ItemCard({
           onClick={() => {
             deleteMutation.mutate();
           }}
-          className="h-9 w-9 flex items-center justify-center rounded-xl border border-neutral-200 text-neutral-500 hover:bg-red-50 hover:text-red-600 cursor-pointer"
+          className="h-9 w-9 flex items-center justify-center rounded-xl border border-line text-muted hover:bg-red-500/10 hover:border-red-400/60 hover:text-red-500 cursor-pointer transition-colors"
         >
           <Trash2 className="h-4 w-4" />
         </button>

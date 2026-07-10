@@ -33,7 +33,7 @@ function App() {
       <div className="flex h-screen items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <Spinner className="h-8 w-8" />
-          <p className="text-sm text-neutral-400">Loading your pantry…</p>
+          <p className="text-sm text-subtle">Loading your pantry…</p>
         </div>
       </div>
     );
@@ -76,14 +76,14 @@ function App() {
     <div className="mx-auto flex min-h-screen w-full max-w-[1680px] gap-6 px-4 py-6 lg:px-8 2xl:gap-8">
       {/* Left nav rail */}
       <aside className="sticky top-6 hidden h-[calc(100vh-3rem)] w-64 shrink-0 flex-col lg:flex 2xl:w-72">
-        <div className="flex flex-1 flex-col rounded-3xl border border-neutral-200/60 bg-white/80 p-3 shadow-soft backdrop-blur">
+        <div className="glass flex flex-1 flex-col rounded-3xl p-3 shadow-soft">
           <div className="mb-4 flex items-center gap-3 px-2 pt-2">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-400 to-brand-700 text-2xl shadow-glow">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-400 via-brand-600 to-household-500 text-2xl shadow-glow">
               🛒
             </div>
             <div className="leading-tight">
-              <p className="text-sm font-extrabold text-neutral-800">Pantry</p>
-              <p className="text-xs text-neutral-400">Tracker</p>
+              <p className="gradient-text text-sm font-extrabold">Pantry</p>
+              <p className="text-xs text-subtle">Tracker</p>
             </div>
           </div>
 
@@ -94,35 +94,37 @@ function App() {
                 <button
                   key={item.value}
                   onClick={() => setActive(item.value)}
-                  className="group relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-all cursor-pointer"
+                  className="group relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 cursor-pointer"
                   style={
                     isActive
-                      ? { backgroundColor: `${item.accent}14`, color: item.accent }
+                      ? {
+                          background: `linear-gradient(120deg, ${item.accent}, ${item.accent}cc)`,
+                          color: "#fff",
+                          boxShadow: `0 10px 24px -8px ${item.accent}99`,
+                        }
                       : undefined
                   }
                 >
                   <span
-                    className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-full transition-all"
-                    style={{
-                      backgroundColor: isActive ? item.accent : "transparent",
-                    }}
-                  />
-                  <span
                     className={
                       isActive
                         ? "flex h-8 w-8 items-center justify-center"
-                        : "flex h-8 w-8 items-center justify-center text-neutral-400 group-hover:text-neutral-600"
+                        : "flex h-8 w-8 items-center justify-center text-subtle group-hover:text-content"
                     }
                   >
                     {item.emoji ? <span className="text-lg">{item.emoji}</span> : item.icon}
                   </span>
-                  <span className={isActive ? "" : "text-neutral-600 group-hover:text-neutral-900"}>
+                  <span className={isActive ? "" : "text-muted group-hover:text-content"}>
                     {item.label}
                   </span>
                   {item.badge != null && item.badge > 0 && (
                     <span
                       className="ml-auto rounded-full px-2 py-0.5 text-xs font-bold"
-                      style={{ backgroundColor: `${item.accent}1f`, color: item.accent }}
+                      style={
+                        isActive
+                          ? { backgroundColor: "rgba(255,255,255,0.25)", color: "#fff" }
+                          : { backgroundColor: `${item.accent}1f`, color: item.accent }
+                      }
                     >
                       {item.badge}
                     </span>
@@ -132,7 +134,7 @@ function App() {
             })}
           </nav>
 
-          <div className="mt-3 border-t border-neutral-100 pt-3">
+          <div className="mt-3 border-t border-line pt-3">
             <SettingsSidebar />
           </div>
         </div>
@@ -173,10 +175,10 @@ function App() {
             {activeItem?.emoji ?? activeItem?.icon}
           </span>
           <div>
-            <h2 className="text-xl font-extrabold tracking-tight text-neutral-800">
+            <h2 className="text-xl font-extrabold tracking-tight text-content">
               {activeItem?.label}
             </h2>
-            <p className="text-xs text-neutral-400">
+            <p className="text-xs text-subtle">
               {active === "add-items" && "Snap a photo or scan a receipt to stock up"}
               {active === "shopping" && "Plan your next grocery run"}
               {active === "charts" && "Insights across your inventory"}

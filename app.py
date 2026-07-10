@@ -313,6 +313,12 @@ with st.sidebar:
     csv_upload = st.file_uploader(
         "Import a previously exported CSV", type=["csv"], key="csv_import_uploader"
     )
+    overwrite_on_import = st.checkbox(
+        "Overwrite quantities instead of adding",
+        key="csv_import_overwrite",
+        help="For matching items, set the quantity to the CSV's value instead of adding to "
+        "what's already there - use this to re-import the same backup without doubling counts.",
+    )
     if csv_upload is not None and st.button("Import CSV", width="stretch"):
         try:
             import_df = pd.read_csv(csv_upload)
@@ -344,11 +350,14 @@ with st.sidebar:
                 )
                 existing = inventory.find_item_by_title(title, category)
                 if existing:
+                    new_quantity = (
+                        quantity if overwrite_on_import else existing["quantity"] + quantity
+                    )
                     inventory.update_item(
                         existing["id"],
                         existing["title"],
                         existing["category"],
-                        existing["quantity"] + quantity,
+                        new_quantity,
                         existing.get("notes"),
                         None,
                         existing.get("custom_threshold"),
