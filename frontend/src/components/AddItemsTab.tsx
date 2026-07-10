@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Camera, Loader2, Upload } from "lucide-react";
+import { Camera, FileSpreadsheet, Loader2, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Meta } from "@/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/Tabs";
@@ -53,12 +53,16 @@ export function AddItemsTab({ meta }: { meta: Meta }) {
       <TabsList>
         <TabsTrigger value="photo">📷 By Photo</TabsTrigger>
         <TabsTrigger value="receipt">🧾 By Receipt</TabsTrigger>
+        <TabsTrigger value="csv">📄 By CSV</TabsTrigger>
       </TabsList>
       <TabsContent value="photo" className="pt-4">
         <PhotoAddPanel meta={meta} />
       </TabsContent>
       <TabsContent value="receipt" className="pt-4">
         <ReceiptScanPanel meta={meta} />
+      </TabsContent>
+      <TabsContent value="csv" className="pt-4">
+        <CsvImportPanel />
       </TabsContent>
     </Tabs>
   );
@@ -368,6 +372,69 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
             </Button>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+function CsvImportPanel() {
+  const queryClient = useQueryClient();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  async function importCsv() {
+    if (!file) return;
+    setImporting(true);
+    try {
+      const { added, merged, skipped } = await api.importCsv(file);
+      queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: ["summary"] });
+      queryClient.invalidateQueries({ queryKey: ["charts"] });
+      toast.success(
+        `Imported: ${added} added, ${merged} merged${skipped ? `, ${skipped} skipped` : ""}`,
+        { icon: "📄" }
+      );
+      setFile(null);
+      if (inputRef.current) inputRef.current.value = "";
+    } catch {
+      toast.error("Could not import that file. Make sure it's a CSV with a 'title' column.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-neutral-500">
+        Restore or bulk-add items from a previously exported CSV (the same file you get from
+        Settings → Export CSV). Rows are matched to existing items by title + category and merged
+        (quantities added together); everything else is inserted as a new item.
+      </p>
+      <Card className="border-dashed p-6 text-center">
+        <label className="flex cursor-pointer flex-col items-center gap-2">
+          <FileSpreadsheet className="h-8 w-8 text-brand-400" />
+          <span className="font-medium text-neutral-700">
+            {file ? file.name : "Choose a CSV file"}
+          </span>
+          <span className="text-xs text-neutral-400">
+            Expected columns: title, category, quantity (unit, notes, expiration_date optional)
+          </span>
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          />
+        </label>
+      </Card>
+
+      {file && (
+        <Button onClick={importCsv} disabled={importing} className="w-full sm:w-auto">
+          {importing && <Loader2 className="h-4 w-4 animate-spin" />}
+          Import CSV
+        </Button>
       )}
     </div>
   );

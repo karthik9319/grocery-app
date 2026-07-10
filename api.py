@@ -4,6 +4,8 @@ Reuses inventory.py (SQLite CRUD) and receipt.py (OCR) unchanged - this API is j
 thin HTTP layer over the same business logic used by the Streamlit app (app.py), so
 both frontends share the same data/inventory.db and data/images/.
 """
+import csv
+import io
 import uuid
 from datetime import date, timedelta
 from pathlib import Path
@@ -40,10 +42,10 @@ app.add_middleware(
 app.mount("/images", StaticFiles(directory=str(IMAGES_DIR)), name="images")
 
 # --- Static reference data (mirrors app.py's constants) ---
-CATEGORY_ICONS = {"Groceries": "🧺", "Vegetables": "🥕", "Household": "🧴"}
+CATEGORY_ICONS = {"Groceries": "🧺", "Vegetables": "🥕", "Household": "🧴", "Snacks": "🍿"}
 CATEGORIES = list(CATEGORY_ICONS.keys())
-PALETTE = {"Groceries": "#1B7A4D", "Vegetables": "#FF8C42", "Household": "#6C63FF"}
-CATEGORY_UNITS = {"Groceries": "count", "Vegetables": "g", "Household": "count"}
+PALETTE = {"Groceries": "#1B7A4D", "Vegetables": "#FF8C42", "Household": "#6C63FF", "Snacks": "#C2185B"}
+CATEGORY_UNITS = {"Groceries": "count", "Vegetables": "g", "Household": "count", "Snacks": "count"}
 
 COMMON_ITEMS = {
     "tomato": ("Vegetables", 5), "potato": ("Vegetables", 21), "onion": ("Vegetables", 30),
@@ -63,6 +65,11 @@ COMMON_ITEMS = {
     "banana": ("Groceries", 5), "orange": ("Groceries", 14), "juice": ("Groceries", 7),
     "shampoo": ("Household", None), "soap": ("Household", None), "detergent": ("Household", None),
     "toothpaste": ("Household", None), "tissue": ("Household", None),
+    "chips": ("Snacks", 90), "popcorn": ("Snacks", 180), "cookie": ("Snacks", 60),
+    "cookies": ("Snacks", 60), "chocolate": ("Snacks", 180), "candy": ("Snacks", 270),
+    "cracker": ("Snacks", 120), "crackers": ("Snacks", 120), "pretzel": ("Snacks", 120),
+    "granola bar": ("Snacks", 180), "nuts": ("Snacks", 180), "biscuit": ("Snacks", 90),
+    "biscuits": ("Snacks", 90),
 }
 
 
@@ -382,3 +389,65 @@ def export_csv():
             f"{notes},{item.get('expiration_date') or ''},{item['created_at']}"
         )
     return "\n".join(lines)
+
+
+# --- Import ---
+@app.post("/api/import/csv")
+async def import_csv(file: UploadFile = File(...)):
+    """Bulk-import items from a previously exported CSV (title,category,quantity,unit,
+    notes,expiration_date,created_at - only title/category/quantity are required, extra/
+    missing columns are tolerated). Merges into existing items by case-insensitive
+    title+category match (same rule used by the regular add-item form), otherwise
+    inserts a new row.
+    """
+    raw_bytes = await file.read()
+    try:
+        text = raw_bytes.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(400, "Could not read that file as UTF-8 text/CSV.")
+
+    reader = csv.DictReader(io.StringIO(text))
+    if reader.fieldnames is None or "title" not in reader.fieldnames:
+        raise HTTPException(400, "CSV must have at least a 'title' column.")
+
+    added = 0
+    merged = 0
+    skipped = 0
+    for row in reader:
+        title = (row.get("title") or "").strip()
+        if not title:
+            skipped += 1
+            continue
+
+        category = (row.get("category") or "").strip()
+        if category not in CATEGORIES:
+            category = guess_category(title)
+
+        try:
+            quantity = float(row.get("quantity") or 0)
+        except ValueError:
+            skipped += 1
+            continue
+
+        notes = (row.get("notes") or "").strip() or None
+        expiration_date = (row.get("expiration_date") or "").strip() or None
+
+        existing = inventory.find_item_by_title(title, category)
+        if existing:
+            new_total = existing["quantity"] + quantity
+            inventory.update_item(
+                existing["id"],
+                existing["title"],
+                existing["category"],
+                new_total,
+                existing.get("notes"),
+                None,
+                existing.get("custom_threshold"),
+                expiration_date or existing.get("expiration_date"),
+            )
+            merged += 1
+        else:
+            inventory.add_item(title, category, quantity, None, notes, None, expiration_date)
+            added += 1
+
+    return {"added": added, "merged": merged, "skipped": skipped}

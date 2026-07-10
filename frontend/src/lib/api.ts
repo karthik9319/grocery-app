@@ -140,4 +140,11 @@ export const api = {
       .then((r) => r.data),
 
   exportCsvUrl: () => "/api/export/csv",
+  importCsv: (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return client
+      .post<{ added: number; merged: number; skipped: number }>("/import/csv", form)
+      .then((r) => r.data);
+  },
 };

@@ -26,10 +26,10 @@ IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 inventory.init_db()
 
-CATEGORY_ICONS = {"Groceries": "🧺", "Vegetables": "🥕", "Household": "🧴"}
+CATEGORY_ICONS = {"Groceries": "🧺", "Vegetables": "🥕", "Household": "🧴", "Snacks": "🍿"}
 CATEGORIES = list(CATEGORY_ICONS.keys())
-PALETTE = {"Groceries": "#1B7A4D", "Vegetables": "#FF8C42", "Household": "#6C63FF"}
-CATEGORY_UNITS = {"Groceries": "count", "Vegetables": "g", "Household": "count"}
+PALETTE = {"Groceries": "#1B7A4D", "Vegetables": "#FF8C42", "Household": "#6C63FF", "Snacks": "#C2185B"}
+CATEGORY_UNITS = {"Groceries": "count", "Vegetables": "g", "Household": "count", "Snacks": "count"}
 
 
 def format_quantity(quantity: float, unit: str) -> str:
@@ -70,6 +70,11 @@ COMMON_ITEMS = {
     "banana": ("Groceries", 5), "orange": ("Groceries", 14), "juice": ("Groceries", 7),
     "shampoo": ("Household", None), "soap": ("Household", None), "detergent": ("Household", None),
     "toothpaste": ("Household", None), "tissue": ("Household", None),
+    "chips": ("Snacks", 90), "popcorn": ("Snacks", 180), "cookie": ("Snacks", 60),
+    "cookies": ("Snacks", 60), "chocolate": ("Snacks", 180), "candy": ("Snacks", 270),
+    "cracker": ("Snacks", 120), "crackers": ("Snacks", 120), "pretzel": ("Snacks", 120),
+    "granola bar": ("Snacks", 180), "nuts": ("Snacks", 180), "biscuit": ("Snacks", 90),
+    "biscuits": ("Snacks", 90),
 }
 
 
@@ -303,6 +308,58 @@ with st.sidebar:
         )
     else:
         st.caption("No items yet to export.")
+
+    st.subheader("📥 Restore")
+    csv_upload = st.file_uploader(
+        "Import a previously exported CSV", type=["csv"], key="csv_import_uploader"
+    )
+    if csv_upload is not None and st.button("Import CSV", width="stretch"):
+        try:
+            import_df = pd.read_csv(csv_upload)
+        except Exception:
+            st.error("Could not read that file as a CSV.")
+            import_df = None
+        if import_df is not None:
+            added = merged = skipped = 0
+            for _, row in import_df.iterrows():
+                title = str(row.get("title") or "").strip()
+                if not title or title.lower() == "nan":
+                    skipped += 1
+                    continue
+                category = str(row.get("category") or "").strip()
+                if category not in CATEGORIES:
+                    category = guess_category(title)
+                try:
+                    quantity = float(row.get("quantity") or 0)
+                except (TypeError, ValueError):
+                    skipped += 1
+                    continue
+                notes = row.get("notes")
+                notes = str(notes).strip() if notes and str(notes).lower() != "nan" else None
+                expiration_date = row.get("expiration_date")
+                expiration_date = (
+                    str(expiration_date).strip()
+                    if expiration_date and str(expiration_date).lower() != "nan"
+                    else None
+                )
+                existing = inventory.find_item_by_title(title, category)
+                if existing:
+                    inventory.update_item(
+                        existing["id"],
+                        existing["title"],
+                        existing["category"],
+                        existing["quantity"] + quantity,
+                        existing.get("notes"),
+                        None,
+                        existing.get("custom_threshold"),
+                        expiration_date or existing.get("expiration_date"),
+                    )
+                    merged += 1
+                else:
+                    inventory.add_item(title, category, quantity, None, notes, None, expiration_date)
+                    added += 1
+            st.success(f"Imported: {added} added, {merged} merged, {skipped} skipped.")
+            st.rerun()
 
 if total_rows == 0:
     st.info(
