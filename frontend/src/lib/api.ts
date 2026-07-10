@@ -1,5 +1,6 @@
 import axios from "axios";
 import type {
+  Backup,
   Favorite,
   Item,
   Meta,
@@ -85,6 +86,20 @@ export const api = {
   },
 
   deleteItem: (id: number) => client.delete<Item>(`/items/${id}`).then((r) => r.data),
+
+  clearItems: (category?: string) =>
+    client
+      .delete<{ deleted: number }>("/items/clear", { params: category ? { category } : {} })
+      .then((r) => r.data),
+
+  listBackups: () => client.get<Backup[]>("/backups").then((r) => r.data),
+  restoreBackup: (filename: string) =>
+    client
+      .post<{ added: number; merged: number; skipped: number }>(
+        `/backups/${encodeURIComponent(filename)}/restore`
+      )
+      .then((r) => r.data),
+  backupDownloadUrl: (filename: string) => `/api/backups/${encodeURIComponent(filename)}/download`,
 
   restoreItem: (item: Item) => client.post("/items/restore", item).then((r) => r.data),
 

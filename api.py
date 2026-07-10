@@ -7,13 +7,13 @@ both frontends share the same data/inventory.db and data/images/.
 import csv
 import io
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 from pillow_heif import register_heif_opener
@@ -26,6 +26,9 @@ register_heif_opener()
 BASE_DIR = Path(__file__).parent
 IMAGES_DIR = BASE_DIR / "data" / "images"
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+BACKUPS_DIR = BASE_DIR / "data" / "backups"
+BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
+MAX_BACKUPS = 30
 
 inventory.init_db()
 
@@ -119,6 +122,91 @@ def save_upload(file: UploadFile) -> str:
     return str(Path("data/images") / filename)
 
 
+def items_to_csv_text(items: list) -> str:
+    """Shared CSV serialization used by both the export endpoint and backup snapshots."""
+    lines = ["uuid,title,category,quantity,unit,notes,expiration_date,created_at"]
+    for item in items:
+        unit = CATEGORY_UNITS.get(item["category"], "count")
+        notes = (item.get("notes") or "").replace(",", ";")
+        lines.append(
+            f"{item.get('uuid') or ''},{item['title']},{item['category']},{item['quantity']},{unit},"
+            f"{notes},{item.get('expiration_date') or ''},{item['created_at']}"
+        )
+    return "\n".join(lines)
+
+
+def write_backup(items: list, reason: str) -> Optional[str]:
+    """Auto-save a timestamped CSV snapshot of `items` BEFORE a destructive action removes
+    them, so bulk-delete/clear-inventory (which have no in-app undo) can still be reversed
+    by restoring from this file. No-ops if there's nothing to back up. Prunes old backups
+    beyond MAX_BACKUPS so the folder doesn't grow forever."""
+    if not items:
+        return None
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    safe_reason = "".join(c if c.isalnum() or c in "-_" else "-" for c in reason)
+    filename = f"{timestamp}__{safe_reason}.csv"
+    (BACKUPS_DIR / filename).write_text(items_to_csv_text(items), encoding="utf-8")
+
+    backups = sorted(BACKUPS_DIR.glob("*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for old in backups[MAX_BACKUPS:]:
+        try:
+            old.unlink()
+        except OSError:
+            pass
+    return filename
+
+
+def import_rows(rows, mode: str) -> dict:
+    """Shared row-processing loop for both the CSV-upload import endpoint and restoring
+    from an auto-backup file - see /api/import/csv's docstring for the matching rules."""
+    added = 0
+    merged = 0
+    skipped = 0
+    for row in rows:
+        title = (row.get("title") or "").strip()
+        if not title:
+            skipped += 1
+            continue
+
+        row_uuid = (row.get("uuid") or "").strip() or None
+        if row_uuid and inventory.find_item_by_uuid(row_uuid):
+            skipped += 1
+            continue
+
+        category = (row.get("category") or "").strip()
+        if category not in CATEGORIES:
+            category = guess_category(title)
+
+        try:
+            quantity = float(row.get("quantity") or 0)
+        except ValueError:
+            skipped += 1
+            continue
+
+        notes = (row.get("notes") or "").strip() or None
+        expiration_date = (row.get("expiration_date") or "").strip() or None
+
+        existing = inventory.find_item_by_title(title, category)
+        if existing:
+            new_total = quantity if mode == "overwrite" else existing["quantity"] + quantity
+            inventory.update_item(
+                existing["id"],
+                existing["title"],
+                existing["category"],
+                new_total,
+                existing.get("notes"),
+                None,
+                existing.get("custom_threshold"),
+                expiration_date or existing.get("expiration_date"),
+            )
+            merged += 1
+        else:
+            inventory.add_item(title, category, quantity, None, notes, None, expiration_date, row_uuid)
+            added += 1
+
+    return {"added": added, "merged": merged, "skipped": skipped}
+
+
 # --- Meta ---
 @app.get("/api/meta")
 def get_meta():
@@ -201,6 +289,27 @@ def create_item(
     return {"status": "added"}
 
 
+@app.delete("/api/items/clear")
+def clear_items(category: Optional[str] = None):
+    """Wipe the entire inventory, or just one category if given. Registered BEFORE
+    /api/items/{item_id} so the literal "clear" path segment isn't swallowed by that
+    route's int path-converter (which would otherwise 422 on a non-numeric id)."""
+    if category is not None and category not in CATEGORIES:
+        raise HTTPException(400, f"Unknown category: {category}")
+    deleted_rows = inventory.clear_items(category)
+    backup_file = write_backup(deleted_rows, f"clear-{category or 'all'}")
+    for row in deleted_rows:
+        image_path = row.get("image_path")
+        if image_path:
+            path = BASE_DIR / image_path
+            if path.exists():
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+    return {"deleted": len(deleted_rows), "backup": backup_file}
+
+
 @app.put("/api/items/{item_id}")
 def update_item(
     item_id: int,
@@ -243,6 +352,7 @@ def remove_item(item_id: int):
     if not deleted:
         raise HTTPException(404, "Item not found")
     inventory.delete_item(item_id)
+    write_backup([deleted], "delete-item")
     return deleted
 
 
@@ -403,15 +513,43 @@ def chart_added_over_time(category: str):
 def export_csv():
     inventory.backfill_missing_uuids()
     all_items = [item for cat in CATEGORIES for item in inventory.get_items_by_category(cat)]
-    lines = ["uuid,title,category,quantity,unit,notes,expiration_date,created_at"]
-    for item in all_items:
-        unit = CATEGORY_UNITS[item["category"]]
-        notes = (item.get("notes") or "").replace(",", ";")
-        lines.append(
-            f"{item.get('uuid') or ''},{item['title']},{item['category']},{item['quantity']},{unit},"
-            f"{notes},{item.get('expiration_date') or ''},{item['created_at']}"
+    return items_to_csv_text(all_items)
+
+
+# --- Backups (auto-saved before any destructive delete/clear action) ---
+@app.get("/api/backups")
+def list_backups():
+    backups = sorted(BACKUPS_DIR.glob("*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
+    result = []
+    for path in backups:
+        text = path.read_text(encoding="utf-8")
+        item_count = max(0, len(text.splitlines()) - 1)
+        result.append(
+            {
+                "filename": path.name,
+                "created_at": datetime.fromtimestamp(path.stat().st_mtime).isoformat(),
+                "item_count": item_count,
+            }
         )
-    return "\n".join(lines)
+    return result
+
+
+@app.get("/api/backups/{filename}/download")
+def download_backup(filename: str):
+    path = BACKUPS_DIR / Path(filename).name
+    if not path.exists() or path.parent != BACKUPS_DIR:
+        raise HTTPException(404, "Backup not found")
+    return FileResponse(path, media_type="text/csv", filename=path.name)
+
+
+@app.post("/api/backups/{filename}/restore")
+def restore_backup(filename: str):
+    path = BACKUPS_DIR / Path(filename).name
+    if not path.exists() or path.parent != BACKUPS_DIR:
+        raise HTTPException(404, "Backup not found")
+    text = path.read_text(encoding="utf-8")
+    reader = csv.DictReader(io.StringIO(text))
+    return import_rows(reader, mode="merge")
 
 
 # --- Import ---
@@ -442,50 +580,4 @@ async def import_csv(file: UploadFile = File(...), mode: str = Form("merge")):
     if reader.fieldnames is None or "title" not in reader.fieldnames:
         raise HTTPException(400, "CSV must have at least a 'title' column.")
 
-    added = 0
-    merged = 0
-    skipped = 0
-    for row in reader:
-        title = (row.get("title") or "").strip()
-        if not title:
-            skipped += 1
-            continue
-
-        row_uuid = (row.get("uuid") or "").strip() or None
-        if row_uuid and inventory.find_item_by_uuid(row_uuid):
-            # Already imported (or originally created) here before - never re-add/merge it.
-            skipped += 1
-            continue
-
-        category = (row.get("category") or "").strip()
-        if category not in CATEGORIES:
-            category = guess_category(title)
-
-        try:
-            quantity = float(row.get("quantity") or 0)
-        except ValueError:
-            skipped += 1
-            continue
-
-        notes = (row.get("notes") or "").strip() or None
-        expiration_date = (row.get("expiration_date") or "").strip() or None
-
-        existing = inventory.find_item_by_title(title, category)
-        if existing:
-            new_total = quantity if mode == "overwrite" else existing["quantity"] + quantity
-            inventory.update_item(
-                existing["id"],
-                existing["title"],
-                existing["category"],
-                new_total,
-                existing.get("notes"),
-                None,
-                existing.get("custom_threshold"),
-                expiration_date or existing.get("expiration_date"),
-            )
-            merged += 1
-        else:
-            inventory.add_item(title, category, quantity, None, notes, None, expiration_date, row_uuid)
-            added += 1
-
-    return {"added": added, "merged": merged, "skipped": skipped}
+    return import_rows(reader, mode)

@@ -1,15 +1,26 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, Download, Settings as SettingsIcon } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  Download,
+  History,
+  RotateCcw,
+  Settings as SettingsIcon,
+  Trash2,
+} from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { Button, Input, Label } from "@/components/ui";
+import type { Meta } from "@/types";
+import { Button, Checkbox, EmptyState, Input, Label } from "@/components/ui";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
-export function SettingsSidebar() {
+export function SettingsSidebar({ meta }: { meta: Meta }) {
   const queryClient = useQueryClient();
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: api.settings });
   const [countThreshold, setCountThreshold] = useState(2);
   const [weightThreshold, setWeightThreshold] = useState(200);
+  const [selectedCats, setSelectedCats] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (settings) {
@@ -27,6 +38,77 @@ export function SettingsSidebar() {
       queryClient.invalidateQueries({ queryKey: ["items"] });
     },
   });
+
+  const invalidateAfterClear = () => {
+    queryClient.invalidateQueries({ queryKey: ["items"] });
+    queryClient.invalidateQueries({ queryKey: ["summary"] });
+    queryClient.invalidateQueries({ queryKey: ["charts"] });
+    queryClient.invalidateQueries({ queryKey: ["backups"] });
+  };
+
+  const clearCategories = useMutation({
+    mutationFn: async () => {
+      const results = await Promise.all(Array.from(selectedCats).map((c) => api.clearItems(c)));
+      return results.reduce((sum, r) => sum + r.deleted, 0);
+    },
+    onSuccess: (deleted) => {
+      toast.success(`Cleared ${deleted} item(s)`);
+      setSelectedCats(new Set());
+      invalidateAfterClear();
+    },
+  });
+
+  const clearAll = useMutation({
+    mutationFn: () => api.clearItems(),
+    onSuccess: (res) => {
+      toast.success(`Cleared the entire inventory (${res.deleted} item(s))`);
+      setSelectedCats(new Set());
+      invalidateAfterClear();
+    },
+  });
+
+  function toggleCat(c: string) {
+    setSelectedCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c);
+      else next.add(c);
+      return next;
+    });
+  }
+
+  function handleClearSelected() {
+    if (selectedCats.size === 0) return;
+    const list = Array.from(selectedCats).join(", ");
+    if (window.confirm(`Delete ALL items in: ${list}?\n\nThis cannot be undone.`)) {
+      clearCategories.mutate();
+    }
+  }
+
+  function handleClearAll() {
+    if (
+      window.confirm(
+        "Delete your ENTIRE inventory across every category?\n\nThis cannot be undone."
+      )
+    ) {
+      clearAll.mutate();
+    }
+  }
+
+  const { data: backups } = useQuery({ queryKey: ["backups"], queryFn: api.listBackups });
+
+  const restoreBackup = useMutation({
+    mutationFn: (filename: string) => api.restoreBackup(filename),
+    onSuccess: (res) => {
+      toast.success(`Restored ${res.added} item(s) from backup`, { icon: "⏪" });
+      invalidateAfterClear();
+    },
+  });
+
+  function handleRestore(filename: string) {
+    if (window.confirm(`Restore items from "${filename}"?\n\nAlready-existing items will be skipped.`)) {
+      restoreBackup.mutate(filename);
+    }
+  }
 
   return (
     <div className="space-y-2">
@@ -60,6 +142,96 @@ export function SettingsSidebar() {
               onBlur={() => save.mutate()}
               className="h-9"
             />
+          </div>
+        </div>
+      </details>
+
+      <details className="group rounded-2xl">
+        <summary className="flex cursor-pointer items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-semibold text-red-500 hover:bg-red-500/10">
+          <AlertTriangle className="h-[18px] w-[18px]" />
+          Danger Zone
+          <ChevronDown className="ml-auto h-4 w-4 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="space-y-3 px-3 pb-3 pt-2">
+          <p className="text-xs text-muted">
+            Clear specific categories, or wipe everything. Cannot be undone.
+          </p>
+          <div className="space-y-1.5">
+            {meta.categories.map((c) => (
+              <label key={c} className="flex items-center gap-2 text-sm text-content cursor-pointer">
+                <Checkbox
+                  checked={selectedCats.has(c)}
+                  onCheckedChange={() => toggleCat(c)}
+                />
+                {meta.icons[c]} {c}
+              </label>
+            ))}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-center"
+            disabled={selectedCats.size === 0 || clearCategories.isPending}
+            onClick={handleClearSelected}
+          >
+            <Trash2 className="h-4 w-4" /> Clear selected categories
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            className="w-full justify-center"
+            disabled={clearAll.isPending}
+            onClick={handleClearAll}
+          >
+            <Trash2 className="h-4 w-4" /> Clear entire inventory
+          </Button>
+        </div>
+      </details>
+
+      <details className="group rounded-2xl">
+        <summary className="flex cursor-pointer items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-semibold text-muted hover:bg-surface">
+          <History className="h-[18px] w-[18px] text-subtle" />
+          Recent Backups
+          <ChevronDown className="ml-auto h-4 w-4 text-subtle transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="space-y-2 px-3 pb-3 pt-2">
+          <p className="text-xs text-muted">
+            A snapshot is auto-saved every time an item is deleted or a category/the
+            whole inventory is cleared, so those actions can be undone here.
+          </p>
+          {!backups?.length && (
+            <EmptyState icon="🗃️" title="No backups yet" />
+          )}
+          <div className="space-y-1.5">
+            {backups?.map((b) => (
+              <div
+                key={b.filename}
+                className="flex items-center gap-2 rounded-xl border-2 border-content bg-surface-solid p-2 text-xs"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-bold text-content">
+                    {new Date(b.created_at).toLocaleString()}
+                  </p>
+                  <p className="text-subtle">{b.item_count} item(s)</p>
+                </div>
+                <button
+                  title="Restore"
+                  onClick={() => handleRestore(b.filename)}
+                  disabled={restoreBackup.isPending}
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border-2 border-content text-content hover:bg-theme-200 cursor-pointer"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </button>
+                <a
+                  href={api.backupDownloadUrl(b.filename)}
+                  download
+                  title="Download"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border-2 border-content text-content hover:bg-theme-200 cursor-pointer"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </a>
+              </div>
+            ))}
           </div>
         </div>
       </details>

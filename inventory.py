@@ -273,6 +273,20 @@ def delete_item(item_id: int) -> None:
         conn.commit()
 
 
+def clear_items(category: Optional[str] = None):
+    """Delete ALL items, or all items in one category if given. Returns the deleted rows
+    (not just a count) so the caller can clean up their image files on disk."""
+    with get_connection() as conn:
+        if category:
+            rows = conn.execute("SELECT * FROM items WHERE category = ?", (category,)).fetchall()
+            conn.execute("DELETE FROM items WHERE category = ?", (category,))
+        else:
+            rows = conn.execute("SELECT * FROM items").fetchall()
+            conn.execute("DELETE FROM items")
+        conn.commit()
+        return [dict(row) for row in rows]
+
+
 def get_total_count() -> int:
     with get_connection() as conn:
         row = conn.execute("SELECT COALESCE(SUM(quantity), 0) AS total FROM items").fetchone()

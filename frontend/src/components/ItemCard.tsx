@@ -45,6 +45,7 @@ export function ItemCard({
     onSuccess: (deleted) => {
       queryClient.invalidateQueries({ queryKey: ["items"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
+      queryClient.invalidateQueries({ queryKey: ["backups"] });
       onDeleted(deleted);
     },
   });

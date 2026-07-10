@@ -60,3 +60,9 @@ export interface Suggestion {
   title: string;
   category: string;
 }
+
+export interface Backup {
+  filename: string;
+  created_at: string;
+  item_count: number;
+}

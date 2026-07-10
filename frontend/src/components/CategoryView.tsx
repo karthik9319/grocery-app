@@ -56,6 +56,7 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
     queryClient.invalidateQueries({ queryKey: ["items"] });
     queryClient.invalidateQueries({ queryKey: ["summary"] });
     queryClient.invalidateQueries({ queryKey: ["charts"] });
+    queryClient.invalidateQueries({ queryKey: ["backups"] });
   };
 
   const bulkDelete = useMutation({

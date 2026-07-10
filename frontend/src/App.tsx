@@ -140,7 +140,7 @@ function App() {
           </nav>
 
           <div className="mt-3 border-t border-line pt-3">
-            <SettingsSidebar />
+            <SettingsSidebar meta={meta} />
           </div>
         </div>
       </aside>
