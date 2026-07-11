@@ -86,15 +86,28 @@ COMMON_ITEMS = {
 }
 
 
+def known_item_category(title: str) -> Optional[str]:
+    """Return the category for a title ONLY if it matches a known COMMON_ITEMS keyword
+    (Groceries/Vegetables/Household/Snacks), else None. Unlike guess_category, this never
+    falls back to the ML classifier or a "Groceries" default - used where we specifically
+    want to recognize a genuine, already-known grocery/household/etc item and reject
+    anything else (e.g. filtering receipt-scan candidates down to real items, not random
+    OCR noise)."""
+    lower = title.lower()
+    for keyword, (category, _) in COMMON_ITEMS.items():
+        if keyword in lower:
+            return category
+    return None
+
+
 def guess_category(title: str) -> str:
     """Hybrid category guesser: try the fast/precise COMMON_ITEMS keyword match first,
     then fall back to the local ML text classifier (trained on COMMON_ITEMS + the user's
     own inventory) for titles it doesn't recognize, and only default to "Groceries" if
     neither has an answer."""
-    lower = title.lower()
-    for keyword, (category, _) in COMMON_ITEMS.items():
-        if keyword in lower:
-            return category
+    known = known_item_category(title)
+    if known:
+        return known
     predicted = classifier.predict(title)
     return predicted or "Groceries"
 
@@ -593,7 +606,12 @@ async def scan_receipt(image: UploadFile = File(...)):
 
     results = []
     for c in parsed:
-        category = guess_category(c["title"])
+        category = known_item_category(c["title"])
+        if category is None:
+            # Not a recognized Groceries/Vegetables/Household/Snacks item (e.g. store
+            # name/address, a garbled OCR line, or something outside the defined
+            # categories) - skip it rather than guessing/defaulting to "Groceries".
+            continue
         is_weight_unit = CATEGORY_UNITS[category] == "g"
         if is_weight_unit:
             quantity = c["weight_grams"] if c["weight_grams"] is not None else 500

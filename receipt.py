@@ -5,7 +5,7 @@ Uses pytesseract (a thin wrapper around the Tesseract OCR engine, installed loca
 """
 import re
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 NOISE_KEYWORDS = [
     "total", "subtotal", "tax", "cash", "change", "visa", "mastercard", "debit",
@@ -26,11 +26,41 @@ UNIT_TO_GRAMS = {
 }
 
 
+def preprocess_receipt_image(image: Image.Image) -> Image.Image:
+    """Clean up a phone-camera receipt photo before OCR. Real receipt photos are often
+    low-contrast, unevenly lit, and/or low-resolution - all of which trip up Tesseract
+    badly if fed in raw. This applies grayscale + contrast stretching + upscaling of
+    small photos, which are the standard, safe (non-destructive) preprocessing steps
+    for this - deliberately NOT doing hard black/white thresholding, since a fixed
+    threshold can wipe out text sitting in a shadowed part of the receipt.
+    """
+    processed = ImageOps.grayscale(image)
+    processed = ImageOps.autocontrast(processed, cutoff=1)
+
+    # Upscale small/low-res photos - Tesseract accuracy drops off sharply below
+    # roughly 300dpi-equivalent detail (rule of thumb: long side >= ~1800px).
+    long_side = max(processed.size)
+    if long_side < 1800:
+        scale = 1800 / long_side
+        processed = processed.resize(
+            (round(processed.width * scale), round(processed.height * scale)),
+            Image.Resampling.LANCZOS,
+        )
+    return processed
+
+
 def ocr_receipt_image(image: Image.Image) -> str:
-    """Run local OCR on a receipt photo and return the raw extracted text."""
+    """Run local OCR on a receipt photo and return the raw extracted text.
+
+    Preprocesses the image first (see preprocess_receipt_image), and uses PSM 6
+    ("assume a single uniform block of text") instead of Tesseract's default automatic
+    page-segmentation mode - PSM 6 is the commonly-recommended mode for narrow,
+    single-column receipts and reduces line-reordering/garbling versus the default.
+    """
     import pytesseract
 
-    return pytesseract.image_to_string(image)
+    processed = preprocess_receipt_image(image)
+    return pytesseract.image_to_string(processed, config="--psm 6")
 
 
 def parse_receipt_text(raw_text: str) -> list:
