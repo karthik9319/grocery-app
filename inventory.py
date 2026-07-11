@@ -57,6 +57,18 @@ def init_db() -> None:
             """
         )
         conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS meal_plan (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                meal_slot TEXT NOT NULL,
+                title TEXT NOT NULL,
+                notes TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
             "INSERT OR IGNORE INTO settings (id, count_threshold, weight_threshold) "
             "VALUES (1, 2, 200)"
         )

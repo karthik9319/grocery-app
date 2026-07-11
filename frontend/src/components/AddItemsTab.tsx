@@ -296,7 +296,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
         result.candidates.map((c) => ({
           title: titleCase(c.title),
           category: c.category,
-          quantity: meta.units[c.category] === "g" ? 500 : 1,
+          quantity: c.quantity,
         }))
       );
     } catch {

@@ -547,12 +547,18 @@ async def scan_receipt(image: UploadFile = File(...)):
     except UnidentifiedImageError:
         raise HTTPException(400, "Could not read that file as an image.")
     raw_text = receipt.ocr_receipt_image(pil_image)
-    candidates = receipt.parse_receipt_text(raw_text)
-    return {
-        "candidates": [
-            {"title": c, "category": guess_category(c)} for c in candidates
-        ]
-    }
+    parsed = receipt.parse_receipt_text(raw_text)
+
+    results = []
+    for c in parsed:
+        category = guess_category(c["title"])
+        is_weight_unit = CATEGORY_UNITS[category] == "g"
+        if is_weight_unit:
+            quantity = c["weight_grams"] if c["weight_grams"] is not None else 500
+        else:
+            quantity = c["quantity"] if c["quantity"] is not None else 1
+        results.append({"title": c["title"], "category": category, "quantity": quantity})
+    return {"candidates": results}
 
 
 # --- Charts ---

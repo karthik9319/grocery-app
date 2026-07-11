@@ -54,6 +54,7 @@ export interface ShoppingListItem {
 export interface ReceiptCandidate {
   title: string;
   category: string;
+  quantity: number;
 }
 
 export interface Suggestion {

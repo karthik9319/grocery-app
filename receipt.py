@@ -14,7 +14,16 @@ NOISE_KEYWORDS = [
 ]
 
 PRICE_PATTERN = re.compile(r"\$?\s*\d+\.\d{2}\s*$")
-LEADING_QTY_PATTERN = re.compile(r"^\d+\s*[xX]?\s*")
+LEADING_QTY_PATTERN = re.compile(r"^(\d+)\s*[xX]\s*|^(\d+)\s+(?=[A-Za-z])")
+WEIGHT_PATTERN = re.compile(r"(\d+(?:\.\d+)?)\s*(lbs?|kgs?|grams?|g|oz|ounces?)\b", re.IGNORECASE)
+
+# Convert a parsed weight into grams (the unit Vegetables/weight-based categories use).
+UNIT_TO_GRAMS = {
+    "g": 1, "gram": 1, "grams": 1,
+    "kg": 1000, "kgs": 1000,
+    "lb": 453.592, "lbs": 453.592,
+    "oz": 28.3495, "ounce": 28.3495, "ounces": 28.3495,
+}
 
 
 def ocr_receipt_image(image: Image.Image) -> str:
@@ -25,12 +34,15 @@ def ocr_receipt_image(image: Image.Image) -> str:
 
 
 def parse_receipt_text(raw_text: str) -> list:
-    """Return a list of candidate item name strings extracted from OCR'd receipt text.
-
-    This is a best-effort heuristic (strip trailing prices, skip obvious
-    total/tax/payment noise lines). It is always meant to be reviewed/edited by a
-    human before being added to inventory, not trusted blindly - receipt formats
-    vary too much across stores for fully automatic parsing.
+    """Return a list of candidate {title, quantity, weight_grams} dicts extracted from
+    OCR'd receipt text. `quantity` is a parsed leading count (e.g. "2x Milk" -> 2), and
+    `weight_grams` is a parsed weight amount (e.g. "1.5 lb Bananas" -> ~680g) - both are
+    None when nothing could be confidently parsed from that line, in which case the
+    caller should fall back to its own default. This is a best-effort heuristic (strip
+    trailing prices, skip obvious total/tax/payment noise lines, then look for a
+    leading count OR an inline weight+unit). It is always meant to be reviewed/edited by
+    a human before being added to inventory, not trusted blindly - receipt formats vary
+    too much across stores for fully automatic parsing.
     """
     candidates = []
     for line in raw_text.splitlines():
@@ -42,7 +54,24 @@ def parse_receipt_text(raw_text: str) -> list:
             continue
         match = PRICE_PATTERN.search(line)
         name_part = line[: match.start()] if match else line
-        name_part = LEADING_QTY_PATTERN.sub("", name_part).strip(" -.:*")
+
+        quantity = None
+        weight_grams = None
+        weight_match = WEIGHT_PATTERN.search(name_part)
+        if weight_match:
+            amount = float(weight_match.group(1))
+            unit = weight_match.group(2).lower()
+            weight_grams = round(amount * UNIT_TO_GRAMS.get(unit, 1), 1)
+            name_part = name_part[: weight_match.start()] + name_part[weight_match.end():]
+        else:
+            qty_match = LEADING_QTY_PATTERN.match(name_part)
+            if qty_match:
+                quantity = int(qty_match.group(1) or qty_match.group(2))
+                name_part = name_part[qty_match.end():]
+
+        name_part = name_part.strip(" -.:*")
         if len(name_part) >= 2 and not name_part.replace(".", "").replace(" ", "").isdigit():
-            candidates.append(name_part.title())
+            candidates.append(
+                {"title": name_part.title(), "quantity": quantity, "weight_grams": weight_grams}
+            )
     return candidates
