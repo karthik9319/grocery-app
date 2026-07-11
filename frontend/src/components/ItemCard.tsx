@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { daysUntil, formatQuantity, imageUrl } from "@/lib/utils";
 import { Badge, Card, Checkbox } from "@/components/ui";
 import { EditItemDialog } from "@/components/EditItemDialog";
+import { PhotoGalleryDialog } from "@/components/PhotoGalleryDialog";
 
 export function ItemCard({
   item,
@@ -27,6 +28,7 @@ export function ItemCard({
 }) {
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const unit = meta.units[item.category];
   const dotColor = meta.palette[item.category] ?? "#999";
   const isLow = item.quantity <= threshold;
@@ -67,7 +69,22 @@ export function ItemCard({
           className="shrink-0"
         />
       )}
-      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 border-content">
+      <div
+        className={
+          img && !selectable
+            ? "h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 border-content cursor-zoom-in"
+            : "h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 border-content"
+        }
+        onClick={
+          img && !selectable
+            ? (e) => {
+                e.stopPropagation();
+                setGalleryOpen(true);
+              }
+            : undefined
+        }
+        title={img && !selectable ? "View photos" : undefined}
+      >
         {img ? (
           <img src={img} alt={item.title} className="h-full w-full object-cover" />
         ) : (
@@ -155,6 +172,7 @@ export function ItemCard({
       )}
 
       <EditItemDialog item={item} meta={meta} open={editOpen} onOpenChange={setEditOpen} />
+      <PhotoGalleryDialog item={item} open={galleryOpen} onOpenChange={setGalleryOpen} />
     </Card>
   );
 }

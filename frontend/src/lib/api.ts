@@ -218,6 +218,23 @@ export const api = {
   exportShoppingListCsvUrl: () => "/api/export/shopping-list/csv",
   exportMealPlanCsvUrl: () => "/api/export/meal-plan/csv",
   exportAllUrl: () => "/api/export/all",
+  importAll: (file: File, mode: "merge" | "overwrite" = "merge") => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("mode", mode);
+    return client
+      .post<Record<string, Record<string, number>>>("/import/all", form)
+      .then((r) => r.data);
+  },
+
+  findDuplicates: () => client.get<Item[][]>("/duplicates").then((r) => r.data),
+  mergeDuplicates: (keepId: number, mergeIds: number[]) =>
+    client
+      .post<{ status: string; kept_id: number; quantity: number }>("/duplicates/merge", {
+        keep_id: keepId,
+        merge_ids: mergeIds,
+      })
+      .then((r) => r.data),
   importCsv: (file: File, mode: "merge" | "overwrite" = "merge") => {
     const form = new FormData();
     form.append("file", file);

@@ -6,6 +6,7 @@ both frontends share the same data/inventory.db and data/images/.
 """
 import csv
 import io
+import re
 import uuid
 import zipfile
 from datetime import date, datetime, timedelta
@@ -98,6 +99,19 @@ def known_item_category(title: str) -> Optional[str]:
     for keyword, (category, _) in COMMON_ITEMS.items():
         if keyword in lower:
             return category
+    return None
+
+
+def alias_match(title: str) -> Optional[dict]:
+    """Return the canonical item (as a dict with title/category/item_id) if any known
+    alias is found as a SUBSTRING of title, else None. Unlike inventory.find_item_by_alias
+    (exact match, used for merge-on-add when a user types a title), this is substring-
+    based to cope with messy OCR'd receipt lines that carry extra words (e.g. "COKE 12PK"
+    should still match an alias of plain "coke")."""
+    lower = title.lower()
+    for alias in inventory.get_all_aliases():
+        if alias["alias"].lower() in lower:
+            return alias
     return None
 
 
@@ -750,18 +764,27 @@ async def scan_receipt(image: UploadFile = File(...)):
 
     results = []
     for c in parsed:
-        category = known_item_category(c["title"])
-        if category is None:
-            # Not a recognized Groceries/Vegetables/Household/Snacks item (e.g. store
-            # name/address, a garbled OCR line, or something outside the defined
-            # categories) - skip it rather than guessing/defaulting to "Groceries".
-            continue
+        # An alias match wins first (e.g. "COKE 12PK" matching an alias "coke" of a
+        # tracked "Coca-Cola" item) - use the CANONICAL item's real title/category
+        # instead of the raw OCR text, since it's genuinely the same tracked item.
+        aliased = alias_match(c["title"])
+        if aliased:
+            category = aliased["category"]
+            title = aliased["title"]
+        else:
+            category = known_item_category(c["title"])
+            title = c["title"]
+            if category is None:
+                # Not a recognized Groceries/Vegetables/Household/Snacks item (e.g. store
+                # name/address, a garbled OCR line, or something outside the defined
+                # categories) - skip it rather than guessing/defaulting to "Groceries".
+                continue
         is_weight_unit = CATEGORY_UNITS[category] == "g"
         if is_weight_unit:
             quantity = c["weight_grams"] if c["weight_grams"] is not None else 500
         else:
             quantity = c["quantity"] if c["quantity"] is not None else 1
-        results.append({"title": c["title"], "category": category, "quantity": quantity})
+        results.append({"title": title, "category": category, "quantity": quantity})
     return {"candidates": results}
 
 
@@ -899,3 +922,202 @@ async def import_csv(file: UploadFile = File(...), mode: str = Form("merge")):
         raise HTTPException(400, "CSV must have at least a 'title' column.")
 
     return import_rows(reader, mode)
+
+
+@app.post("/api/import/all")
+async def import_all(file: UploadFile = File(...), mode: str = Form("merge")):
+    """Restore a full ZIP export (see /api/export/all) - inventory.csv, favorites.csv,
+    shopping-list.csv, meal-plan.csv. Any subset of those files may be present (missing
+    files are simply skipped); each list uses the same matching rules its own dedicated
+    import already uses, so re-running this on the same zip is safe."""
+    raw_bytes = await file.read()
+    try:
+        zf = zipfile.ZipFile(io.BytesIO(raw_bytes))
+    except zipfile.BadZipFile:
+        raise HTTPException(400, "Could not read that file as a zip archive.")
+
+    result: dict = {}
+
+    if "inventory.csv" in zf.namelist():
+        text = zf.read("inventory.csv").decode("utf-8-sig")
+        result["inventory"] = import_rows(csv.DictReader(io.StringIO(text)), mode)
+
+    if "favorites.csv" in zf.namelist():
+        text = zf.read("favorites.csv").decode("utf-8-sig")
+        processed = 0
+        for row in csv.DictReader(io.StringIO(text)):
+            title = (row.get("title") or "").strip()
+            category = (row.get("category") or "").strip()
+            if not title or category not in CATEGORIES:
+                continue
+            try:
+                default_quantity = float(row.get("default_quantity") or 1)
+            except ValueError:
+                default_quantity = 1
+            # add_favorite is an upsert keyed on title+category, so re-importing the
+            # same row never creates a duplicate - it just re-applies the same quantity.
+            inventory.add_favorite(title, category, default_quantity)
+            processed += 1
+        result["favorites"] = {"processed": processed}
+
+    if "shopping-list.csv" in zf.namelist():
+        text = zf.read("shopping-list.csv").decode("utf-8-sig")
+        added = 0
+        for row in csv.DictReader(io.StringIO(text)):
+            title = (row.get("title") or "").strip()
+            if not title:
+                continue
+            category = (row.get("category") or "").strip() or None
+            # add_shopping_list_item already skips a duplicate unchecked title+category
+            # entry, so re-running this import is safe.
+            inventory.add_shopping_list_item(title, category)
+            added += 1
+        result["shopping_list"] = {"processed": added}
+
+    if "meal-plan.csv" in zf.namelist():
+        text = zf.read("meal-plan.csv").decode("utf-8-sig")
+        existing_keys = {
+            (e["date"], e["meal_slot"], e["title"].lower())
+            for e in inventory.get_all_meal_plan_entries()
+        }
+        added = 0
+        skipped = 0
+        for row in csv.DictReader(io.StringIO(text)):
+            entry_date = (row.get("date") or "").strip()
+            meal_slot = (row.get("meal_slot") or "").strip()
+            title = (row.get("title") or "").strip()
+            if not entry_date or meal_slot not in MEAL_SLOTS or not title:
+                skipped += 1
+                continue
+            key = (entry_date, meal_slot, title.lower())
+            if key in existing_keys:
+                # Already have this exact date+slot+title - avoids duplicating entries
+                # on a repeat import of the same zip.
+                skipped += 1
+                continue
+            notes = (row.get("notes") or "").strip() or None
+            inventory.add_meal_plan_entry(entry_date, meal_slot, title, notes)
+            existing_keys.add(key)
+            added += 1
+        result["meal_plan"] = {"added": added, "skipped": skipped}
+
+    if not result:
+        raise HTTPException(400, "Zip didn't contain any recognized export files.")
+    return result
+
+
+# --- Duplicate / near-duplicate finder ---
+def normalize_for_dupe(title: str) -> str:
+    """Loose normalization for "is this probably the same item" comparisons: lowercase,
+    strip punctuation, collapse whitespace, strip a trailing plural "s"/"es" - so e.g.
+    "Tomato" and "Tomatoes" normalize to the same stem."""
+    cleaned = re.sub(r"[^a-z0-9\s]", "", title.lower()).strip()
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    if cleaned.endswith("es") and len(cleaned) > 4:
+        cleaned = cleaned[:-2]
+    elif cleaned.endswith("s") and len(cleaned) > 3:
+        cleaned = cleaned[:-1]
+    return cleaned
+
+
+def levenshtein(a: str, b: str) -> int:
+    """Standard edit-distance dynamic-programming implementation - no dependency needed,
+    a personal inventory is always small enough (dozens of items) for this to be
+    instant."""
+    if a == b:
+        return 0
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        curr = [i] + [0] * len(b)
+        for j, cb in enumerate(b, 1):
+            cost = 0 if ca == cb else 1
+            curr[j] = min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost)
+        prev = curr
+    return prev[-1]
+
+
+@app.get("/api/duplicates")
+def find_duplicates():
+    """Group existing items whose titles look like the same real-world thing (plural
+    variants, e.g. "Tomato"/"Tomatoes", or small typos) - even across different
+    categories, since accidentally tracking one thing under two categories is also worth
+    flagging - so the user can review and merge them instead of tracking the same thing
+    under separate rows."""
+    all_items = [item for cat in CATEGORIES for item in inventory.get_items_by_category(cat)]
+    seen_ids: set = set()
+    groups = []
+    for i, a in enumerate(all_items):
+        if a["id"] in seen_ids:
+            continue
+        norm_a = normalize_for_dupe(a["title"])
+        matches = [a]
+        for b in all_items[i + 1:]:
+            if b["id"] in seen_ids:
+                continue
+            norm_b = normalize_for_dupe(b["title"])
+            if not norm_a or not norm_b:
+                continue
+            is_match = norm_a == norm_b or (
+                min(len(norm_a), len(norm_b)) >= 4 and levenshtein(norm_a, norm_b) <= 2
+            )
+            if is_match:
+                matches.append(b)
+        if len(matches) > 1:
+            for m in matches:
+                seen_ids.add(m["id"])
+            groups.append(matches)
+    return groups
+
+
+@app.post("/api/duplicates/merge")
+def merge_duplicates(payload: dict):
+    """Merge one or more duplicate items into a single "keep" item: quantities are
+    summed onto the kept item, each merged item's original title is added as an alias of
+    the kept item (so re-adding under that old name merges correctly in the future), and
+    the merged items (plus their own aliases/gallery photos) are deleted."""
+    keep_id = payload.get("keep_id")
+    merge_ids = payload.get("merge_ids") or []
+    all_items = [item for cat in CATEGORIES for item in inventory.get_items_by_category(cat)]
+    keep = next((i for i in all_items if i["id"] == keep_id), None)
+    if not keep:
+        raise HTTPException(404, "Item to keep not found")
+
+    total_quantity = keep["quantity"]
+    for merge_id in merge_ids:
+        if merge_id == keep_id:
+            continue
+        merged_item = next((i for i in all_items if i["id"] == merge_id), None)
+        if not merged_item:
+            continue
+        total_quantity += merged_item["quantity"]
+        try:
+            inventory.add_alias(keep_id, merged_item["title"])
+        except ValueError:
+            pass  # alias already taken elsewhere - not critical to completing the merge
+        deleted_photos = inventory.delete_item(merge_id)
+        if merged_item.get("image_path"):
+            cover_path = BASE_DIR / merged_item["image_path"]
+            if cover_path.exists():
+                try:
+                    cover_path.unlink()
+                except OSError:
+                    pass
+        for photo in deleted_photos:
+            path = BASE_DIR / photo["image_path"]
+            if path.exists():
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
+
+    inventory.update_item(
+        keep_id,
+        keep["title"],
+        keep["category"],
+        total_quantity,
+        keep.get("notes"),
+        None,
+        keep.get("custom_threshold"),
+        keep.get("expiration_date"),
+    )
+    return {"status": "merged", "kept_id": keep_id, "quantity": total_quantity}

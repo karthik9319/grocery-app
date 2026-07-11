@@ -1,19 +1,68 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ChevronDown,
+  Copy,
   Download,
   History,
   RotateCcw,
   Settings as SettingsIcon,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import type { Meta } from "@/types";
+import type { Item, Meta } from "@/types";
 import { Button, Checkbox, EmptyState, Input, Label } from "@/components/ui";
 import { ThemeToggle } from "@/components/ThemeToggle";
+
+function DuplicateGroupCard({
+  group,
+  meta,
+  onMerge,
+  merging,
+}: {
+  group: Item[];
+  meta: Meta;
+  onMerge: (keepId: number, mergeIds: number[]) => void;
+  merging: boolean;
+}) {
+  const defaultKeep = group.reduce((a, b) => (b.quantity > a.quantity ? b : a), group[0]);
+  const [keepId, setKeepId] = useState(defaultKeep.id);
+  const groupKey = group.map((g) => g.id).join("-");
+
+  return (
+    <div className="space-y-2 rounded-xl border-2 border-content bg-surface-solid p-2.5 text-xs">
+      {group.map((item) => (
+        <label key={item.id} className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="radio"
+            name={`dup-${groupKey}`}
+            checked={keepId === item.id}
+            onChange={() => setKeepId(item.id)}
+          />
+          <span className="min-w-0 flex-1 truncate">
+            {meta.icons[item.category]} {item.title}
+          </span>
+          <span className="shrink-0 text-subtle">
+            {item.quantity}
+            {meta.units[item.category] === "g" ? "g" : ""}
+          </span>
+        </label>
+      ))}
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full justify-center"
+        disabled={merging}
+        onClick={() => onMerge(keepId, group.filter((g) => g.id !== keepId).map((g) => g.id))}
+      >
+        Merge into selected
+      </Button>
+    </div>
+  );
+}
 
 export function SettingsSidebar({ meta }: { meta: Meta }) {
   const queryClient = useQueryClient();
@@ -109,6 +158,47 @@ export function SettingsSidebar({ meta }: { meta: Meta }) {
       restoreBackup.mutate(filename);
     }
   }
+
+  const importAllInputRef = useRef<HTMLInputElement>(null);
+  const [importingAll, setImportingAll] = useState(false);
+
+  async function handleImportAllFile(file: File) {
+    setImportingAll(true);
+    try {
+      const result = await api.importAll(file);
+      const summary = Object.entries(result)
+        .map(([list, counts]) => `${list}: ${Object.values(counts).join("/")}`)
+        .join(" · ");
+      toast.success(`Imported: ${summary}`, { icon: "📦" });
+      queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: ["summary"] });
+      queryClient.invalidateQueries({ queryKey: ["favorites"] });
+      queryClient.invalidateQueries({ queryKey: ["shopping-list"] });
+      queryClient.invalidateQueries({ queryKey: ["meal-plan"] });
+      queryClient.invalidateQueries({ queryKey: ["duplicates"] });
+    } catch {
+      toast.error("Could not import that file. Make sure it's a zip from Export all.");
+    } finally {
+      setImportingAll(false);
+      if (importAllInputRef.current) importAllInputRef.current.value = "";
+    }
+  }
+
+  const { data: duplicateGroups } = useQuery({
+    queryKey: ["duplicates"],
+    queryFn: api.findDuplicates,
+  });
+
+  const mergeDuplicates = useMutation({
+    mutationFn: ({ keepId, mergeIds }: { keepId: number; mergeIds: number[] }) =>
+      api.mergeDuplicates(keepId, mergeIds),
+    onSuccess: () => {
+      toast.success("Merged duplicate items.");
+      queryClient.invalidateQueries({ queryKey: ["duplicates"] });
+      queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: ["summary"] });
+    },
+  });
 
   return (
     <div className="space-y-2">
@@ -236,11 +326,61 @@ export function SettingsSidebar({ meta }: { meta: Meta }) {
         </div>
       </details>
 
+      <details className="group rounded-2xl">
+        <summary className="flex cursor-pointer items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-semibold text-muted hover:bg-surface">
+          <Copy className="h-[18px] w-[18px] text-subtle" />
+          Possible Duplicates{duplicateGroups?.length ? ` (${duplicateGroups.length})` : ""}
+          <ChevronDown className="ml-auto h-4 w-4 text-subtle transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="space-y-2 px-3 pb-3 pt-2">
+          <p className="text-xs text-muted">
+            Items with similar names (plurals, small typos) that might be the same thing
+            tracked twice. Pick which to keep - its quantity gets the others added on, and
+            the old name(s) become an alias so re-adding under them merges correctly.
+          </p>
+          {!duplicateGroups?.length && <EmptyState icon="✅" title="No duplicates found" />}
+          <div className="space-y-2">
+            {duplicateGroups?.map((group) => (
+              <DuplicateGroupCard
+                key={group.map((g) => g.id).join("-")}
+                group={group}
+                meta={meta}
+                merging={mergeDuplicates.isPending}
+                onMerge={(keepId, mergeIds) => mergeDuplicates.mutate({ keepId, mergeIds })}
+              />
+            ))}
+          </div>
+        </div>
+      </details>
+
       <a href={api.exportAllUrl()} download className="block">
         <Button variant="ghost" size="sm" className="w-full justify-start px-3 text-muted">
           <Download className="h-[18px] w-[18px] text-subtle" /> Export all (.zip)
         </Button>
       </a>
+
+      <div>
+        <input
+          ref={importAllInputRef}
+          type="file"
+          accept=".zip"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleImportAllFile(f);
+          }}
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          className="w-full justify-start px-3 text-muted"
+          disabled={importingAll}
+          onClick={() => importAllInputRef.current?.click()}
+        >
+          <Upload className="h-[18px] w-[18px] text-subtle" />
+          {importingAll ? "Importing..." : "Import all (.zip)"}
+        </Button>
+      </div>
 
       <details className="group rounded-2xl">
         <summary className="flex cursor-pointer items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-semibold text-muted hover:bg-surface">
