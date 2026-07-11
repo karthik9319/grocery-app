@@ -34,6 +34,9 @@ export const api = {
   suggestTitles: (q: string) =>
     client.get<Suggestion[]>("/suggestions", { params: { q } }).then((r) => r.data),
 
+  classifyTitle: (title: string) =>
+    client.get<{ category: string }>("/classify", { params: { title } }).then((r) => r.data),
+
   createItem: (data: {
     title: string;
     category: string;

@@ -20,6 +20,8 @@ from pillow_heif import register_heif_opener
 
 import inventory
 import receipt
+import classifier
+import image_search
 
 register_heif_opener()
 
@@ -68,6 +70,14 @@ COMMON_ITEMS = {
     "banana": ("Groceries", 5), "orange": ("Groceries", 14), "juice": ("Groceries", 7),
     "shampoo": ("Household", None), "soap": ("Household", None), "detergent": ("Household", None),
     "toothpaste": ("Household", None), "tissue": ("Household", None),
+    "toothbrush": ("Household", None), "conditioner": ("Household", None),
+    "dish soap": ("Household", None), "sponge": ("Household", None), "mop": ("Household", None),
+    "broom": ("Household", None), "trash bag": ("Household", None), "garbage bag": ("Household", None),
+    "paper towel": ("Household", None), "napkin": ("Household", None), "deodorant": ("Household", None),
+    "razor": ("Household", None), "sanitizer": ("Household", None), "bleach": ("Household", None),
+    "fabric softener": ("Household", None), "air freshener": ("Household", None),
+    "light bulb": ("Household", None), "battery": ("Household", None), "batteries": ("Household", None),
+    "toilet paper": ("Household", None), "dishwasher": ("Household", None),
     "chips": ("Snacks", 90), "popcorn": ("Snacks", 180), "cookie": ("Snacks", 60),
     "cookies": ("Snacks", 60), "chocolate": ("Snacks", 180), "candy": ("Snacks", 270),
     "cracker": ("Snacks", 120), "crackers": ("Snacks", 120), "pretzel": ("Snacks", 120),
@@ -77,11 +87,62 @@ COMMON_ITEMS = {
 
 
 def guess_category(title: str) -> str:
+    """Hybrid category guesser: try the fast/precise COMMON_ITEMS keyword match first,
+    then fall back to the local ML text classifier (trained on COMMON_ITEMS + the user's
+    own inventory) for titles it doesn't recognize, and only default to "Groceries" if
+    neither has an answer."""
     lower = title.lower()
     for keyword, (category, _) in COMMON_ITEMS.items():
         if keyword in lower:
             return category
-    return "Groceries"
+    predicted = classifier.predict(title)
+    return predicted or "Groceries"
+
+
+def retrain_classifier() -> None:
+    """(Re)train the local text classifier from COMMON_ITEMS plus every title currently
+    in the user's inventory, so it keeps improving as they add more items. Cheap enough
+    (tiny dataset) to call after every add - never raises, a training hiccup just leaves
+    the previous model (or the keyword-only fallback) in place."""
+    try:
+        pairs = [(keyword, cat) for keyword, (cat, _) in COMMON_ITEMS.items()]
+        for cat in CATEGORIES:
+            for item in inventory.get_items_by_category(cat):
+                pairs.append((item["title"], item["category"]))
+        classifier.train(pairs)
+    except Exception:
+        pass
+
+
+retrain_classifier()
+
+
+def image_search_query_for(title: str) -> str:
+    """Prefer a known COMMON_ITEMS keyword found inside the title over the raw title -
+    real-world titles often carry noise (brand names, sizes, stray words) that dilutes
+    image-search relevance, whereas a bare keyword like "apple" or "toothpaste" reliably
+    finds an on-topic photo."""
+    lower = title.lower()
+    for keyword in COMMON_ITEMS:
+        if keyword in lower:
+            return keyword
+    return title
+
+
+def auto_fetch_image(title: str) -> Optional[str]:
+    """Best-effort: if an item is added with no photo, try to find a representative one
+    via image_search and save it just like an uploaded photo. Returns None (silently) on
+    any failure so a missing/failed image search never blocks adding the item."""
+    raw = image_search.find_image_bytes(image_search_query_for(title))
+    if not raw:
+        return None
+    try:
+        image = Image.open(io.BytesIO(raw)).convert("RGB")
+    except UnidentifiedImageError:
+        return None
+    filename = f"{uuid.uuid4().hex}.jpg"
+    image.save(IMAGES_DIR / filename)
+    return str(Path("data/images") / filename)
 
 
 def estimate_shelf_life_days(title: str, category: str) -> int:
@@ -259,6 +320,14 @@ def get_suggestions(q: str = ""):
     return (starts + contains)[:8]
 
 
+@app.get("/api/classify")
+def classify_title(title: str):
+    """Live category prediction for a title as the user types (before they've picked a
+    known suggestion) - powered by the same keyword+ML hybrid used everywhere else."""
+    return {"category": guess_category(title)}
+
+
+
 @app.post("/api/items")
 def create_item(
     title: str = Form(...),
@@ -284,8 +353,9 @@ def create_item(
         )
         return {"status": "merged", "id": existing["id"], "quantity": new_total}
 
-    image_path = save_upload(image) if image is not None else None
+    image_path = save_upload(image) if image is not None else auto_fetch_image(title)
     inventory.add_item(title, category, quantity, image_path, notes, custom_threshold, expiration_date)
+    retrain_classifier()
     return {"status": "added"}
 
 
@@ -421,7 +491,9 @@ def quick_add_favorite(favorite_id: int):
         new_qty = existing["quantity"] + fav["default_quantity"]
         inventory.update_quantity(existing["id"], new_qty)
     else:
-        inventory.add_item(fav["title"], fav["category"], fav["default_quantity"], None)
+        inventory.add_item(
+            fav["title"], fav["category"], fav["default_quantity"], auto_fetch_image(fav["title"])
+        )
     return {"status": "ok"}
 
 

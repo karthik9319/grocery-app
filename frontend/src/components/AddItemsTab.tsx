@@ -11,8 +11,8 @@ import { TitleAutocomplete } from "@/components/TitleAutocomplete";
 
 type DraftEntry = {
   id: string;
-  file: File;
-  previewUrl: string;
+  file: File | null;
+  previewUrl: string | null;
   title: string;
   category: string;
   quantity: number;
@@ -30,13 +30,13 @@ function todayPlus(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function makeDraft(file: File, meta: Meta): DraftEntry {
+function makeDraft(file: File | null, meta: Meta): DraftEntry {
   const category = meta.categories[0];
   const isWeight = meta.units[category] === "g";
   return {
     id: crypto.randomUUID(),
     file,
-    previewUrl: URL.createObjectURL(file),
+    previewUrl: file ? URL.createObjectURL(file) : null,
     title: "",
     category,
     quantity: isWeight ? 500 : 1,
@@ -44,7 +44,7 @@ function makeDraft(file: File, meta: Meta): DraftEntry {
     notes: "",
     useThreshold: false,
     threshold: 2,
-    trackExpiry: true,
+    trackExpiry: false,
     expiryDate: todayPlus(14),
   };
 }
@@ -78,6 +78,10 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
   function handleFiles(files: FileList | null) {
     if (!files) return;
     setDrafts((prev) => [...prev, ...Array.from(files).map((f) => makeDraft(f, meta))]);
+  }
+
+  function addBlankDraft() {
+    setDrafts((prev) => [...prev, makeDraft(null, meta)]);
   }
 
   function updateDraft(id: string, patch: Partial<DraftEntry>) {
@@ -138,14 +142,29 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
           />
         </label>
       </Card>
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1 bg-line" />
+        <span className="text-xs font-bold uppercase text-subtle">or</span>
+        <div className="h-px flex-1 bg-line" />
+      </div>
+      <Button variant="outline" onClick={addBlankDraft} className="w-full sm:w-auto">
+        + Add an item without a photo
+      </Button>
       <p className="text-xs text-subtle">
         Tip: open this app on your iPhone's browser over the same Wi-Fi (see the terminal for the
-        network URL) to upload straight from your phone's camera roll or camera.
+        network URL) to upload straight from your phone's camera roll or camera. Skipping the
+        photo? We'll try to find a matching picture for you automatically.
       </p>
 
       {drafts.map((draft) => (
         <Card key={draft.id} className="flex gap-4 p-4">
-          <img src={draft.previewUrl} className="h-24 w-24 shrink-0 rounded-xl object-cover" />
+          {draft.previewUrl ? (
+            <img src={draft.previewUrl} className="h-24 w-24 shrink-0 rounded-xl object-cover" />
+          ) : (
+            <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-content text-3xl">
+              🔍
+            </div>
+          )}
           <div className="grid flex-1 gap-3 sm:grid-cols-2">
             <TitleAutocomplete
               placeholder="e.g. Apples, Milk, Shampoo"
@@ -158,6 +177,13 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
                   category: s.category,
                   unit: meta.units[s.category] === "g" ? "g" : "count",
                   quantity: meta.units[s.category] === "g" ? 500 : 1,
+                })
+              }
+              onClassify={(category) =>
+                updateDraft(draft.id, {
+                  category,
+                  unit: meta.units[category] === "g" ? "g" : "count",
+                  quantity: meta.units[category] === "g" ? 500 : 1,
                 })
               }
             />

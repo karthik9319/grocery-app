@@ -7,3 +7,5 @@ pytesseract
 fastapi
 uvicorn[standard]
 python-multipart
+scikit-learn
+requests
