@@ -69,6 +69,26 @@ def init_db() -> None:
             """
         )
         conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS item_aliases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id INTEGER NOT NULL,
+                alias TEXT NOT NULL COLLATE NOCASE UNIQUE,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS item_photos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id INTEGER NOT NULL,
+                image_path TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
             "INSERT OR IGNORE INTO settings (id, count_threshold, weight_threshold) "
             "VALUES (1, 2, 200)"
         )
@@ -243,6 +263,16 @@ def update_quantity(item_id: int, new_quantity: int) -> None:
         conn.commit()
 
 
+def clear_item_cover(item_id: int) -> None:
+    """Explicitly clear an item's cover image_path (set to NULL). Separate from
+    update_item, whose image_path=None means "leave unchanged" - needed when the gallery
+    photo currently used as the cover gets deleted, so we don't leave a dangling
+    reference to a file that no longer exists."""
+    with get_connection() as conn:
+        conn.execute("UPDATE items SET image_path = NULL WHERE id = ?", (item_id,))
+        conn.commit()
+
+
 def update_item(
     item_id: int,
     title: str,
@@ -279,24 +309,51 @@ def update_item(
         conn.commit()
 
 
-def delete_item(item_id: int) -> None:
+def delete_item(item_id: int) -> list:
+    """Delete an item, along with any aliases and gallery photos attached to it. Returns
+    the deleted photo rows (not just a count) so the caller can remove those image files
+    from disk too."""
     with get_connection() as conn:
+        photos = conn.execute(
+            "SELECT * FROM item_photos WHERE item_id = ?", (item_id,)
+        ).fetchall()
         conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
+        conn.execute("DELETE FROM item_aliases WHERE item_id = ?", (item_id,))
+        conn.execute("DELETE FROM item_photos WHERE item_id = ?", (item_id,))
         conn.commit()
+        return [dict(row) for row in photos]
 
 
 def clear_items(category: Optional[str] = None):
     """Delete ALL items, or all items in one category if given. Returns the deleted rows
-    (not just a count) so the caller can clean up their image files on disk."""
+    (not just a count) so the caller can clean up their image files on disk. Also cascades
+    to delete any aliases/gallery photos attached to the removed items - the deleted photo
+    rows are included in each item's dict under the "_photos" key for the caller to clean
+    up their files too."""
     with get_connection() as conn:
         if category:
             rows = conn.execute("SELECT * FROM items WHERE category = ?", (category,)).fetchall()
-            conn.execute("DELETE FROM items WHERE category = ?", (category,))
         else:
             rows = conn.execute("SELECT * FROM items").fetchall()
+        item_ids = [row["id"] for row in rows]
+        results = []
+        for row in rows:
+            item = dict(row)
+            photos = conn.execute(
+                "SELECT * FROM item_photos WHERE item_id = ?", (item["id"],)
+            ).fetchall()
+            item["_photos"] = [dict(p) for p in photos]
+            results.append(item)
+        if item_ids:
+            placeholders = ",".join("?" * len(item_ids))
+            conn.execute(f"DELETE FROM item_aliases WHERE item_id IN ({placeholders})", item_ids)
+            conn.execute(f"DELETE FROM item_photos WHERE item_id IN ({placeholders})", item_ids)
+        if category:
+            conn.execute("DELETE FROM items WHERE category = ?", (category,))
+        else:
             conn.execute("DELETE FROM items")
         conn.commit()
-        return [dict(row) for row in rows]
+        return results
 
 
 def get_total_count() -> int:
@@ -326,6 +383,108 @@ def get_title_breakdown():
             """
         ).fetchall()
         return [dict(row) for row in rows]
+
+
+# --- Aliases (synonyms) ---
+def add_alias(item_id: int, alias: str) -> dict:
+    """Add a synonym alias for an item (e.g. "soda" for a "Coca-Cola" item) so adding an
+    item under that alias name later merges into the existing item instead of creating a
+    duplicate. Aliases are globally unique (case-insensitive, enforced by the column's
+    COLLATE NOCASE) - re-adding the same alias to the SAME item is a no-op; raises
+    ValueError if it's already taken by a DIFFERENT item."""
+    alias = alias.strip()
+    with get_connection() as conn:
+        existing = conn.execute("SELECT * FROM item_aliases WHERE alias = ?", (alias,)).fetchone()
+        if existing:
+            if existing["item_id"] == item_id:
+                return dict(existing)
+            raise ValueError(f'Alias "{alias}" is already used for another item')
+        cur = conn.execute(
+            "INSERT INTO item_aliases (item_id, alias, created_at) VALUES (?, ?, ?)",
+            (item_id, alias, datetime.now().isoformat()),
+        )
+        conn.commit()
+        return {"id": cur.lastrowid, "item_id": item_id, "alias": alias}
+
+
+def get_aliases_for_item(item_id: int):
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM item_aliases WHERE item_id = ? ORDER BY alias", (item_id,)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def remove_alias(alias_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM item_aliases WHERE id = ?", (alias_id,))
+        conn.commit()
+
+
+def find_item_by_alias(title: str):
+    """Return the canonical item this title is a known alias for (case-insensitive exact
+    match), or None. Used when adding an item so typing a known synonym (e.g. "soda")
+    merges into the real tracked item ("Coca-Cola") instead of creating a duplicate."""
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT items.* FROM item_aliases
+            JOIN items ON items.id = item_aliases.item_id
+            WHERE item_aliases.alias = ? LIMIT 1
+            """,
+            (title.strip(),),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def get_all_aliases():
+    """All aliases across every item, joined with that item's title/category - used to
+    power alias-aware autocomplete suggestions."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT item_aliases.id, item_aliases.alias, items.id AS item_id,
+                   items.title, items.category
+            FROM item_aliases JOIN items ON items.id = item_aliases.item_id
+            """
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+# --- Photos (gallery, beyond the single cover image_path) ---
+def add_item_photo(item_id: int, image_path: str) -> dict:
+    with get_connection() as conn:
+        cur = conn.execute(
+            "INSERT INTO item_photos (item_id, image_path, created_at) VALUES (?, ?, ?)",
+            (item_id, image_path, datetime.now().isoformat()),
+        )
+        conn.commit()
+        return {"id": cur.lastrowid, "item_id": item_id, "image_path": image_path}
+
+
+def get_item_photos(item_id: int):
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM item_photos WHERE item_id = ? ORDER BY created_at ASC", (item_id,)
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_item_photo(photo_id: int):
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM item_photos WHERE id = ?", (photo_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def delete_item_photo(photo_id: int):
+    """Delete a gallery photo row and return it (so the caller can remove the file from
+    disk), or None if it didn't exist."""
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM item_photos WHERE id = ?", (photo_id,)).fetchone()
+        if row:
+            conn.execute("DELETE FROM item_photos WHERE id = ?", (photo_id,))
+            conn.commit()
+        return dict(row) if row else None
 
 
 def get_settings():
@@ -474,6 +633,15 @@ def get_meal_plan_range(start_date: str, end_date: str):
             "SELECT * FROM meal_plan WHERE date BETWEEN ? AND ? ORDER BY date ASC, id ASC",
             (start_date, end_date),
         ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_all_meal_plan_entries():
+    """Every meal plan entry ever created, regardless of date - used for a full export
+    (unlike get_meal_plan_range, which is scoped to the calendar's currently-displayed
+    week)."""
+    with get_connection() as conn:
+        rows = conn.execute("SELECT * FROM meal_plan ORDER BY date ASC, id ASC").fetchall()
         return [dict(row) for row in rows]
 
 

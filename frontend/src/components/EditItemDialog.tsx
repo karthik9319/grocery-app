@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { X } from "lucide-react";
 import type { Item, Meta } from "@/types";
 import { api } from "@/lib/api";
-import { titleCase } from "@/lib/utils";
+import { imageUrl, cn, titleCase } from "@/lib/utils";
 import { Dialog, DialogContent } from "@/components/Dialog";
-import { Button, Checkbox, Input, Label, Select, Textarea } from "@/components/ui";
+import { Badge, Button, Checkbox, Input, Label, Select, Textarea } from "@/components/ui";
 import { TitleAutocomplete } from "@/components/TitleAutocomplete";
 
 export function EditItemDialog({
@@ -31,6 +32,55 @@ export function EditItemDialog({
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteQty, setFavoriteQty] = useState(item.quantity);
   const [newImage, setNewImage] = useState<File | null>(null);
+  const [newAlias, setNewAlias] = useState("");
+
+  const aliasesQuery = useQuery({
+    queryKey: ["item-aliases", item.id],
+    queryFn: () => api.itemAliases(item.id),
+    enabled: open,
+  });
+  const photosQuery = useQuery({
+    queryKey: ["item-photos", item.id],
+    queryFn: () => api.itemPhotos(item.id),
+    enabled: open,
+  });
+
+  const addAliasMutation = useMutation({
+    mutationFn: (alias: string) => api.addItemAlias(item.id, alias),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["item-aliases", item.id] });
+      setNewAlias("");
+    },
+    onError: (err: unknown) => {
+      const message =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        "Couldn't add alias.";
+      toast.error(message);
+    },
+  });
+  const removeAliasMutation = useMutation({
+    mutationFn: (aliasId: number) => api.removeItemAlias(item.id, aliasId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["item-aliases", item.id] }),
+  });
+  const addPhotoMutation = useMutation({
+    mutationFn: (file: File) => api.addItemPhoto(item.id, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["item-photos", item.id] });
+      queryClient.invalidateQueries({ queryKey: ["items"] });
+    },
+    onError: () => toast.error("Couldn't upload photo."),
+  });
+  const setCoverMutation = useMutation({
+    mutationFn: (photoId: number) => api.setItemPhotoCover(item.id, photoId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["items"] }),
+  });
+  const deletePhotoMutation = useMutation({
+    mutationFn: (photoId: number) => api.deleteItemPhoto(item.id, photoId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["item-photos", item.id] });
+      queryClient.invalidateQueries({ queryKey: ["items"] });
+    },
+  });
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -153,6 +203,106 @@ export function EditItemDialog({
               type="file"
               accept="image/png,image/jpeg,.heic,.heif"
               onChange={(e) => setNewImage(e.target.files?.[0] ?? null)}
+              className="block w-full text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-lg file:border-2 file:border-content file:bg-theme-400 file:px-3 file:py-1.5 file:text-white file:font-bold"
+            />
+          </div>
+
+          <div>
+            <Label>Aliases (other names that merge into this item)</Label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {(aliasesQuery.data ?? []).map((a) => (
+                <Badge key={a.id} color="neutral" className="gap-1.5">
+                  {a.alias}
+                  <button
+                    type="button"
+                    onClick={() => removeAliasMutation.mutate(a.id)}
+                    className="hover:text-red-600"
+                    aria-label={`Remove alias ${a.alias}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+              {(aliasesQuery.data ?? []).length === 0 && (
+                <span className="text-xs text-subtle">
+                  No aliases yet - e.g. add "soda" so it merges into this item.
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Input
+                value={newAlias}
+                onChange={(e) => setNewAlias(e.target.value)}
+                placeholder='e.g. "soda"'
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && newAlias.trim()) {
+                    e.preventDefault();
+                    addAliasMutation.mutate(newAlias.trim());
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                disabled={!newAlias.trim() || addAliasMutation.isPending}
+                onClick={() => addAliasMutation.mutate(newAlias.trim())}
+              >
+                Add
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <Label>Photos</Label>
+            <div className="grid grid-cols-4 gap-2 mb-2">
+              {(photosQuery.data ?? []).map((p) => {
+                const isCover = item.image_path === p.image_path;
+                return (
+                  <div key={p.id} className="relative group">
+                    <img
+                      src={imageUrl(p.image_path) ?? undefined}
+                      alt="Item"
+                      className={cn(
+                        "h-16 w-16 rounded-lg border-2 object-cover",
+                        isCover ? "border-theme-500" : "border-content"
+                      )}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => deletePhotoMutation.mutate(p.id)}
+                      className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-content bg-red-500 text-white"
+                      aria-label="Delete photo"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                    {isCover ? (
+                      <span className="absolute inset-x-0 bottom-0 rounded-b-lg bg-theme-500 py-0.5 text-center text-[10px] font-bold text-white">
+                        Cover
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setCoverMutation.mutate(p.id)}
+                        className="absolute inset-x-0 bottom-0 rounded-b-lg bg-black/60 py-0.5 text-[10px] font-bold text-white opacity-0 transition-opacity group-hover:opacity-100"
+                      >
+                        Set cover
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {(photosQuery.data ?? []).length === 0 && (
+                <span className="col-span-4 text-xs text-subtle">No extra photos yet.</span>
+              )}
+            </div>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,.heic,.heif"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) addPhotoMutation.mutate(file);
+                e.target.value = "";
+              }}
               className="block w-full text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-lg file:border-2 file:border-content file:bg-theme-400 file:px-3 file:py-1.5 file:text-white file:font-bold"
             />
           </div>

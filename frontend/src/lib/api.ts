@@ -3,6 +3,8 @@ import type {
   Backup,
   Favorite,
   Item,
+  ItemAlias,
+  ItemPhoto,
   MealPlanEntry,
   MealSlot,
   Meta,
@@ -189,7 +191,33 @@ export const api = {
       })
       .then((r) => r.data),
 
+  itemAliases: (itemId: number) =>
+    client.get<ItemAlias[]>(`/items/${itemId}/aliases`).then((r) => r.data),
+  addItemAlias: (itemId: number, alias: string) => {
+    const form = new FormData();
+    form.append("alias", alias);
+    return client.post<ItemAlias>(`/items/${itemId}/aliases`, form).then((r) => r.data);
+  },
+  removeItemAlias: (itemId: number, aliasId: number) =>
+    client.delete(`/items/${itemId}/aliases/${aliasId}`).then((r) => r.data),
+
+  itemPhotos: (itemId: number) =>
+    client.get<ItemPhoto[]>(`/items/${itemId}/photos`).then((r) => r.data),
+  addItemPhoto: (itemId: number, file: File) => {
+    const form = new FormData();
+    form.append("image", file);
+    return client.post<ItemPhoto>(`/items/${itemId}/photos`, form).then((r) => r.data);
+  },
+  setItemPhotoCover: (itemId: number, photoId: number) =>
+    client.post(`/items/${itemId}/photos/${photoId}/cover`).then((r) => r.data),
+  deleteItemPhoto: (itemId: number, photoId: number) =>
+    client.delete(`/items/${itemId}/photos/${photoId}`).then((r) => r.data),
+
   exportCsvUrl: () => "/api/export/csv",
+  exportFavoritesCsvUrl: () => "/api/export/favorites/csv",
+  exportShoppingListCsvUrl: () => "/api/export/shopping-list/csv",
+  exportMealPlanCsvUrl: () => "/api/export/meal-plan/csv",
+  exportAllUrl: () => "/api/export/all",
   importCsv: (file: File, mode: "merge" | "overwrite" = "merge") => {
     const form = new FormData();
     form.append("file", file);

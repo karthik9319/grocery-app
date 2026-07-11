@@ -7,13 +7,14 @@ both frontends share the same data/inventory.db and data/images/.
 import csv
 import io
 import uuid
+import zipfile
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 from pillow_heif import register_heif_opener
@@ -209,6 +210,34 @@ def items_to_csv_text(items: list) -> str:
     return "\n".join(lines)
 
 
+def favorites_to_csv_text(favorites: list) -> str:
+    lines = ["title,category,default_quantity,created_at"]
+    for fav in favorites:
+        lines.append(
+            f"{fav['title']},{fav['category']},{fav['default_quantity']},{fav['created_at']}"
+        )
+    return "\n".join(lines)
+
+
+def shopping_list_to_csv_text(rows: list) -> str:
+    lines = ["title,category,checked,created_at"]
+    for row in rows:
+        lines.append(
+            f"{row['title']},{row.get('category') or ''},{bool(row['checked'])},{row['created_at']}"
+        )
+    return "\n".join(lines)
+
+
+def meal_plan_to_csv_text(rows: list) -> str:
+    lines = ["date,meal_slot,title,notes,created_at"]
+    for row in rows:
+        notes = (row.get("notes") or "").replace(",", ";")
+        lines.append(
+            f"{row['date']},{row['meal_slot']},{row['title']},{notes},{row['created_at']}"
+        )
+    return "\n".join(lines)
+
+
 def write_backup(items: list, reason: str) -> Optional[str]:
     """Auto-save a timestamped CSV snapshot of `items` BEFORE a destructive action removes
     them, so bulk-delete/clear-inventory (which have no in-app undo) can still be reversed
@@ -314,9 +343,10 @@ def list_items(category: Optional[str] = None):
 
 @app.get("/api/suggestions")
 def get_suggestions(q: str = ""):
-    """Title autocomplete: merges existing inventory titles with the COMMON_ITEMS keyword
-    list, so both "things you already track" and "common groceries" show up, each paired
-    with a guessed category to auto-fill the Add Item form."""
+    """Title autocomplete: merges existing inventory titles, the COMMON_ITEMS keyword
+    list, and known aliases (so typing a synonym like "soda" surfaces the real tracked
+    item, e.g. "Coca-Cola"), each paired with a guessed/real category to auto-fill the
+    Add Item form. Prefix-matches ranked before substring matches, capped at 8."""
     q_lower = q.strip().lower()
     if not q_lower:
         return []
@@ -327,6 +357,8 @@ def get_suggestions(q: str = ""):
             pool.setdefault(key, {"title": item["title"], "category": item["category"]})
     for keyword, (cat, _) in COMMON_ITEMS.items():
         pool.setdefault(keyword, {"title": keyword.title(), "category": cat})
+    for alias in inventory.get_all_aliases():
+        pool[alias["alias"].lower()] = {"title": alias["title"], "category": alias["category"]}
 
     starts = [v for k, v in pool.items() if k.startswith(q_lower)]
     contains = [v for k, v in pool.items() if q_lower in k and not k.startswith(q_lower)]
@@ -351,7 +383,10 @@ def create_item(
     expiration_date: Optional[str] = Form(None),
     image: Optional[UploadFile] = File(None),
 ):
-    existing = inventory.find_item_by_title(title, category)
+    # An alias (e.g. "soda" for a "Coca-Cola" item) always wins first, merging into the
+    # canonical item regardless of whatever category was picked in the form.
+    aliased = inventory.find_item_by_alias(title)
+    existing = aliased or inventory.find_item_by_title(title, category)
     if existing:
         new_total = existing["quantity"] + quantity
         inventory.update_item(
@@ -388,6 +423,13 @@ def clear_items(category: Optional[str] = None):
             if path.exists():
                 try:
                     path.unlink()
+                except OSError:
+                    pass
+        for photo in row.get("_photos", []):
+            photo_path = BASE_DIR / photo["image_path"]
+            if photo_path.exists():
+                try:
+                    photo_path.unlink()
                 except OSError:
                     pass
     return {"deleted": len(deleted_rows), "backup": backup_file}
@@ -434,7 +476,14 @@ def remove_item(item_id: int):
     deleted = next((i for i in all_items if i["id"] == item_id), None)
     if not deleted:
         raise HTTPException(404, "Item not found")
-    inventory.delete_item(item_id)
+    deleted_photos = inventory.delete_item(item_id)
+    for photo in deleted_photos:
+        photo_path = BASE_DIR / photo["image_path"]
+        if photo_path.exists():
+            try:
+                photo_path.unlink()
+            except OSError:
+                pass
     write_backup([deleted], "delete-item")
     return deleted
 
@@ -452,6 +501,101 @@ def restore_item(item: dict):
         item.get("uuid"),
     )
     return {"status": "restored"}
+
+
+# --- Aliases (synonyms - e.g. "soda" merges into a tracked "Coca-Cola" item) ---
+@app.get("/api/items/{item_id}/aliases")
+def list_aliases(item_id: int):
+    return inventory.get_aliases_for_item(item_id)
+
+
+@app.post("/api/items/{item_id}/aliases")
+def create_alias(item_id: int, alias: str = Form(...)):
+    alias = alias.strip()
+    if not alias:
+        raise HTTPException(400, "Alias cannot be empty")
+    try:
+        return inventory.add_alias(item_id, alias)
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+
+
+@app.delete("/api/items/{item_id}/aliases/{alias_id}")
+def remove_alias_endpoint(item_id: int, alias_id: int):
+    inventory.remove_alias(alias_id)
+    return {"status": "ok"}
+
+
+# --- Photos (gallery - multiple photos per item, beyond the single cover image) ---
+@app.get("/api/items/{item_id}/photos")
+def list_item_photos(item_id: int):
+    return inventory.get_item_photos(item_id)
+
+
+@app.post("/api/items/{item_id}/photos")
+def add_item_photo(item_id: int, image: UploadFile = File(...)):
+    image_path = save_upload(image)
+    photo = inventory.add_item_photo(item_id, image_path)
+    # If the item has no cover photo yet, use the first gallery photo as its cover too,
+    # so it actually shows up as the item's thumbnail without an extra manual step.
+    all_items = [i for cat in CATEGORIES for i in inventory.get_items_by_category(cat)]
+    item = next((i for i in all_items if i["id"] == item_id), None)
+    if item and not item.get("image_path"):
+        inventory.update_item(
+            item_id,
+            item["title"],
+            item["category"],
+            item["quantity"],
+            item.get("notes"),
+            image_path,
+            item.get("custom_threshold"),
+            item.get("expiration_date"),
+        )
+    return photo
+
+
+@app.post("/api/items/{item_id}/photos/{photo_id}/cover")
+def set_cover_photo(item_id: int, photo_id: int):
+    """Promote an existing gallery photo to be the item's main cover image (shown on the
+    item card everywhere)."""
+    photo = inventory.get_item_photo(photo_id)
+    if not photo or photo["item_id"] != item_id:
+        raise HTTPException(404, "Photo not found")
+    all_items = [i for cat in CATEGORIES for i in inventory.get_items_by_category(cat)]
+    item = next((i for i in all_items if i["id"] == item_id), None)
+    if not item:
+        raise HTTPException(404, "Item not found")
+    inventory.update_item(
+        item_id,
+        item["title"],
+        item["category"],
+        item["quantity"],
+        item.get("notes"),
+        photo["image_path"],
+        item.get("custom_threshold"),
+        item.get("expiration_date"),
+    )
+    return {"status": "ok"}
+
+
+@app.delete("/api/items/{item_id}/photos/{photo_id}")
+def delete_item_photo_endpoint(item_id: int, photo_id: int):
+    photo = inventory.delete_item_photo(photo_id)
+    if not photo:
+        raise HTTPException(404, "Photo not found")
+    path = BASE_DIR / photo["image_path"]
+    if path.exists():
+        try:
+            path.unlink()
+        except OSError:
+            pass
+    # If this photo was being used as the item's cover, clear that reference too (the
+    # underlying file is now gone) rather than leaving a broken image reference.
+    all_items = [i for cat in CATEGORIES for i in inventory.get_items_by_category(cat)]
+    item = next((i for i in all_items if i["id"] == item_id), None)
+    if item and item.get("image_path") == photo["image_path"]:
+        inventory.clear_item_cover(item_id)
+    return {"status": "ok"}
 
 
 # --- Summary / dashboard ---
@@ -652,6 +796,42 @@ def export_csv():
     inventory.backfill_missing_uuids()
     all_items = [item for cat in CATEGORIES for item in inventory.get_items_by_category(cat)]
     return items_to_csv_text(all_items)
+
+
+@app.get("/api/export/favorites/csv", response_class=PlainTextResponse)
+def export_favorites_csv():
+    return favorites_to_csv_text(inventory.get_favorites())
+
+
+@app.get("/api/export/shopping-list/csv", response_class=PlainTextResponse)
+def export_shopping_list_csv():
+    return shopping_list_to_csv_text(inventory.get_shopping_list())
+
+
+@app.get("/api/export/meal-plan/csv", response_class=PlainTextResponse)
+def export_meal_plan_csv():
+    return meal_plan_to_csv_text(inventory.get_all_meal_plan_entries())
+
+
+@app.get("/api/export/all")
+def export_all():
+    """Bundle every list (inventory, favorites, shopping list, meal plan) into one ZIP
+    download - the single "Export CSV" button previously only covered inventory."""
+    inventory.backfill_missing_uuids()
+    all_items = [item for cat in CATEGORIES for item in inventory.get_items_by_category(cat)]
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("inventory.csv", items_to_csv_text(all_items))
+        zf.writestr("favorites.csv", favorites_to_csv_text(inventory.get_favorites()))
+        zf.writestr("shopping-list.csv", shopping_list_to_csv_text(inventory.get_shopping_list()))
+        zf.writestr("meal-plan.csv", meal_plan_to_csv_text(inventory.get_all_meal_plan_entries()))
+    buffer.seek(0)
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return Response(
+        content=buffer.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="pantry-pilot-export-{timestamp}.zip"'},
+    )
 
 
 # --- Backups (auto-saved before any destructive delete/clear action) ---

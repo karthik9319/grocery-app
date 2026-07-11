@@ -62,6 +62,20 @@ export interface Suggestion {
   category: string;
 }
 
+export interface ItemAlias {
+  id: number;
+  item_id: number;
+  alias: string;
+  created_at: string;
+}
+
+export interface ItemPhoto {
+  id: number;
+  item_id: number;
+  image_path: string;
+  created_at: string;
+}
+
 export interface Backup {
   filename: string;
   created_at: string;
