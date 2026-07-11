@@ -31,6 +31,40 @@ export function imageUrl(path: string | null): string | null {
   return `/images/${path.split("/").pop()}`;
 }
 
+/** Downscales + re-encodes a photo as JPEG before upload (e.g. a full-size iPhone HEIC
+ * photo can be 5-15MB - over a slow/remote connection like a Cloudflare Tunnel on
+ * cellular, that can take a long time with no visible progress, which looks "hung").
+ * Skips small files. Falls back to the original file untouched if decoding fails (e.g.
+ * a browser that can't decode HEIC) - the backend already handles HEIC/any image size
+ * fine, this is purely an upload-speed optimization, never a hard requirement. */
+export async function compressImageFile(
+  file: File,
+  maxDimension = 1600,
+  quality = 0.82
+): Promise<File> {
+  if (file.size < 400 * 1024) return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+    const targetW = Math.round(bitmap.width * scale);
+    const targetH = Math.round(bitmap.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, targetW, targetH);
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", quality)
+    );
+    if (!blob || blob.size >= file.size) return file;
+    const newName = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+    return new File([blob], newName, { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
+}
+
 /** Cleans up a user-typed item name: trims, collapses extra spaces, and title-cases
  * each word (e.g. "  apples " -> "Apples", "OLIVE oil" -> "Olive Oil"). */
 export function titleCase(input: string): string {

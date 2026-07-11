@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Camera, FileSpreadsheet, Loader2, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Meta } from "@/types";
-import { titleCase } from "@/lib/utils";
+import { compressImageFile, titleCase } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/Tabs";
 import { Button, Card, Checkbox, Input, Select } from "@/components/ui";
 import { TitleAutocomplete } from "@/components/TitleAutocomplete";
@@ -74,10 +74,17 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
   const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState<DraftEntry[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [preparing, setPreparing] = useState(false);
 
-  function handleFiles(files: FileList | null) {
+  async function handleFiles(files: FileList | null) {
     if (!files) return;
-    setDrafts((prev) => [...prev, ...Array.from(files).map((f) => makeDraft(f, meta))]);
+    setPreparing(true);
+    try {
+      const compressed = await Promise.all(Array.from(files).map((f) => compressImageFile(f)));
+      setDrafts((prev) => [...prev, ...compressed.map((f) => makeDraft(f, meta))]);
+    } finally {
+      setPreparing(false);
+    }
   }
 
   function addBlankDraft() {
@@ -133,6 +140,11 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
             Upload one or more photos of groceries/vegetables/household items
           </span>
           <span className="text-xs text-subtle">PNG, JPG, HEIC, HEIF - select multiple at once</span>
+          {preparing && (
+            <span className="flex items-center gap-2 text-xs font-semibold text-theme-500">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Preparing photo(s)…
+            </span>
+          )}
           <input
             type="file"
             multiple
@@ -151,9 +163,7 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
         + Add an item without a photo
       </Button>
       <p className="text-xs text-subtle">
-        Tip: open this app on your iPhone's browser over the same Wi-Fi (see the terminal for the
-        network URL) to upload straight from your phone's camera roll or camera. Skipping the
-        photo? We'll try to find a matching picture for you automatically.
+        Tip: skipping the photo? We'll try to find a matching picture for you automatically.
       </p>
 
       {drafts.map((draft) => (
@@ -266,10 +276,17 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
       ))}
 
       {drafts.length > 0 && (
-        <Button onClick={submitAll} disabled={submitting} className="w-full sm:w-auto">
-          {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-          {drafts.length === 1 ? "Add to Inventory" : `Add all ${drafts.length} items to Inventory`}
-        </Button>
+        <div className="flex flex-col items-start gap-2 sm:items-center">
+          <Button onClick={submitAll} disabled={submitting} className="w-full sm:w-auto">
+            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            {drafts.length === 1 ? "Add to Inventory" : `Add all ${drafts.length} items to Inventory`}
+          </Button>
+          {submitting && (
+            <p className="text-xs text-subtle">
+              Uploading… this can take a bit longer on a slow/remote connection.
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

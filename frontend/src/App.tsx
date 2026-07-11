@@ -88,9 +88,16 @@ function App() {
   const activeItem = nav.find((n) => n.value === active);
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[1680px] gap-6 px-4 py-6 lg:px-8 2xl:gap-8">
+    <div
+      className="mx-auto flex min-h-screen w-full max-w-[1680px] gap-6 px-4 py-6 lg:px-8 2xl:gap-8"
+      style={{
+        paddingLeft: "max(1rem, env(safe-area-inset-left))",
+        paddingRight: "max(1rem, env(safe-area-inset-right))",
+        paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))",
+      }}
+    >
       {/* Left nav rail */}
-      <aside className="sticky top-6 hidden h-[calc(100vh-3rem)] w-64 shrink-0 flex-col lg:flex 2xl:w-72 print:hidden">
+      <aside className="sticky top-[max(1.5rem,env(safe-area-inset-top))] hidden h-[calc(100vh-3rem)] w-64 shrink-0 flex-col lg:flex 2xl:w-72 print:hidden">
         <div className="glass flex flex-1 flex-col overflow-y-auto rounded-3xl p-3 shadow-[5px_5px_0_var(--line)]">
           <div className="mb-4 flex items-center gap-3 px-2 pt-2">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl border-[3px] border-content bg-theme-400 text-2xl shadow-[3px_3px_0_var(--line)]">

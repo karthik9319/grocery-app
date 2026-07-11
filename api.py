@@ -1121,3 +1121,21 @@ def merge_duplicates(payload: dict):
         keep.get("expiration_date"),
     )
     return {"status": "merged", "kept_id": keep_id, "quantity": total_quantity}
+
+
+# --- Serve the built frontend (single-origin mode, e.g. behind a Cloudflare Tunnel) ---
+# Only active when frontend/dist exists (i.e. `npm run build` was run). Registered LAST
+# so it never shadows the /api/* or /images/* routes above - Starlette matches routes in
+# registration order, and this catch-all only runs if nothing earlier matched.
+FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
+if FRONTEND_DIST.is_dir():
+    app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="frontend-assets")
+
+    @app.get("/{full_path:path}")
+    def serve_frontend(full_path: str):
+        """SPA fallback: any non-API, non-asset path returns index.html so client-side
+        routing (React) can handle it, instead of a 404 on refresh/deep link."""
+        candidate = FRONTEND_DIST / full_path
+        if full_path and candidate.is_file():
+            return FileResponse(candidate)
+        return FileResponse(FRONTEND_DIST / "index.html")
