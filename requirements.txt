@@ -3,9 +3,11 @@ pillow
 pillow-heif
 pandas
 plotly
-pytesseract
 fastapi
 uvicorn[standard]
 python-multipart
 scikit-learn
 requests
+numpy
+paddlepaddle
+paddleocr

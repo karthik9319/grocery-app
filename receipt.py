@@ -1,10 +1,19 @@
 """Receipt OCR: extract raw text from a receipt photo and parse candidate item names.
 
-Uses pytesseract (a thin wrapper around the Tesseract OCR engine, installed locally via
-`brew install tesseract`) - runs fully offline, no cloud API/key needed.
+Uses PaddleOCR (a deep-learning text detection + recognition pipeline, running fully
+local/offline once its model weights are cached on first use - no cloud API/key
+needed) - switched from Tesseract because PaddleOCR's learned text detector is far more
+robust to real phone photos: cluttered/patterned backgrounds, uneven lighting, and
+multi-column receipt layouts all confused Tesseract badly (see git history for the
+older Tesseract-based preprocessing this replaced), while PaddleOCR reads them cleanly
+with no manual tuning. The trade-off is speed: CPU-only inference takes on the order of
+10-20 seconds per scan (vs near-instant for Tesseract), so this is only worth it because
+scanning a receipt is an occasional, explicitly-triggered action, not a hot path.
 """
 import re
+from typing import Optional
 
+import numpy as np
 from PIL import Image, ImageOps
 
 NOISE_KEYWORDS = [
@@ -26,22 +35,81 @@ UNIT_TO_GRAMS = {
 }
 
 
-def preprocess_receipt_image(image: Image.Image) -> Image.Image:
-    """Clean up a phone-camera receipt photo before OCR. Real receipt photos are often
-    low-contrast, unevenly lit, and/or low-resolution - all of which trip up Tesseract
-    badly if fed in raw. This applies grayscale + contrast stretching + upscaling of
-    small photos, which are the standard, safe (non-destructive) preprocessing steps
-    for this - deliberately NOT doing hard black/white thresholding, since a fixed
-    threshold can wipe out text sitting in a shadowed part of the receipt.
-    """
-    processed = ImageOps.grayscale(image)
-    processed = ImageOps.autocontrast(processed, cutoff=1)
+def _largest_run(mask: "np.ndarray") -> Optional[tuple]:
+    """Return (start, end) of the longest contiguous run of True in a 1D boolean array,
+    or None if it's all False."""
+    best_start = None
+    best_len = 0
+    cur_start = None
+    cur_len = 0
+    for i, v in enumerate(mask):
+        if v:
+            if cur_start is None:
+                cur_start = i
+            cur_len += 1
+            if cur_len > best_len:
+                best_len = cur_len
+                best_start = cur_start
+        else:
+            cur_start = None
+            cur_len = 0
+    if best_start is None:
+        return None
+    return best_start, best_start + best_len
 
-    # Upscale small/low-res photos - Tesseract accuracy drops off sharply below
-    # roughly 300dpi-equivalent detail (rule of thumb: long side >= ~1800px).
+
+def crop_to_receipt(image: Image.Image) -> Image.Image:
+    """Best-effort: many real phone photos show the receipt lying on a table/rug/desk
+    with a lot of background around it (busy patterns, wood grain, etc.) - Tesseract
+    gets badly confused trying to OCR that background texture too, often producing
+    near-total garbage even though the receipt itself is perfectly legible. Since a
+    receipt is virtually always printed on much-brighter paper than whatever surface
+    it's sitting on, this finds the bright region's bounding box (by column, then by row
+    within those columns) and crops to it. Falls back to the original, uncropped image
+    if no confident bright region is found (e.g. the receipt already fills the frame, or
+    is on an already-light background) - this is a heuristic, so it never applies a
+    crop it isn't reasonably confident about.
+    """
+    gray = np.asarray(ImageOps.grayscale(image))
+    bright = gray > 150
+
+    col_run = _largest_run(bright.mean(axis=0) > 0.6)
+    if col_run is None:
+        return image
+    left, right = col_run
+    width_frac = (right - left) / gray.shape[1]
+    # Too narrow: probably just noise, not a real receipt-vs-background contrast. Too
+    # wide (near the full image): there's nothing meaningful to crop out.
+    if width_frac < 0.15 or width_frac > 0.98:
+        return image
+
+    row_run = _largest_run(bright[:, left:right].mean(axis=1) > 0.5)
+    top, bottom = row_run if row_run is not None else (0, gray.shape[0])
+
+    pad_x = round((right - left) * 0.03)
+    pad_y = round((bottom - top) * 0.02)
+    left = max(0, left - pad_x)
+    right = min(gray.shape[1], right + pad_x)
+    top = max(0, top - pad_y)
+    bottom = min(gray.shape[0], bottom + pad_y)
+    return image.crop((left, top, right, bottom))
+
+
+def preprocess_receipt_image(image: Image.Image) -> Image.Image:
+    """Clean up a phone-camera receipt photo before OCR: crop to the receipt's bright
+    region (see crop_to_receipt) to cut out background clutter, then cap the resolution
+    - PaddleOCR's CPU inference time scales heavily with pixel count, and modern phone
+    photos (10-50MP) are far more detail than the recognizer needs; capping the long
+    side at 1600px keeps a scan to roughly 15-20 seconds instead of 30-40+ on a full-
+    resolution photo, with no meaningfully worse read quality in testing. Very small/
+    low-res images are upscaled a bit instead, since too little detail hurts accuracy.
+    """
+    processed = crop_to_receipt(image)
+
     long_side = max(processed.size)
-    if long_side < 1800:
-        scale = 1800 / long_side
+    target = 1600
+    if long_side > target or long_side < 900:
+        scale = target / long_side
         processed = processed.resize(
             (round(processed.width * scale), round(processed.height * scale)),
             Image.Resampling.LANCZOS,
@@ -49,18 +117,49 @@ def preprocess_receipt_image(image: Image.Image) -> Image.Image:
     return processed
 
 
-def ocr_receipt_image(image: Image.Image) -> str:
-    """Run local OCR on a receipt photo and return the raw extracted text.
+_ocr_engine = None
 
-    Preprocesses the image first (see preprocess_receipt_image), and uses PSM 6
-    ("assume a single uniform block of text") instead of Tesseract's default automatic
-    page-segmentation mode - PSM 6 is the commonly-recommended mode for narrow,
-    single-column receipts and reduces line-reordering/garbling versus the default.
+
+def _get_ocr_engine():
+    """Lazily construct (and cache) the PaddleOCR pipeline - constructing it loads model
+    weights from disk, so this is done once per process (first receipt scan pays that
+    ~1-2s cost, every scan after reuses the same instance) rather than per-request.
+    Uses the "mobile" (smallest/fastest) PP-OCRv5 detection+recognition models - the
+    larger "server"/"medium" tiers were noticeably slower (2x+) with no meaningful
+    accuracy improvement on real receipt photos in testing. Document-orientation/
+    unwarping/textline-orientation sub-pipelines are disabled since they're for scanned
+    documents/rotated photos, not needed here (our own crop_to_receipt already isolates
+    the receipt, and the phone photos are already upright).
     """
-    import pytesseract
+    global _ocr_engine
+    if _ocr_engine is None:
+        from paddleocr import PaddleOCR
 
+        _ocr_engine = PaddleOCR(
+            use_doc_orientation_classify=False,
+            use_doc_unwarping=False,
+            use_textline_orientation=False,
+            text_detection_model_name="PP-OCRv5_mobile_det",
+            text_recognition_model_name="PP-OCRv5_mobile_rec",
+        )
+    return _ocr_engine
+
+
+def ocr_receipt_image(image: Image.Image) -> str:
+    """Run local OCR on a receipt photo and return the raw extracted text (one line per
+    detected text region, in PaddleOCR's own reading-order - not necessarily left-to-
+    right per physical row for multi-column receipt layouts, but every item name still
+    ends up as its own clean line, which is all parse_receipt_text needs).
+
+    Preprocesses the image first (see preprocess_receipt_image).
+    """
     processed = preprocess_receipt_image(image)
-    return pytesseract.image_to_string(processed, config="--psm 6")
+    array = np.array(processed.convert("RGB"))
+    engine = _get_ocr_engine()
+    lines = []
+    for result in engine.predict(array):
+        lines.extend(result.get("rec_texts", []))
+    return "\n".join(lines)
 
 
 def parse_receipt_text(raw_text: str) -> list:

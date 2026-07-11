@@ -355,12 +355,20 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
       </Card>
 
       {previewUrl && (
-        <div className="flex items-center gap-3">
-          <img src={previewUrl} className="h-32 rounded-xl object-cover" />
-          <Button onClick={scan} disabled={scanning}>
-            {scanning && <Loader2 className="h-4 w-4 animate-spin" />}
-            🔍 Scan receipt
-          </Button>
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <img src={previewUrl} className="h-32 rounded-xl object-cover" />
+            <Button onClick={scan} disabled={scanning}>
+              {scanning && <Loader2 className="h-4 w-4 animate-spin" />}
+              🔍 Scan receipt
+            </Button>
+          </div>
+          {scanning && (
+            <p className="text-xs text-subtle">
+              Reading the receipt locally — this can take up to ~20 seconds for a full-size
+              photo.
+            </p>
+          )}
         </div>
       )}
 
