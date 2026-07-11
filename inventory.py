@@ -450,3 +450,45 @@ def clear_checked_shopping_items() -> None:
     with get_connection() as conn:
         conn.execute("DELETE FROM shopping_list WHERE checked = 1")
         conn.commit()
+
+
+# --- Weekly meal planner ---
+
+
+def add_meal_plan_entry(date: str, meal_slot: str, title: str, notes: Optional[str] = None) -> int:
+    with get_connection() as conn:
+        cur = conn.execute(
+            "INSERT INTO meal_plan (date, meal_slot, title, notes, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (date, meal_slot, title.strip(), notes, datetime.now().isoformat()),
+        )
+        conn.commit()
+        return cur.lastrowid
+
+
+def get_meal_plan_range(start_date: str, end_date: str):
+    """Return meal plan entries with date BETWEEN start_date and end_date (inclusive,
+    both ISO "YYYY-MM-DD" strings)."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT * FROM meal_plan WHERE date BETWEEN ? AND ? ORDER BY date ASC, id ASC",
+            (start_date, end_date),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def update_meal_plan_entry(
+    entry_id: int, date: str, meal_slot: str, title: str, notes: Optional[str] = None
+) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE meal_plan SET date = ?, meal_slot = ?, title = ?, notes = ? WHERE id = ?",
+            (date, meal_slot, title.strip(), notes, entry_id),
+        )
+        conn.commit()
+
+
+def delete_meal_plan_entry(entry_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM meal_plan WHERE id = ?", (entry_id,))
+        conn.commit()

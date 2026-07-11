@@ -3,6 +3,8 @@ import type {
   Backup,
   Favorite,
   Item,
+  MealPlanEntry,
+  MealSlot,
   Meta,
   ReceiptCandidate,
   Settings,
@@ -137,6 +139,32 @@ export const api = {
     client.post<{ added: number }>("/shopping-list/add-low-stock").then((r) => r.data),
   clearCheckedShoppingItems: () =>
     client.post("/shopping-list/clear-checked").then((r) => r.data),
+
+  mealPlan: (start: string, end: string) =>
+    client.get<MealPlanEntry[]>("/meal-plan", { params: { start, end } }).then((r) => r.data),
+  addMealPlanEntry: (date: string, mealSlot: MealSlot, title: string, notes?: string) => {
+    const form = new FormData();
+    form.append("date", date);
+    form.append("meal_slot", mealSlot);
+    form.append("title", title);
+    if (notes) form.append("notes", notes);
+    return client.post<{ id: number; status: string }>("/meal-plan", form).then((r) => r.data);
+  },
+  updateMealPlanEntry: (
+    id: number,
+    date: string,
+    mealSlot: MealSlot,
+    title: string,
+    notes?: string
+  ) => {
+    const form = new FormData();
+    form.append("date", date);
+    form.append("meal_slot", mealSlot);
+    form.append("title", title);
+    if (notes) form.append("notes", notes);
+    return client.put(`/meal-plan/${id}`, form).then((r) => r.data);
+  },
+  deleteMealPlanEntry: (id: number) => client.delete(`/meal-plan/${id}`).then((r) => r.data),
 
   scanReceipt: (image: File) => {
     const form = new FormData();

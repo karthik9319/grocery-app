@@ -67,3 +67,14 @@ export interface Backup {
   created_at: string;
   item_count: number;
 }
+
+export type MealSlot = "breakfast" | "lunch" | "dinner" | "snack";
+
+export interface MealPlanEntry {
+  id: number;
+  date: string;
+  meal_slot: MealSlot;
+  title: string;
+  notes: string | null;
+  created_at: string;
+}

@@ -539,6 +539,48 @@ def clear_checked():
     return {"status": "ok"}
 
 
+# --- Weekly meal planner ---
+MEAL_SLOTS = ["breakfast", "lunch", "dinner", "snack"]
+
+
+@app.get("/api/meal-plan")
+def get_meal_plan(start: str, end: str):
+    return inventory.get_meal_plan_range(start, end)
+
+
+@app.post("/api/meal-plan")
+def add_meal_plan_entry(
+    date: str = Form(...),
+    meal_slot: str = Form(...),
+    title: str = Form(...),
+    notes: Optional[str] = Form(None),
+):
+    if meal_slot not in MEAL_SLOTS:
+        raise HTTPException(400, f"meal_slot must be one of {MEAL_SLOTS}")
+    entry_id = inventory.add_meal_plan_entry(date, meal_slot, title, notes)
+    return {"id": entry_id, "status": "added"}
+
+
+@app.put("/api/meal-plan/{entry_id}")
+def update_meal_plan_entry(
+    entry_id: int,
+    date: str = Form(...),
+    meal_slot: str = Form(...),
+    title: str = Form(...),
+    notes: Optional[str] = Form(None),
+):
+    if meal_slot not in MEAL_SLOTS:
+        raise HTTPException(400, f"meal_slot must be one of {MEAL_SLOTS}")
+    inventory.update_meal_plan_entry(entry_id, date, meal_slot, title, notes)
+    return {"status": "updated"}
+
+
+@app.delete("/api/meal-plan/{entry_id}")
+def delete_meal_plan_entry(entry_id: int):
+    inventory.delete_meal_plan_entry(entry_id)
+    return {"status": "ok"}
+
+
 # --- Receipt scan ---
 @app.post("/api/receipt/scan")
 async def scan_receipt(image: UploadFile = File(...)):

@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, PlusCircle, Search, ShoppingBag } from "lucide-react";
+import { BarChart3, CalendarDays, PlusCircle, Search, ShoppingBag } from "lucide-react";
 import { api } from "@/lib/api";
 import { Header } from "@/components/Header";
 import { AddItemsTab } from "@/components/AddItemsTab";
 import { CategoryView } from "@/components/CategoryView";
 import { GlobalSearchTab } from "@/components/GlobalSearchTab";
 import { ShoppingListTab } from "@/components/ShoppingListTab";
+import { MealPlannerTab } from "@/components/MealPlannerTab";
 import { ChartsTab } from "@/components/ChartsTab";
 import { SettingsSidebar } from "@/components/SettingsSidebar";
 import { Spinner } from "@/components/ui";
@@ -69,6 +70,12 @@ function App() {
       icon: <ShoppingBag className="h-[18px] w-[18px]" />,
       accent: "#6C63FF",
       badge: shoppingOpen || undefined,
+    },
+    {
+      value: "meal-planner",
+      label: "Meal Planner",
+      icon: <CalendarDays className="h-[18px] w-[18px]" />,
+      accent: "#F5A524",
     },
     {
       value: "charts",
@@ -186,6 +193,7 @@ function App() {
               {active === "add-items" && "Snap a photo or scan a receipt to stock up"}
               {active === "search" && "Find any item across every category"}
               {active === "shopping" && "Plan your next grocery run"}
+              {active === "meal-planner" && "Plan what to cook this week"}
               {active === "charts" && "Insights across your inventory"}
               {meta.categories.includes(active) && `Everything in your ${active.toLowerCase()}`}
             </p>
@@ -199,6 +207,7 @@ function App() {
             (c) => active === c && <CategoryView key={c} category={c} meta={meta} />
           )}
           {active === "shopping" && <ShoppingListTab meta={meta} />}
+          {active === "meal-planner" && <MealPlannerTab />}
           {active === "charts" && <ChartsTab meta={meta} />}
         </div>
       </main>
