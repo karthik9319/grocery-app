@@ -82,7 +82,7 @@ export interface Backup {
   item_count: number;
 }
 
-export type MealSlot = "breakfast" | "lunch" | "dinner" | "snack";
+export type MealSlot = "breakfast" | "lunch" | "dinner" | "snack" | "extra";
 
 export interface MealPlanEntry {
   id: number;

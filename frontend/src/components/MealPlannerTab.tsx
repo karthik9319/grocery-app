@@ -10,10 +10,13 @@ import { Dialog, DialogContent } from "@/components/Dialog";
 import { cn } from "@/lib/utils";
 
 const MEAL_SLOTS: { value: MealSlot; label: string; icon: string }[] = [
+  // Order of slots displayed in the planner
   { value: "breakfast", label: "Breakfast", icon: "🍳" },
   { value: "lunch", label: "Lunch", icon: "🥪" },
-  { value: "dinner", label: "Dinner", icon: "🍝" },
   { value: "snack", label: "Snack", icon: "🍎" },
+  { value: "dinner", label: "Dinner", icon: "🍝" },
+  // Extra slot for dessert or any other optional meal
+  { value: "extra", label: "Extra", icon: "🍰" },
 ];
 
 const DATE_FMT = "yyyy-MM-dd";
