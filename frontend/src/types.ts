@@ -23,6 +23,12 @@ export interface Settings {
   weight_threshold: number;
 }
 
+export interface TunnelStatus {
+  running: boolean;
+  url: string | null;
+  error: string | null;
+}
+
 export interface ExpiringEntry {
   item: Item;
   days_left: number;

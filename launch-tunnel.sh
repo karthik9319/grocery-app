@@ -106,6 +106,7 @@ for _ in $(seq 1 30); do
         echo " Your app is available at: $URL"
         echo " (this URL changes every time you restart this script)"
         echo "============================================================"
+        echo "$URL" > "$ROOT_DIR/data/tunnel_url.txt"
         break
     fi
     sleep 1

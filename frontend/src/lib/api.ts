@@ -13,6 +13,7 @@ import type {
   ShoppingListItem,
   Suggestion,
   Summary,
+  TunnelStatus,
 } from "@/types";
 
 const client = axios.create({ baseURL: "/api" });
@@ -243,4 +244,8 @@ export const api = {
       .post<{ added: number; merged: number; skipped: number }>("/import/csv", form)
       .then((r) => r.data);
   },
+
+  tunnelStatus: () => client.get<TunnelStatus>("/tunnel/status").then((r) => r.data),
+  startTunnel: () => client.post<TunnelStatus>("/tunnel/start").then((r) => r.data),
+  stopTunnel: () => client.post<TunnelStatus>("/tunnel/stop").then((r) => r.data),
 };
