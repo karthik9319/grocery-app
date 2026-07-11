@@ -90,7 +90,7 @@ function App() {
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-[1680px] gap-6 px-4 py-6 lg:px-8 2xl:gap-8">
       {/* Left nav rail */}
-      <aside className="sticky top-6 hidden h-[calc(100vh-3rem)] w-64 shrink-0 flex-col lg:flex 2xl:w-72">
+      <aside className="sticky top-6 hidden h-[calc(100vh-3rem)] w-64 shrink-0 flex-col lg:flex 2xl:w-72 print:hidden">
         <div className="glass flex flex-1 flex-col overflow-y-auto rounded-3xl p-3 shadow-[5px_5px_0_var(--line)]">
           <div className="mb-4 flex items-center gap-3 px-2 pt-2">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl border-[3px] border-content bg-theme-400 text-2xl shadow-[3px_3px_0_var(--line)]">
@@ -154,10 +154,12 @@ function App() {
 
       {/* Main content */}
       <main className="min-w-0 flex-1 space-y-7">
-        <Header meta={meta} />
+        <div className="print:hidden">
+          <Header meta={meta} />
+        </div>
 
         {/* Mobile nav (horizontal scroll) */}
-        <div className="flex gap-2 overflow-x-auto pb-1 lg:hidden">
+        <div className="flex gap-2 overflow-x-auto pb-1 lg:hidden print:hidden">
           {nav.map((item) => {
             const isActive = item.value === active;
             return (
@@ -178,7 +180,7 @@ function App() {
         </div>
 
         {/* Section header */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 print:hidden">
           <span
             className="flex h-10 w-10 items-center justify-center rounded-2xl border-[3px] border-content text-xl shadow-[3px_3px_0_var(--line)]"
             style={{ backgroundColor: `${activeItem?.accent}33` }}

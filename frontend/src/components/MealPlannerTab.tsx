@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, startOfWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, Plus, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, CopyPlus, Plus, Printer, ShoppingBag, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { MealPlanEntry, MealSlot } from "@/types";
@@ -78,9 +78,41 @@ export function MealPlannerTab() {
     },
   });
 
+  const addToShoppingListMutation = useMutation({
+    mutationFn: (title: string) => api.addShoppingItem(title),
+    onSuccess: (_res, title) => {
+      queryClient.invalidateQueries({ queryKey: ["shopping-list"] });
+      toast.success(`Added "${title}" to shopping list`, { icon: "🛍️" });
+    },
+  });
+
+  const copyToNextWeekMutation = useMutation({
+    mutationFn: async () => {
+      const current = entries ?? [];
+      await Promise.all(
+        current.map((e) =>
+          api.addMealPlanEntry(
+            format(addDays(new Date(e.date), 7), DATE_FMT),
+            e.meal_slot,
+            e.title,
+            e.notes ?? undefined
+          )
+        )
+      );
+      return current.length;
+    },
+    onSuccess: (count) => {
+      invalidate();
+      toast.success(
+        count > 0 ? `Copied ${count} meal(s) to next week` : "Nothing this week to copy",
+        { icon: "📋" }
+      );
+    },
+  });
+
   return (
     <div className="space-y-4">
-      <div className="glass flex flex-wrap items-center gap-3 rounded-2xl p-3 shadow-[4px_4px_0_var(--line)]">
+      <div className="glass flex flex-wrap items-center gap-3 rounded-2xl p-3 shadow-[4px_4px_0_var(--line)] print:hidden">
         <button
           onClick={() => setWeekStart((d) => addDays(d, -7))}
           className="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-content hover:bg-theme-200 cursor-pointer"
@@ -103,9 +135,25 @@ export function MealPlannerTab() {
         >
           Today
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={copyToNextWeekMutation.isPending}
+          onClick={() => copyToNextWeekMutation.mutate()}
+          title="Copy this week's meals to next week"
+        >
+          <CopyPlus className="h-4 w-4" /> Copy to next week
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => window.print()}>
+          <Printer className="h-4 w-4" /> Print
+        </Button>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+      <p className="hidden text-center font-display text-lg text-content print:block">
+        Weekly Meal Plan &middot; {format(weekStart, "MMM d")} – {format(days[6], "MMM d, yyyy")}
+      </p>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 print:grid-cols-7 print:gap-2">
         {days.map((day) => {
           const dateStr = format(day, DATE_FMT);
           const isToday = dateStr === todayStr;
@@ -137,7 +185,7 @@ export function MealPlannerTab() {
                         ))}
                         <button
                           onClick={() => setEditing({ date: dateStr, slot: slot.value })}
-                          className="flex w-full items-center justify-center gap-1 rounded-lg border-2 border-dashed border-content/40 py-1 text-[10px] font-semibold text-subtle hover:border-content hover:text-content cursor-pointer"
+                          className="flex w-full items-center justify-center gap-1 rounded-lg border-2 border-dashed border-content/40 py-1 text-[10px] font-semibold text-subtle hover:border-content hover:text-content cursor-pointer print:hidden"
                         >
                           <Plus className="h-3 w-3" /> Add
                         </button>
@@ -162,6 +210,7 @@ export function MealPlannerTab() {
           }
         }}
         onDelete={editing?.entry ? () => deleteMutation.mutate(editing.entry!.id) : undefined}
+        onAddToShoppingList={(title) => addToShoppingListMutation.mutate(title)}
         saving={addMutation.isPending || updateMutation.isPending}
       />
     </div>
@@ -173,12 +222,14 @@ function MealEntryDialog({
   onClose,
   onSave,
   onDelete,
+  onAddToShoppingList,
   saving,
 }: {
   editing: EditingState | null;
   onClose: () => void;
   onSave: (data: { date: string; slot: MealSlot; title: string; notes?: string }) => void;
   onDelete?: () => void;
+  onAddToShoppingList: (title: string) => void;
   saving: boolean;
 }) {
   const [title, setTitle] = useState("");
@@ -239,6 +290,15 @@ function MealEntryDialog({
               onClick={() => onSave({ date, slot, title: title.trim(), notes: notes.trim() || undefined })}
             >
               {editing?.entry ? "Save changes" : "Add to plan"}
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              disabled={!title.trim()}
+              onClick={() => onAddToShoppingList(title.trim())}
+              title="Add to shopping list"
+            >
+              <ShoppingBag className="h-4 w-4" />
             </Button>
             {onDelete && (
               <Button variant="danger" size="icon" onClick={onDelete} title="Remove">

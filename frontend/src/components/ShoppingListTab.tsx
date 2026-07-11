@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { RefreshCw, X } from "lucide-react";
+import { Printer, RefreshCw, X } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Meta } from "@/types";
 import { titleCase } from "@/lib/utils";
@@ -54,17 +54,24 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted">
+      <p className="text-sm text-muted print:hidden">
         Check items off as you shop. Populate it from low-stock items or add your own.
       </p>
 
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <p className="hidden text-center font-display text-lg text-content print:block">
+        Shopping List &middot; {new Date().toLocaleDateString()}
+      </p>
+
+      <div className="flex flex-col gap-3 sm:flex-row print:hidden">
         <Button
           variant="outline"
           onClick={() => addLowStock.mutate()}
           disabled={addLowStock.isPending}
         >
           <RefreshCw className="h-4 w-4" /> Add all low-stock items
+        </Button>
+        <Button variant="outline" onClick={() => window.print()}>
+          <Printer className="h-4 w-4" /> Print
         </Button>
         <form
           className="flex flex-1 gap-2"
@@ -116,7 +123,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
             </label>
             <button
               onClick={() => deleteItem.mutate(item.id)}
-              className="rounded-full p-1 text-subtle hover:bg-red-500/10 hover:text-red-500 cursor-pointer"
+              className="rounded-full p-1 text-subtle hover:bg-red-500/10 hover:text-red-500 cursor-pointer print:hidden"
             >
               <X className="h-4 w-4" />
             </button>
@@ -125,7 +132,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
       </div>
 
       {checked.length > 0 && (
-        <details className="rounded-2xl border-[3px] border-content bg-surface-solid p-3">
+        <details className="rounded-2xl border-[3px] border-content bg-surface-solid p-3 print:hidden">
           <summary className="cursor-pointer text-sm font-bold text-muted">
             ✅ Checked off ({checked.length})
           </summary>
