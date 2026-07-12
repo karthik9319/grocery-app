@@ -16,7 +16,12 @@ import type {
   TunnelStatus,
 } from "@/types";
 
-const client = axios.create({ baseURL: "/api" });
+// A stalled mobile connection (e.g. through a Cloudflare Tunnel on a flaky 5G signal)
+// can leave a request hanging with no response and no error - since axios has no
+// timeout by default, that means it never rejects, so TanStack Query's automatic retry
+// never even triggers (it only retries on an actual rejection). A bounded timeout turns
+// a silent infinite hang into a real error that gets retried automatically instead.
+const client = axios.create({ baseURL: "/api", timeout: 30000 });
 
 export const api = {
   meta: () => client.get<Meta>("/meta").then((r) => r.data),
@@ -60,7 +65,7 @@ export const api = {
       form.append("custom_threshold", String(data.custom_threshold));
     if (data.expiration_date) form.append("expiration_date", data.expiration_date);
     if (data.image) form.append("image", data.image);
-    return client.post("/items", form).then((r) => r.data);
+    return client.post("/items", form, { timeout: 90000 }).then((r) => r.data);
   },
 
   updateItem: (
@@ -84,7 +89,7 @@ export const api = {
       form.append("custom_threshold", String(data.custom_threshold));
     if (data.expiration_date) form.append("expiration_date", data.expiration_date);
     if (data.image) form.append("image", data.image);
-    return client.put(`/items/${id}`, form).then((r) => r.data);
+    return client.put(`/items/${id}`, form, { timeout: 90000 }).then((r) => r.data);
   },
 
   patchQuantity: (id: number, quantity: number) => {
@@ -173,7 +178,7 @@ export const api = {
     const form = new FormData();
     form.append("image", image);
     return client
-      .post<{ candidates: ReceiptCandidate[] }>("/receipt/scan", form)
+      .post<{ candidates: ReceiptCandidate[] }>("/receipt/scan", form, { timeout: 90000 })
       .then((r) => r.data);
   },
 
@@ -207,7 +212,7 @@ export const api = {
   addItemPhoto: (itemId: number, file: File) => {
     const form = new FormData();
     form.append("image", file);
-    return client.post<ItemPhoto>(`/items/${itemId}/photos`, form).then((r) => r.data);
+    return client.post<ItemPhoto>(`/items/${itemId}/photos`, form, { timeout: 90000 }).then((r) => r.data);
   },
   setItemPhotoCover: (itemId: number, photoId: number) =>
     client.post(`/items/${itemId}/photos/${photoId}/cover`).then((r) => r.data),

@@ -1,17 +1,37 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart3, CalendarDays, PlusCircle, Search, ShoppingBag } from "lucide-react";
 import { api } from "@/lib/api";
 import { Header } from "@/components/Header";
 import { AddItemsTab } from "@/components/AddItemsTab";
 import { CategoryView } from "@/components/CategoryView";
-import { GlobalSearchTab } from "@/components/GlobalSearchTab";
-import { ShoppingListTab } from "@/components/ShoppingListTab";
-import { MealPlannerTab } from "@/components/MealPlannerTab";
-import { ChartsTab } from "@/components/ChartsTab";
 import { SettingsSidebar } from "@/components/SettingsSidebar";
-import { Spinner } from "@/components/ui";
+import { Button, Spinner } from "@/components/ui";
 import { cn } from "@/lib/utils";
+
+// Lazy-loaded: these pull in heavier dependencies (Recharts, date-fns) that aren't
+// needed for the default "Add Items" tab - splitting them out shrinks the initial
+// bundle so the app loads faster on slow/mobile connections.
+const GlobalSearchTab = lazy(() =>
+  import("@/components/GlobalSearchTab").then((m) => ({ default: m.GlobalSearchTab }))
+);
+const ShoppingListTab = lazy(() =>
+  import("@/components/ShoppingListTab").then((m) => ({ default: m.ShoppingListTab }))
+);
+const MealPlannerTab = lazy(() =>
+  import("@/components/MealPlannerTab").then((m) => ({ default: m.MealPlannerTab }))
+);
+const ChartsTab = lazy(() =>
+  import("@/components/ChartsTab").then((m) => ({ default: m.ChartsTab }))
+);
+
+function TabFallback() {
+  return (
+    <div className="flex items-center justify-center py-16">
+      <Spinner className="h-6 w-6" />
+    </div>
+  );
+}
 
 type NavItem = {
   value: string;
@@ -23,13 +43,37 @@ type NavItem = {
 };
 
 function App() {
-  const { data: meta, isLoading } = useQuery({ queryKey: ["meta"], queryFn: api.meta });
+  const {
+    data: meta,
+    isLoading,
+    isError,
+    refetch,
+    isRefetching,
+  } = useQuery({ queryKey: ["meta"], queryFn: api.meta });
   const { data: counts } = useQuery({
     queryKey: ["charts", "category-counts"],
     queryFn: api.chartCategoryCounts,
   });
   const { data: shopping } = useQuery({ queryKey: ["shopping-list"], queryFn: api.shoppingList });
   const [active, setActive] = useState("add-items");
+
+  if (isError) {
+    return (
+      <div className="flex h-screen items-center justify-center px-6">
+        <div className="flex max-w-sm flex-col items-center gap-3 text-center">
+          <p className="text-3xl">📡</p>
+          <p className="font-display text-lg text-content">Couldn't reach the server</p>
+          <p className="text-sm text-subtle">
+            This can happen on a slow or unstable connection. Check your signal and try again.
+          </p>
+          <Button onClick={() => refetch()} disabled={isRefetching}>
+            {isRefetching && <Spinner className="h-4 w-4" />}
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading || !meta) {
     return (
@@ -211,13 +255,15 @@ function App() {
 
         <div className="animate-fade-in">
           {active === "add-items" && <AddItemsTab meta={meta} />}
-          {active === "search" && <GlobalSearchTab meta={meta} />}
           {meta.categories.map(
             (c) => active === c && <CategoryView key={c} category={c} meta={meta} />
           )}
-          {active === "shopping" && <ShoppingListTab meta={meta} />}
-          {active === "meal-planner" && <MealPlannerTab />}
-          {active === "charts" && <ChartsTab meta={meta} />}
+          <Suspense fallback={<TabFallback />}>
+            {active === "search" && <GlobalSearchTab meta={meta} />}
+            {active === "shopping" && <ShoppingListTab meta={meta} />}
+            {active === "meal-planner" && <MealPlannerTab />}
+            {active === "charts" && <ChartsTab meta={meta} />}
+          </Suspense>
         </div>
       </main>
     </div>
