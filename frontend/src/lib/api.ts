@@ -1,4 +1,22 @@
 import axios from "axios";
+// Simple offline cache using localStorage. Keys are based on URL and params.
+const cacheGet = async <T>(url: string, params?: any): Promise<T> => {
+  const key = `cache:${url}:${JSON.stringify(params || {})}`;
+  try {
+    const r = await client.get<T>(url, { params });
+    // Store a shallow copy to avoid mutation issues
+    localStorage.setItem(key, JSON.stringify(r.data));
+    return r.data;
+  } catch (e) {
+    const cached = localStorage.getItem(key);
+    if (cached) {
+      try {
+        return JSON.parse(cached) as T;
+      } catch (_) {}
+    }
+    throw e;
+  }
+};
 import type {
   Backup,
   Favorite,
@@ -13,7 +31,6 @@ import type {
   ShoppingListItem,
   Suggestion,
   Summary,
-  TunnelStatus,
 } from "@/types";
 
 // A stalled mobile connection (e.g. through a Cloudflare Tunnel on a flaky 5G signal)
@@ -24,9 +41,9 @@ import type {
 const client = axios.create({ baseURL: "/api", timeout: 30000 });
 
 export const api = {
-  meta: () => client.get<Meta>("/meta").then((r) => r.data),
+  meta: () => cacheGet<Meta>("/meta"),
 
-  settings: () => client.get<Settings>("/settings").then((r) => r.data),
+  settings: () => cacheGet<Settings>("/settings"),
   updateSettings: (settings: Settings) => {
     const form = new FormData();
     form.append("count_threshold", String(settings.count_threshold));
@@ -34,18 +51,16 @@ export const api = {
     return client.put<Settings>("/settings", form).then((r) => r.data);
   },
 
-  summary: () => client.get<Summary>("/summary").then((r) => r.data),
+  summary: () => cacheGet<Summary>("/summary"),
 
   items: (category?: string) =>
-    client
-      .get<Item[]>("/items", { params: category ? { category } : {} })
-      .then((r) => r.data),
+    cacheGet<Item[]>('/items', category ? { category } : undefined),
 
   suggestTitles: (q: string) =>
-    client.get<Suggestion[]>("/suggestions", { params: { q } }).then((r) => r.data),
+    cacheGet<Suggestion[]>('/suggestions', { q }),
 
   classifyTitle: (title: string) =>
-    client.get<{ category: string }>("/classify", { params: { title } }).then((r) => r.data),
+    cacheGet<{ category: string }>('/classify', { title }),
 
   createItem: (data: {
     title: string;
@@ -136,6 +151,7 @@ export const api = {
     if (category) form.append("category", category);
     return client.post("/shopping-list", form).then((r) => r.data);
   },
+  bulkDeleteItems: (ids: number[]) => client.post<{ deleted: number }>('/items/bulk-delete', ids),
   patchShoppingItem: (id: number, checked: boolean) => {
     const form = new FormData();
     form.append("checked", String(checked));
@@ -150,12 +166,13 @@ export const api = {
 
   mealPlan: (start: string, end: string) =>
     client.get<MealPlanEntry[]>("/meal-plan", { params: { start, end } }).then((r) => r.data),
-  addMealPlanEntry: (date: string, mealSlot: MealSlot, title: string, notes?: string) => {
+  addMealPlanEntry: (date: string, mealSlot: MealSlot, title: string, notes?: string, done?: boolean) => {
     const form = new FormData();
     form.append("date", date);
     form.append("meal_slot", mealSlot);
     form.append("title", title);
     if (notes) form.append("notes", notes);
+    if (done !== undefined) form.append("done", String(done));
     return client.post<{ id: number; status: string }>("/meal-plan", form).then((r) => r.data);
   },
   updateMealPlanEntry: (
@@ -163,13 +180,15 @@ export const api = {
     date: string,
     mealSlot: MealSlot,
     title: string,
-    notes?: string
+    notes?: string,
+    done?: boolean
   ) => {
     const form = new FormData();
     form.append("date", date);
     form.append("meal_slot", mealSlot);
     form.append("title", title);
     if (notes) form.append("notes", notes);
+    if (done !== undefined) form.append("done", String(done));
     return client.put(`/meal-plan/${id}`, form).then((r) => r.data);
   },
   deleteMealPlanEntry: (id: number) => client.delete(`/meal-plan/${id}`).then((r) => r.data),
@@ -183,19 +202,11 @@ export const api = {
   },
 
   chartCategoryCounts: () =>
-    client.get<Record<string, number>>("/charts/category-counts").then((r) => r.data),
+    cacheGet<Record<string, number>>('/charts/category-counts'),
   chartStockByItem: (category: string) =>
-    client
-      .get<{ title: string; quantity: number }[]>("/charts/stock-by-item", {
-        params: { category },
-      })
-      .then((r) => r.data),
+    cacheGet<{ title: string; quantity: number }[]>('/charts/stock-by-item', { category }),
   chartAddedOverTime: (category: string) =>
-    client
-      .get<{ date: string; quantity: number }[]>("/charts/added-over-time", {
-        params: { category },
-      })
-      .then((r) => r.data),
+    cacheGet<{ date: string; quantity: number }[]>('/charts/added-over-time', { category }),
 
   itemAliases: (itemId: number) =>
     client.get<ItemAlias[]>(`/items/${itemId}/aliases`).then((r) => r.data),
@@ -250,7 +261,5 @@ export const api = {
       .then((r) => r.data);
   },
 
-  tunnelStatus: () => client.get<TunnelStatus>("/tunnel/status").then((r) => r.data),
-  startTunnel: () => client.post<TunnelStatus>("/tunnel/start").then((r) => r.data),
-  stopTunnel: () => client.post<TunnelStatus>("/tunnel/stop").then((r) => r.data),
+  // Tunnel endpoints removed for bulk delete feature; keep if needed later
 };

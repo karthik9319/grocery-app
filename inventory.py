@@ -64,6 +64,7 @@ def init_db() -> None:
                 meal_slot TEXT NOT NULL,
                 title TEXT NOT NULL,
                 notes TEXT,
+                done INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL
             )
             """
@@ -98,6 +99,7 @@ def init_db() -> None:
         _migrate_add_custom_threshold_column(conn)
         _migrate_add_expiration_column(conn)
         _migrate_add_uuid_column(conn)
+        _migrate_add_meal_plan_done_column(conn)
 
 
 def _migrate_legacy_category_check(conn: sqlite3.Connection) -> None:
@@ -170,6 +172,15 @@ def _migrate_add_uuid_column(conn: sqlite3.Connection) -> None:
         conn.commit()
     conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_items_uuid ON items(uuid)")
     conn.commit()
+
+
+def _migrate_add_meal_plan_done_column(conn: sqlite3.Connection) -> None:
+    """Older DBs don't have a done flag for meal-plan rows - add it with a default of false."""
+    cols = [row["name"] for row in conn.execute("PRAGMA table_info(meal_plan)").fetchall()]
+    if "done" not in cols:
+        conn.execute("ALTER TABLE meal_plan ADD COLUMN done INTEGER NOT NULL DEFAULT 0")
+        conn.commit()
+
 
 @contextmanager
 def get_connection():
@@ -614,12 +625,18 @@ def clear_checked_shopping_items() -> None:
 # --- Weekly meal planner ---
 
 
-def add_meal_plan_entry(date: str, meal_slot: str, title: str, notes: Optional[str] = None) -> int:
+def add_meal_plan_entry(
+    date: str,
+    meal_slot: str,
+    title: str,
+    notes: Optional[str] = None,
+    done: bool = False,
+) -> int:
     with get_connection() as conn:
         cur = conn.execute(
-            "INSERT INTO meal_plan (date, meal_slot, title, notes, created_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (date, meal_slot, title.strip(), notes, datetime.now().isoformat()),
+            "INSERT INTO meal_plan (date, meal_slot, title, notes, done, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (date, meal_slot, title.strip(), notes, int(done), datetime.now().isoformat()),
         )
         conn.commit()
         return cur.lastrowid
@@ -633,7 +650,7 @@ def get_meal_plan_range(start_date: str, end_date: str):
             "SELECT * FROM meal_plan WHERE date BETWEEN ? AND ? ORDER BY date ASC, id ASC",
             (start_date, end_date),
         ).fetchall()
-        return [dict(row) for row in rows]
+        return [{**dict(row), "done": bool(row["done"])} for row in rows]
 
 
 def get_all_meal_plan_entries():
@@ -642,17 +659,28 @@ def get_all_meal_plan_entries():
     week)."""
     with get_connection() as conn:
         rows = conn.execute("SELECT * FROM meal_plan ORDER BY date ASC, id ASC").fetchall()
-        return [dict(row) for row in rows]
+        return [{**dict(row), "done": bool(row["done"])} for row in rows]
 
 
 def update_meal_plan_entry(
-    entry_id: int, date: str, meal_slot: str, title: str, notes: Optional[str] = None
+    entry_id: int,
+    date: str,
+    meal_slot: str,
+    title: str,
+    notes: Optional[str] = None,
+    done: Optional[bool] = None,
 ) -> None:
     with get_connection() as conn:
-        conn.execute(
-            "UPDATE meal_plan SET date = ?, meal_slot = ?, title = ?, notes = ? WHERE id = ?",
-            (date, meal_slot, title.strip(), notes, entry_id),
-        )
+        if done is None:
+            conn.execute(
+                "UPDATE meal_plan SET date = ?, meal_slot = ?, title = ?, notes = ? WHERE id = ?",
+                (date, meal_slot, title.strip(), notes, entry_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE meal_plan SET date = ?, meal_slot = ?, title = ?, notes = ?, done = ? WHERE id = ?",
+                (date, meal_slot, title.strip(), notes, int(done), entry_id),
+            )
         conn.commit()
 
 

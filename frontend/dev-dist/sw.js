@@ -1,4 +1,23 @@
-/**
+// Simple cache-first strategy for static assets
+const CACHE_NAME = 'grocery-pwa-cache-v1';
+const urlsToCache = [
+  '/',
+  '/index.html',
+  '/favicon.ico',
+  '/manifest.webmanifest',
+];
+
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
+  );
+});
+
+self.addEventListener('fetch', event => {
+  event.respondWith(
+    caches.match(event.request).then(response => response || fetch(event.request))
+  );
+});/**
  * Copyright 2018 Google Inc. All Rights Reserved.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -81,7 +100,7 @@ define(['./workbox-26b8999e'], (function (workbox) { 'use strict';
     "revision": "3ca0b8505b4bec776b69afdba2768812"
   }, {
     "url": "index.html",
-    "revision": "0.adtde3gcelg"
+    "revision": "0.7r28r6tgoho"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {

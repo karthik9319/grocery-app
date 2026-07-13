@@ -478,8 +478,9 @@ function CsvImportPanel() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted">
-        Restore or bulk-add items from a previously exported CSV (the same file you get from
-        Settings → Export CSV). Rows are matched to existing items by title + category;
+        Restore or bulk-add items from a previously exported CSV. This will automatically detect
+        meal-plan, favorites, shopping-list, or inventory CSVs and import them into the right
+        place. For inventory CSVs, rows are matched to existing items by title + category;
         everything else is inserted as a new item.
       </p>
       <Card className="border-dashed p-6 text-center">

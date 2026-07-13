@@ -49,6 +49,15 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
     onSuccess: invalidate,
   });
 
+  // Bulk delete selected items
+  const bulkDelete = useMutation({
+    mutationFn: (ids: number[]) => api.bulkDeleteItems(ids),
+    onSuccess: () => {
+      invalidate();
+      toast.success(`Deleted ${ids.length} item(s)`);
+    },
+  });
+
   const unchecked = items?.filter((i) => !i.checked) ?? [];
   const checked = items?.filter((i) => i.checked) ?? [];
 

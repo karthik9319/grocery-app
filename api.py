@@ -40,6 +40,18 @@ inventory.init_db()
 
 app = FastAPI(title="Grocery & Vegetable Tracker API")
 
+# --- Meal plan update endpoint ---------------------------------
+@app.patch("/api/meal-plan/{entry_id}")
+async def patch_meal_plan_entry(entry_id: int, payload: dict):
+    entry = inventory.get_meal_plan_entry(entry_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Meal plan entry not found")
+    # Only update done flag
+    if "done" in payload:
+        entry["done"] = bool(payload["done"])
+        inventory.update_meal_plan_entry(entry_id, **entry)
+    return entry
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -275,6 +287,26 @@ def write_backup(items: list, reason: str) -> Optional[str]:
     return filename
 
 
+def detect_import_kind(fieldnames: Optional[list[str]]) -> str:
+    """Infer the destination list from CSV headers so meal-plan/favorites/shopping exports
+    are imported into the right place instead of falling back to inventory defaults."""
+    if not fieldnames:
+        return "inventory"
+
+    normalized = {name.strip().lower() for name in fieldnames if name is not None}
+    if {"date", "meal_slot", "title"}.issubset(normalized):
+        return "meal_plan"
+    if {"title", "category", "default_quantity"}.issubset(normalized):
+        return "favorites"
+    if {"title", "category", "checked"}.issubset(normalized):
+        return "shopping_list"
+    if {"uuid", "title", "category", "quantity"}.issubset(normalized):
+        return "inventory"
+    if {"title", "category", "quantity"}.issubset(normalized):
+        return "inventory"
+    return "inventory"
+
+
 def import_rows(rows, mode: str) -> dict:
     """Shared row-processing loop for both the CSV-upload import endpoint and restoring
     from an auto-backup file - see /api/import/csv's docstring for the matching rules."""
@@ -324,6 +356,59 @@ def import_rows(rows, mode: str) -> dict:
             added += 1
 
     return {"added": added, "merged": merged, "skipped": skipped}
+
+
+def import_favorites_rows(rows) -> dict:
+    processed = 0
+    for row in rows:
+        title = (row.get("title") or "").strip()
+        category = (row.get("category") or "").strip()
+        if not title or category not in CATEGORIES:
+            continue
+        try:
+            default_quantity = float(row.get("default_quantity") or 1)
+        except ValueError:
+            default_quantity = 1
+        inventory.add_favorite(title, category, default_quantity)
+        processed += 1
+    return {"added": processed, "merged": 0, "skipped": 0}
+
+
+def import_shopping_list_rows(rows) -> dict:
+    processed = 0
+    for row in rows:
+        title = (row.get("title") or "").strip()
+        if not title:
+            continue
+        category = (row.get("category") or "").strip() or None
+        inventory.add_shopping_list_item(title, category)
+        processed += 1
+    return {"added": processed, "merged": 0, "skipped": 0}
+
+
+def import_meal_plan_rows(rows) -> dict:
+    existing_keys = {
+        (e["date"], e["meal_slot"], e["title"].lower())
+        for e in inventory.get_all_meal_plan_entries()
+    }
+    added = 0
+    skipped = 0
+    for row in rows:
+        entry_date = (row.get("date") or "").strip()
+        meal_slot = (row.get("meal_slot") or "").strip()
+        title = (row.get("title") or "").strip()
+        if not entry_date or meal_slot not in MEAL_SLOTS or not title:
+            skipped += 1
+            continue
+        key = (entry_date, meal_slot, title.lower())
+        if key in existing_keys:
+            skipped += 1
+            continue
+        notes = (row.get("notes") or "").strip() or None
+        inventory.add_meal_plan_entry(entry_date, meal_slot, title, notes)
+        existing_keys.add(key)
+        added += 1
+    return {"added": added, "merged": 0, "skipped": skipped}
 
 
 # --- Meta ---
@@ -517,6 +602,21 @@ def restore_item(item: dict):
         item.get("uuid"),
     )
     return {"status": "restored"}
+
+
+# --- Bulk delete ---
+@app.post("/api/items/bulk-delete")
+def bulk_delete_items(ids: list[int]):
+    """Delete multiple items by a list of ids. Returns the count of successfully deleted items."""
+    deleted = 0
+    for i in ids:
+        try:
+            inventory.delete_item(i)
+            deleted += 1
+        except Exception:
+            # Ignore individual failures; continue with remaining ids
+            pass
+    return {"deleted": deleted}
 
 
 # --- Aliases (synonyms - e.g. "soda" merges into a tracked "Coca-Cola" item) ---
@@ -713,7 +813,7 @@ def clear_checked():
 
 
 # --- Weekly meal planner ---
-MEAL_SLOTS = ["breakfast", "lunch", "dinner", "snack"]
+MEAL_SLOTS = ["breakfast", "lunch", "dinner", "snack", "extra"]
 
 
 @app.get("/api/meal-plan")
@@ -727,10 +827,11 @@ def add_meal_plan_entry(
     meal_slot: str = Form(...),
     title: str = Form(...),
     notes: Optional[str] = Form(None),
+    done: Optional[str] = Form(None),
 ):
     if meal_slot not in MEAL_SLOTS:
         raise HTTPException(400, f"meal_slot must be one of {MEAL_SLOTS}")
-    entry_id = inventory.add_meal_plan_entry(date, meal_slot, title, notes)
+    entry_id = inventory.add_meal_plan_entry(date, meal_slot, title, notes, done is not None and done.lower() == "true")
     return {"id": entry_id, "status": "added"}
 
 
@@ -741,10 +842,18 @@ def update_meal_plan_entry(
     meal_slot: str = Form(...),
     title: str = Form(...),
     notes: Optional[str] = Form(None),
+    done: Optional[str] = Form(None),
 ):
     if meal_slot not in MEAL_SLOTS:
         raise HTTPException(400, f"meal_slot must be one of {MEAL_SLOTS}")
-    inventory.update_meal_plan_entry(entry_id, date, meal_slot, title, notes)
+    inventory.update_meal_plan_entry(
+        entry_id,
+        date,
+        meal_slot,
+        title,
+        notes,
+        None if done is None else done.lower() == "true",
+    )
     return {"status": "updated"}
 
 
@@ -923,7 +1032,18 @@ async def import_csv(file: UploadFile = File(...), mode: str = Form("merge")):
     if reader.fieldnames is None or "title" not in reader.fieldnames:
         raise HTTPException(400, "CSV must have at least a 'title' column.")
 
-    return import_rows(reader, mode)
+    import_kind = detect_import_kind(reader.fieldnames)
+    if import_kind == "meal_plan":
+        result = import_meal_plan_rows(reader)
+    elif import_kind == "favorites":
+        result = import_favorites_rows(reader)
+    elif import_kind == "shopping_list":
+        result = import_shopping_list_rows(reader)
+    else:
+        result = import_rows(reader, mode)
+
+    result["kind"] = import_kind
+    return result
 
 
 @app.post("/api/import/all")
@@ -946,62 +1066,15 @@ async def import_all(file: UploadFile = File(...), mode: str = Form("merge")):
 
     if "favorites.csv" in zf.namelist():
         text = zf.read("favorites.csv").decode("utf-8-sig")
-        processed = 0
-        for row in csv.DictReader(io.StringIO(text)):
-            title = (row.get("title") or "").strip()
-            category = (row.get("category") or "").strip()
-            if not title or category not in CATEGORIES:
-                continue
-            try:
-                default_quantity = float(row.get("default_quantity") or 1)
-            except ValueError:
-                default_quantity = 1
-            # add_favorite is an upsert keyed on title+category, so re-importing the
-            # same row never creates a duplicate - it just re-applies the same quantity.
-            inventory.add_favorite(title, category, default_quantity)
-            processed += 1
-        result["favorites"] = {"processed": processed}
+        result["favorites"] = import_favorites_rows(csv.DictReader(io.StringIO(text)))
 
     if "shopping-list.csv" in zf.namelist():
         text = zf.read("shopping-list.csv").decode("utf-8-sig")
-        added = 0
-        for row in csv.DictReader(io.StringIO(text)):
-            title = (row.get("title") or "").strip()
-            if not title:
-                continue
-            category = (row.get("category") or "").strip() or None
-            # add_shopping_list_item already skips a duplicate unchecked title+category
-            # entry, so re-running this import is safe.
-            inventory.add_shopping_list_item(title, category)
-            added += 1
-        result["shopping_list"] = {"processed": added}
+        result["shopping_list"] = import_shopping_list_rows(csv.DictReader(io.StringIO(text)))
 
     if "meal-plan.csv" in zf.namelist():
         text = zf.read("meal-plan.csv").decode("utf-8-sig")
-        existing_keys = {
-            (e["date"], e["meal_slot"], e["title"].lower())
-            for e in inventory.get_all_meal_plan_entries()
-        }
-        added = 0
-        skipped = 0
-        for row in csv.DictReader(io.StringIO(text)):
-            entry_date = (row.get("date") or "").strip()
-            meal_slot = (row.get("meal_slot") or "").strip()
-            title = (row.get("title") or "").strip()
-            if not entry_date or meal_slot not in MEAL_SLOTS or not title:
-                skipped += 1
-                continue
-            key = (entry_date, meal_slot, title.lower())
-            if key in existing_keys:
-                # Already have this exact date+slot+title - avoids duplicating entries
-                # on a repeat import of the same zip.
-                skipped += 1
-                continue
-            notes = (row.get("notes") or "").strip() or None
-            inventory.add_meal_plan_entry(entry_date, meal_slot, title, notes)
-            existing_keys.add(key)
-            added += 1
-        result["meal_plan"] = {"added": added, "skipped": skipped}
+        result["meal_plan"] = import_meal_plan_rows(csv.DictReader(io.StringIO(text)))
 
     if not result:
         raise HTTPException(400, "Zip didn't contain any recognized export files.")
