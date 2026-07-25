@@ -4,6 +4,7 @@ export interface Item {
   title: string;
   category: string;
   quantity: number;
+  in_use_quantity: number;
   image_path: string | null;
   notes: string | null;
   custom_threshold: number | null;

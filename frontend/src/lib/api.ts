@@ -31,6 +31,7 @@ import type {
   ShoppingListItem,
   Suggestion,
   Summary,
+  TunnelStatus,
 } from "@/types";
 
 // A stalled mobile connection (e.g. through a Cloudflare Tunnel on a flaky 5G signal)
@@ -111,6 +112,18 @@ export const api = {
     const form = new FormData();
     form.append("quantity", String(quantity));
     return client.patch(`/items/${id}/quantity`, form).then((r) => r.data);
+  },
+
+  useItem: (id: number, amount: number = 1) => {
+    const form = new FormData();
+    form.append("amount", String(amount));
+    return client.patch(`/items/${id}/use`, form).then((r) => r.data);
+  },
+
+  returnItem: (id: number, amount: number = 1) => {
+    const form = new FormData();
+    form.append("amount", String(amount));
+    return client.patch(`/items/${id}/return`, form).then((r) => r.data);
   },
 
   deleteItem: (id: number) => client.delete<Item>(`/items/${id}`).then((r) => r.data),
@@ -261,5 +274,7 @@ export const api = {
       .then((r) => r.data);
   },
 
-  // Tunnel endpoints removed for bulk delete feature; keep if needed later
+  tunnelStatus: () => client.get<TunnelStatus>("/tunnel/status").then((r) => r.data),
+  startTunnel: () => client.post<TunnelStatus>("/tunnel/start").then((r) => r.data),
+  stopTunnel: () => client.post<TunnelStatus>("/tunnel/stop").then((r) => r.data),
 };

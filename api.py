@@ -227,13 +227,14 @@ def save_upload(file: UploadFile) -> str:
 
 def items_to_csv_text(items: list) -> str:
     """Shared CSV serialization used by both the export endpoint and backup snapshots."""
-    lines = ["uuid,title,category,quantity,unit,notes,expiration_date,created_at"]
+    lines = ["uuid,title,category,quantity,in_use_quantity,unit,notes,expiration_date,created_at"]
     for item in items:
         unit = CATEGORY_UNITS.get(item["category"], "count")
         notes = (item.get("notes") or "").replace(",", ";")
         lines.append(
-            f"{item.get('uuid') or ''},{item['title']},{item['category']},{item['quantity']},{unit},"
-            f"{notes},{item.get('expiration_date') or ''},{item['created_at']}"
+            f"{item.get('uuid') or ''},{item['title']},{item['category']},{item['quantity']},"
+            f"{item.get('in_use_quantity', 0)},{unit},{notes},{item.get('expiration_date') or ''},"
+            f"{item['created_at']}"
         )
     return "\n".join(lines)
 
@@ -334,6 +335,11 @@ def import_rows(rows, mode: str) -> dict:
             skipped += 1
             continue
 
+        try:
+            in_use_quantity = float(row.get("in_use_quantity") or 0)
+        except ValueError:
+            in_use_quantity = 0
+
         notes = (row.get("notes") or "").strip() or None
         expiration_date = (row.get("expiration_date") or "").strip() or None
 
@@ -350,9 +356,20 @@ def import_rows(rows, mode: str) -> dict:
                 existing.get("custom_threshold"),
                 expiration_date or existing.get("expiration_date"),
             )
+            inventory.set_in_use_quantity(existing["id"], in_use_quantity)
             merged += 1
         else:
-            inventory.add_item(title, category, quantity, None, notes, None, expiration_date, row_uuid)
+            inventory.add_item(
+                title,
+                category,
+                quantity,
+                None,
+                notes,
+                None,
+                expiration_date,
+                row_uuid,
+                in_use_quantity=in_use_quantity,
+            )
             added += 1
 
     return {"added": added, "merged": merged, "skipped": skipped}
@@ -571,6 +588,24 @@ def patch_quantity(item_id: int, quantity: float = Form(...)):
     return {"status": "ok"}
 
 
+@app.patch("/api/items/{item_id}/use")
+def use_item(item_id: int, amount: float = Form(1)):
+    try:
+        inventory.move_to_in_use(item_id, amount)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"status": "ok"}
+
+
+@app.patch("/api/items/{item_id}/return")
+def return_item(item_id: int, amount: float = Form(1)):
+    try:
+        inventory.move_from_in_use(item_id, amount)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return {"status": "ok"}
+
+
 @app.delete("/api/items/{item_id}")
 def remove_item(item_id: int):
     all_items = [item for cat in CATEGORIES for item in inventory.get_items_by_category(cat)]
@@ -600,6 +635,7 @@ def restore_item(item: dict):
         item.get("custom_threshold"),
         item.get("expiration_date"),
         item.get("uuid"),
+        in_use_quantity=item.get("in_use_quantity", 0),
     )
     return {"status": "restored"}
 

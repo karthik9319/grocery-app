@@ -19,6 +19,7 @@ def init_db() -> None:
                 title TEXT NOT NULL,
                 category TEXT NOT NULL,
                 quantity INTEGER NOT NULL DEFAULT 1,
+                in_use_quantity REAL NOT NULL DEFAULT 0,
                 image_path TEXT,
                 created_at TEXT NOT NULL
             )
@@ -99,6 +100,7 @@ def init_db() -> None:
         _migrate_add_custom_threshold_column(conn)
         _migrate_add_expiration_column(conn)
         _migrate_add_uuid_column(conn)
+        _migrate_add_in_use_quantity_column(conn)
         _migrate_add_meal_plan_done_column(conn)
 
 
@@ -174,6 +176,14 @@ def _migrate_add_uuid_column(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _migrate_add_in_use_quantity_column(conn: sqlite3.Connection) -> None:
+    """Older DBs don't track how much of an item is currently in use - add it if missing."""
+    cols = [row["name"] for row in conn.execute("PRAGMA table_info(items)").fetchall()]
+    if "in_use_quantity" not in cols:
+        conn.execute("ALTER TABLE items ADD COLUMN in_use_quantity REAL NOT NULL DEFAULT 0")
+        conn.commit()
+
+
 def _migrate_add_meal_plan_done_column(conn: sqlite3.Connection) -> None:
     """Older DBs don't have a done flag for meal-plan rows - add it with a default of false."""
     cols = [row["name"] for row in conn.execute("PRAGMA table_info(meal_plan)").fetchall()]
@@ -201,15 +211,17 @@ def add_item(
     custom_threshold: Optional[float] = None,
     expiration_date: Optional[str] = None,
     item_uuid: Optional[str] = None,
+    in_use_quantity: float = 0,
 ) -> None:
     with get_connection() as conn:
         conn.execute(
-            "INSERT INTO items (title, category, quantity, image_path, notes, "
-            "custom_threshold, expiration_date, uuid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO items (title, category, quantity, in_use_quantity, image_path, notes, "
+            "custom_threshold, expiration_date, uuid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 title.strip(),
                 category,
                 quantity,
+                in_use_quantity,
                 image_path,
                 notes,
                 custom_threshold,
@@ -267,10 +279,67 @@ def get_items_by_category(category: str):
 
 def update_quantity(item_id: int, new_quantity: int) -> None:
     with get_connection() as conn:
+        row = conn.execute(
+            "SELECT quantity, in_use_quantity FROM items WHERE id = ?",
+            (item_id,),
+        ).fetchone()
+        if not row:
+            return
+        in_use_quantity = float(row["in_use_quantity"] or 0)
         if new_quantity <= 0:
-            conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
+            if in_use_quantity > 0:
+                conn.execute("UPDATE items SET quantity = 0 WHERE id = ?", (item_id,))
+            else:
+                conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
         else:
             conn.execute("UPDATE items SET quantity = ? WHERE id = ?", (new_quantity, item_id))
+        conn.commit()
+
+
+def move_to_in_use(item_id: int, amount: float) -> None:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT quantity, in_use_quantity FROM items WHERE id = ?",
+            (item_id,),
+        ).fetchone()
+        if not row:
+            return
+        available = float(row["quantity"])
+        current_in_use = float(row["in_use_quantity"] or 0)
+        if amount <= 0 or amount > available:
+            raise ValueError("Invalid in-use amount")
+        conn.execute(
+            "UPDATE items SET quantity = ?, in_use_quantity = ? WHERE id = ?",
+            (available - amount, current_in_use + amount, item_id),
+        )
+        conn.commit()
+
+
+def move_from_in_use(item_id: int, amount: float) -> None:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT quantity, in_use_quantity FROM items WHERE id = ?",
+            (item_id,),
+        ).fetchone()
+        if not row:
+            return
+        available = float(row["quantity"])
+        current_in_use = float(row["in_use_quantity"] or 0)
+        if amount <= 0 or amount > current_in_use:
+            raise ValueError("Invalid in-use amount")
+        conn.execute(
+            "UPDATE items SET quantity = ?, in_use_quantity = ? WHERE id = ?",
+            (available + amount, current_in_use - amount, item_id),
+        )
+        conn.commit()
+
+
+def set_in_use_quantity(item_id: int, amount: float) -> None:
+    with get_connection() as conn:
+        row = conn.execute("SELECT id FROM items WHERE id = ?", (item_id,)).fetchone()
+        if not row:
+            return
+        conn.execute("UPDATE items SET in_use_quantity = ? WHERE id = ?", (amount, item_id))
         conn.commit()
 
 

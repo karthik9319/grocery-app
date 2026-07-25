@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import type { Item, Meta } from "@/types";
 import { api } from "@/lib/api";
 import { daysUntil, formatQuantity, imageUrl } from "@/lib/utils";
-import { Badge, Card, Checkbox } from "@/components/ui";
+import { Badge, Button, Card, Checkbox } from "@/components/ui";
 import { EditItemDialog } from "@/components/EditItemDialog";
 import { PhotoGalleryDialog } from "@/components/PhotoGalleryDialog";
 
@@ -33,9 +33,26 @@ export function ItemCard({
   const dotColor = meta.palette[item.category] ?? "#999";
   const isLow = item.quantity <= threshold;
   const expDays = daysUntil(item.expiration_date);
+  const useStep = unit === "g" ? 50 : 1;
 
   const qtyMutation = useMutation({
     mutationFn: (quantity: number) => api.patchQuantity(item.id, quantity),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: ["summary"] });
+    },
+  });
+
+  const useItemMutation = useMutation({
+    mutationFn: (amount: number) => api.useItem(item.id, amount),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: ["summary"] });
+    },
+  });
+
+  const returnItemMutation = useMutation({
+    mutationFn: (amount: number) => api.returnItem(item.id, amount),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["items"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
@@ -53,7 +70,6 @@ export function ItemCard({
   });
 
   const img = imageUrl(item.image_path);
-  const step = unit === "g" ? 50 : 1;
 
   return (
     <Card
@@ -114,6 +130,9 @@ export function ItemCard({
         {item.notes && <p className="mt-0.5 truncate text-xs text-subtle">{item.notes}</p>}
         <div className="mt-1 flex flex-wrap gap-1.5">
           {isLow && <Badge color="orange">⚠️ Low stock</Badge>}
+          {item.in_use_quantity > 0 && (
+            <Badge color="accent">In use {formatQuantity(item.in_use_quantity, unit)}</Badge>
+          )}
           {expDays != null && expDays < 0 && <Badge color="red">❌ Expired</Badge>}
           {expDays != null && expDays >= 0 && expDays <= 3 && (
             <Badge color="orange">⏰ {expDays === 0 ? "Expires today" : `Expires in ${expDays}d`}</Badge>
@@ -128,7 +147,7 @@ export function ItemCard({
         {!selectable && (
           <>
             <button
-              onClick={() => qtyMutation.mutate(Math.max(0, item.quantity - step))}
+              onClick={() => qtyMutation.mutate(Math.max(0, item.quantity - useStep))}
               className="h-8 w-8 rounded-lg border-2 border-content font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
             >
               −
@@ -143,11 +162,31 @@ export function ItemCard({
               className="h-8 w-16 rounded-lg border-2 border-content bg-surface-solid text-center text-sm font-bold text-content outline-none"
             />
             <button
-              onClick={() => qtyMutation.mutate(item.quantity + step)}
+              onClick={() => qtyMutation.mutate(item.quantity + useStep)}
               className="h-8 w-8 rounded-lg border-2 border-content font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
             >
               +
             </button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 px-2 text-xs"
+              disabled={useItemMutation.isPending || item.quantity < useStep}
+              onClick={() => useItemMutation.mutate(useStep)}
+            >
+              Use {useStep}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 px-2 text-xs"
+              disabled={returnItemMutation.isPending || item.in_use_quantity < useStep}
+              onClick={() => returnItemMutation.mutate(useStep)}
+            >
+              Return {useStep}
+            </Button>
           </>
         )}
       </div>

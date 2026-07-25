@@ -6,8 +6,8 @@ import './index.css'
 import App from './App.tsx'
 import { applyTheme, getStoredTheme, applyColorTheme, getStoredColorTheme } from '@/lib/theme'
 
-// Register service worker for PWA offline support
-if ('serviceWorker' in navigator) {
+// Register the service worker only in production where /sw.js exists.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(err =>
       console.error('SW registration failed:', err)
