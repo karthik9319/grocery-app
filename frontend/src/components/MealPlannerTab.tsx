@@ -5,7 +5,7 @@ import { ChevronLeft, ChevronRight, CopyPlus, Plus, Printer, ShoppingBag, Trash2
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { MealPlanEntry, MealSlot } from "@/types";
-import { Button, Card, Input, Label, Select, Textarea } from "@/components/ui";
+import { Button, Card, Checkbox, Input, Label, Select, Textarea } from "@/components/ui";
 import { Dialog, DialogContent } from "@/components/Dialog";
 import { cn } from "@/lib/utils";
 
@@ -55,8 +55,8 @@ export function MealPlannerTab() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["meal-plan"] });
 
   const addMutation = useMutation({
-    mutationFn: (data: { date: string; slot: MealSlot; title: string; notes?: string }) =>
-      api.addMealPlanEntry(data.date, data.slot, data.title, data.notes),
+    mutationFn: (data: { date: string; slot: MealSlot; title: string; notes?: string; done?: boolean }) =>
+      api.addMealPlanEntry(data.date, data.slot, data.title, data.notes, data.done),
     onSuccess: () => {
       invalidate();
       setEditing(null);
@@ -64,8 +64,8 @@ export function MealPlannerTab() {
     },
   });
   const updateMutation = useMutation({
-    mutationFn: (data: { id: number; date: string; slot: MealSlot; title: string; notes?: string }) =>
-      api.updateMealPlanEntry(data.id, data.date, data.slot, data.title, data.notes),
+    mutationFn: (data: { id: number; date: string; slot: MealSlot; title: string; notes?: string; done?: boolean }) =>
+      api.updateMealPlanEntry(data.id, data.date, data.slot, data.title, data.notes, data.done),
     onSuccess: () => {
       invalidate();
       setEditing(null);
@@ -78,6 +78,13 @@ export function MealPlannerTab() {
       invalidate();
       setEditing(null);
       toast.success("Removed from meal plan");
+    },
+  });
+
+  const toggleDoneMutation = useMutation({
+    mutationFn: ({ id, done }: { id: number; done: boolean }) => api.patchMealPlanDone(id, done),
+    onSuccess: () => {
+      invalidate();
     },
   });
 
@@ -98,7 +105,8 @@ export function MealPlannerTab() {
             format(addDays(new Date(e.date), 7), DATE_FMT),
             e.meal_slot,
             e.title,
-            e.notes ?? undefined
+            e.notes ?? undefined,
+            e.done
           )
         )
       );
@@ -178,13 +186,27 @@ export function MealPlannerTab() {
                       </p>
                       <div className="mt-1 space-y-1">
                         {slotEntries.map((e) => (
-                          <button
+                          <div
                             key={e.id}
                             onClick={() => setEditing({ date: dateStr, slot: slot.value, entry: e })}
-                            className="group flex w-full items-center justify-between gap-1 rounded-lg border-2 border-content bg-surface-solid px-2 py-1 text-left text-xs font-semibold text-content hover:bg-theme-200 cursor-pointer"
+                            className={cn(
+                              "group flex w-full items-center justify-between gap-2 rounded-lg border-2 border-content bg-surface-solid px-2 py-1 text-left text-xs font-semibold text-content hover:bg-theme-200 cursor-pointer",
+                              e.done && "opacity-70"
+                            )}
                           >
-                            <span className="truncate">{e.title}</span>
-                          </button>
+                            <span className={cn("truncate", e.done && "line-through text-subtle")}>{e.title}</span>
+                            <label
+                              className="flex shrink-0 items-center gap-1"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <Checkbox
+                                checked={e.done}
+                                onCheckedChange={(checked) =>
+                                  toggleDoneMutation.mutate({ id: e.id, done: checked === true })
+                                }
+                              />
+                            </label>
+                          </div>
                         ))}
                         <button
                           onClick={() => setEditing({ date: dateStr, slot: slot.value })}
@@ -230,7 +252,7 @@ function MealEntryDialog({
 }: {
   editing: EditingState | null;
   onClose: () => void;
-  onSave: (data: { date: string; slot: MealSlot; title: string; notes?: string }) => void;
+  onSave: (data: { date: string; slot: MealSlot; title: string; notes?: string; done?: boolean }) => void;
   onDelete?: () => void;
   onAddToShoppingList: (title: string) => void;
   saving: boolean;
@@ -239,6 +261,7 @@ function MealEntryDialog({
   const [notes, setNotes] = useState("");
   const [date, setDate] = useState("");
   const [slot, setSlot] = useState<MealSlot>("dinner");
+  const [done, setDone] = useState(false);
 
   // Re-seed local state whenever a new entry/slot is opened for editing.
   const openKey = editing ? `${editing.date}|${editing.slot}|${editing.entry?.id ?? "new"}` : null;
@@ -249,6 +272,7 @@ function MealEntryDialog({
     setNotes(editing.entry?.notes ?? "");
     setDate(editing.date);
     setSlot(editing.slot);
+    setDone(editing.entry?.done ?? false);
   }
 
   return (
@@ -286,11 +310,19 @@ function MealEntryDialog({
               rows={2}
             />
           </div>
+          {editing?.entry && (
+            <label className="flex items-center gap-2 text-sm text-content">
+              <Checkbox checked={done} onCheckedChange={(v) => setDone(v === true)} />
+              Mark as done
+            </label>
+          )}
           <div className="flex gap-2 pt-2">
             <Button
               className="flex-1"
               disabled={!title.trim() || saving}
-              onClick={() => onSave({ date, slot, title: title.trim(), notes: notes.trim() || undefined })}
+              onClick={() =>
+                onSave({ date, slot, title: title.trim(), notes: notes.trim() || undefined, done })
+              }
             >
               {editing?.entry ? "Save changes" : "Add to plan"}
             </Button>

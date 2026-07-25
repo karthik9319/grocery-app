@@ -97,5 +97,6 @@ export interface MealPlanEntry {
   meal_slot: MealSlot;
   title: string;
   notes: string | null;
+  done: boolean;
   created_at: string;
 }

@@ -40,18 +40,6 @@ inventory.init_db()
 
 app = FastAPI(title="Grocery & Vegetable Tracker API")
 
-# --- Meal plan update endpoint ---------------------------------
-@app.patch("/api/meal-plan/{entry_id}")
-async def patch_meal_plan_entry(entry_id: int, payload: dict):
-    entry = inventory.get_meal_plan_entry(entry_id)
-    if not entry:
-        raise HTTPException(status_code=404, detail="Meal plan entry not found")
-    # Only update done flag
-    if "done" in payload:
-        entry["done"] = bool(payload["done"])
-        inventory.update_meal_plan_entry(entry_id, **entry)
-    return entry
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -258,11 +246,11 @@ def shopping_list_to_csv_text(rows: list) -> str:
 
 
 def meal_plan_to_csv_text(rows: list) -> str:
-    lines = ["date,meal_slot,title,notes,created_at"]
+    lines = ["date,meal_slot,title,notes,done,created_at"]
     for row in rows:
         notes = (row.get("notes") or "").replace(",", ";")
         lines.append(
-            f"{row['date']},{row['meal_slot']},{row['title']},{notes},{row['created_at']}"
+            f"{row['date']},{row['meal_slot']},{row['title']},{notes},{bool(row.get('done'))},{row['created_at']}"
         )
     return "\n".join(lines)
 
@@ -422,7 +410,9 @@ def import_meal_plan_rows(rows) -> dict:
             skipped += 1
             continue
         notes = (row.get("notes") or "").strip() or None
-        inventory.add_meal_plan_entry(entry_date, meal_slot, title, notes)
+        done_raw = (row.get("done") or "").strip().lower()
+        done = done_raw in {"1", "true", "yes", "y"}
+        inventory.add_meal_plan_entry(entry_date, meal_slot, title, notes, done)
         existing_keys.add(key)
         added += 1
     return {"added": added, "merged": 0, "skipped": skipped}
@@ -891,6 +881,23 @@ def update_meal_plan_entry(
         None if done is None else done.lower() == "true",
     )
     return {"status": "updated"}
+
+
+@app.patch("/api/meal-plan/{entry_id}")
+def patch_meal_plan_entry(entry_id: int, done: bool = Form(...)):
+    """Toggle just the done flag on a meal-plan entry without touching its other fields."""
+    entry = inventory.get_meal_plan_entry(entry_id)
+    if not entry:
+        raise HTTPException(404, "Meal plan entry not found")
+    inventory.update_meal_plan_entry(
+        entry_id,
+        entry["date"],
+        entry["meal_slot"],
+        entry["title"],
+        entry.get("notes"),
+        done,
+    )
+    return {"status": "ok"}
 
 
 @app.delete("/api/meal-plan/{entry_id}")

@@ -731,6 +731,13 @@ def get_all_meal_plan_entries():
         return [{**dict(row), "done": bool(row["done"])} for row in rows]
 
 
+def get_meal_plan_entry(entry_id: int):
+    """Return a single meal plan entry by id, or None if it doesn't exist."""
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM meal_plan WHERE id = ?", (entry_id,)).fetchone()
+        return {**dict(row), "done": bool(row["done"])} if row else None
+
+
 def update_meal_plan_entry(
     entry_id: int,
     date: str,

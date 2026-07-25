@@ -206,6 +206,11 @@ export const api = {
   },
   deleteMealPlanEntry: (id: number) => client.delete(`/meal-plan/${id}`).then((r) => r.data),
 
+  patchMealPlanDone: (id: number, done: boolean) => {
+    const form = new FormData();
+    form.append("done", String(done));
+    return client.patch(`/meal-plan/${id}`, form).then((r) => r.data);
+  },
   scanReceipt: (image: File) => {
     const form = new FormData();
     form.append("image", image);
