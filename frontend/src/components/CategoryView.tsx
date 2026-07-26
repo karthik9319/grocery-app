@@ -65,7 +65,7 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
 
   const bulkDelete = useMutation({
     mutationFn: async () => {
-      await Promise.all(Array.from(selectedIds).map((id) => api.deleteItem(id)));
+      return api.bulkDeleteItems(Array.from(selectedIds));
     },
     onSuccess: () => {
       toast.success(`Deleted ${selectedIds.size} item(s)`);
@@ -76,21 +76,7 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
 
   const bulkMove = useMutation({
     mutationFn: async () => {
-      const byId = new Map((items ?? []).map((i) => [i.id, i]));
-      await Promise.all(
-        Array.from(selectedIds).map((id) => {
-          const item = byId.get(id);
-          if (!item) return Promise.resolve();
-          return api.updateItem(id, {
-            title: item.title,
-            category: bulkTargetCategory,
-            quantity: item.quantity,
-            notes: item.notes ?? undefined,
-            custom_threshold: item.custom_threshold,
-            expiration_date: item.expiration_date,
-          });
-        })
-      );
+      return api.bulkMoveItems(Array.from(selectedIds), bulkTargetCategory);
     },
     onSuccess: () => {
       toast.success(`Moved ${selectedIds.size} item(s) to ${bulkTargetCategory}`);

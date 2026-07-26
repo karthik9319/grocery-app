@@ -6,18 +6,20 @@ both frontends share the same data/inventory.db and data/images/.
 """
 import csv
 import io
+import logging
 import re
 import subprocess
 import threading
+import time
 import uuid
 import zipfile
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, PlainTextResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 from pillow_heif import register_heif_opener
@@ -30,6 +32,12 @@ import barcode as barcode_lookup
 
 register_heif_opener()
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logger = logging.getLogger("grocery")
+
 BASE_DIR = Path(__file__).parent
 IMAGES_DIR = BASE_DIR / "data" / "images"
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
@@ -40,6 +48,32 @@ MAX_BACKUPS = 30
 inventory.init_db()
 
 app = FastAPI(title="Grocery & Vegetable Tracker API")
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log every request with its status and latency, and log (not swallow) any unhandled
+    exception so real failures are visible instead of silent."""
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        elapsed = (time.perf_counter() - start) * 1000
+        logger.exception("%s %s failed after %.0fms", request.method, request.url.path, elapsed)
+        raise
+    elapsed = (time.perf_counter() - start) * 1000
+    level = logging.WARNING if response.status_code >= 500 else logging.INFO
+    logger.log(
+        level, "%s %s -> %s (%.0fms)", request.method, request.url.path, response.status_code, elapsed
+    )
+    return response
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -212,6 +246,19 @@ def save_upload(file: UploadFile) -> str:
     filename = f"{uuid.uuid4().hex}.jpg"
     image.save(IMAGES_DIR / filename)
     return str(Path("data/images") / filename)
+
+
+def _remove_image_file(image_path: Optional[str]) -> None:
+    """Delete an item/photo image file from disk if it exists. Never raises - a missing or
+    unremovable file is logged and ignored (cleanup should never block the operation)."""
+    if not image_path:
+        return
+    path = BASE_DIR / image_path
+    if path.exists():
+        try:
+            path.unlink()
+        except OSError:
+            logger.warning("Could not delete image file %s", path)
 
 
 def items_to_csv_text(items: list) -> str:
@@ -420,6 +467,18 @@ def import_meal_plan_rows(rows) -> dict:
 
 
 # --- Meta ---
+@app.get("/api/health")
+def health_check():
+    """Liveness/readiness probe: confirms the process is up AND the database is reachable
+    (runs a trivial query), returning basic counts. Returns 503 if the DB can't be read."""
+    try:
+        total = inventory.get_total_count()
+    except Exception:
+        logger.exception("Health check DB read failed")
+        return JSONResponse(status_code=503, content={"status": "unhealthy", "database": "error"})
+    return {"status": "ok", "database": "ok", "item_total_quantity": total}
+
+
 @app.get("/api/meta")
 def get_meta():
     return {
@@ -652,13 +711,9 @@ def remove_item(item_id: int):
     if not deleted:
         raise HTTPException(404, "Item not found")
     deleted_photos = inventory.delete_item(item_id)
+    _remove_image_file(deleted.get("image_path"))
     for photo in deleted_photos:
-        photo_path = BASE_DIR / photo["image_path"]
-        if photo_path.exists():
-            try:
-                photo_path.unlink()
-            except OSError:
-                pass
+        _remove_image_file(photo["image_path"])
     write_backup([deleted], "delete-item")
     return deleted
 
@@ -679,19 +734,30 @@ def restore_item(item: dict):
     return {"status": "restored"}
 
 
-# --- Bulk delete ---
+# --- Bulk operations (atomic - all-or-nothing in one DB transaction) ---
 @app.post("/api/items/bulk-delete")
 def bulk_delete_items(ids: list[int]):
-    """Delete multiple items by a list of ids. Returns the count of successfully deleted items."""
-    deleted = 0
-    for i in ids:
-        try:
-            inventory.delete_item(i)
-            deleted += 1
-        except Exception:
-            # Ignore individual failures; continue with remaining ids
-            pass
-    return {"deleted": deleted}
+    """Atomically delete multiple items in one transaction (all or none), back them up
+    first, and clean up their image files. Returns the count deleted."""
+    deleted_rows = inventory.bulk_delete_items(ids)
+    if deleted_rows:
+        write_backup(deleted_rows, "bulk-delete")
+    for row in deleted_rows:
+        _remove_image_file(row.get("image_path"))
+        for photo in row.get("_photos", []):
+            _remove_image_file(photo["image_path"])
+    return {"deleted": len(deleted_rows)}
+
+
+@app.post("/api/items/bulk-move")
+def bulk_move_items(payload: dict):
+    """Atomically move multiple items to another category in one transaction."""
+    ids = payload.get("ids") or []
+    category = payload.get("category")
+    if category not in CATEGORIES:
+        raise HTTPException(400, f"Unknown category: {category}")
+    moved = inventory.bulk_move_items(ids, category)
+    return {"moved": moved}
 
 
 # --- Aliases (synonyms - e.g. "soda" merges into a tracked "Coca-Cola" item) ---

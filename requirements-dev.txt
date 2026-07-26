@@ -1,0 +1,14 @@
+# Lightweight dependencies for running the test suite + typechecks in CI.
+# Deliberately excludes the heavy OCR stack (paddlepaddle/paddleocr) and streamlit -
+# the API imports paddleocr lazily (only on an actual receipt scan), so tests and the
+# import graph don't need it. Versions pinned to match requirements.txt where shared.
+fastapi==0.139.0
+uvicorn[standard]==0.51.0
+python-multipart==0.0.32
+pillow==12.3.0
+pillow-heif==1.4.0
+scikit-learn==1.9.0
+numpy==2.3.5
+requests==2.34.2
+httpx==0.28.1
+pytest==8.3.4

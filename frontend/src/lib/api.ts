@@ -179,6 +179,8 @@ export const api = {
     return client.post("/shopping-list", form).then((r) => r.data);
   },
   bulkDeleteItems: (ids: number[]) => client.post<{ deleted: number }>('/items/bulk-delete', ids),
+  bulkMoveItems: (ids: number[], category: string) =>
+    client.post<{ moved: number }>('/items/bulk-move', { ids, category }).then((r) => r.data),
   patchShoppingItem: (id: number, checked: boolean) => {
     const form = new FormData();
     form.append("checked", String(checked));

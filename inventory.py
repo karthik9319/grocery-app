@@ -1,4 +1,5 @@
 """SQLite-backed storage for grocery/vegetable inventory items."""
+import os
 import sqlite3
 import uuid as uuid_lib
 from contextlib import contextmanager
@@ -6,7 +7,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-DB_PATH = Path(__file__).parent / "data" / "inventory.db"
+# Overridable via GROCERY_DB_PATH so tests (and alternate deployments) can point at a
+# throwaway database instead of the real one.
+DB_PATH = Path(os.environ.get("GROCERY_DB_PATH", Path(__file__).parent / "data" / "inventory.db"))
 
 
 def init_db() -> None:
@@ -207,8 +210,14 @@ def _migrate_add_meal_plan_done_column(conn: sqlite3.Connection) -> None:
 
 @contextmanager
 def get_connection():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=5.0)
     conn.row_factory = sqlite3.Row
+    # WAL allows concurrent readers alongside a writer (important once the app is reached
+    # remotely / by more than one client); busy_timeout makes a briefly-locked DB wait
+    # and retry instead of immediately raising "database is locked".
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
+    conn.execute("PRAGMA foreign_keys=ON")
     try:
         yield conn
     finally:
@@ -447,6 +456,51 @@ def clear_items(category: Optional[str] = None):
             conn.execute("DELETE FROM items")
         conn.commit()
         return results
+
+
+def bulk_delete_items(item_ids: list) -> list:
+    """Atomically delete many items (and cascade their aliases/gallery photos) in a single
+    transaction - either all the given rows are removed or none are, unlike a client-side
+    loop over the single-delete endpoint. Returns the deleted item rows, each with a
+    "_photos" list, so the caller can clean up image files on disk."""
+    if not item_ids:
+        return []
+    placeholders = ",".join("?" * len(item_ids))
+    with get_connection() as conn:
+        rows = conn.execute(
+            f"SELECT * FROM items WHERE id IN ({placeholders})", item_ids
+        ).fetchall()
+        results = []
+        for row in rows:
+            item = dict(row)
+            photos = conn.execute(
+                "SELECT * FROM item_photos WHERE item_id = ?", (item["id"],)
+            ).fetchall()
+            item["_photos"] = [dict(p) for p in photos]
+            results.append(item)
+        found_ids = [item["id"] for item in results]
+        if found_ids:
+            fp = ",".join("?" * len(found_ids))
+            conn.execute(f"DELETE FROM item_aliases WHERE item_id IN ({fp})", found_ids)
+            conn.execute(f"DELETE FROM item_photos WHERE item_id IN ({fp})", found_ids)
+            conn.execute(f"DELETE FROM items WHERE id IN ({fp})", found_ids)
+        conn.commit()
+        return results
+
+
+def bulk_move_items(item_ids: list, category: str) -> int:
+    """Atomically move many items to a new category in one transaction. Returns how many
+    rows were updated."""
+    if not item_ids:
+        return 0
+    placeholders = ",".join("?" * len(item_ids))
+    with get_connection() as conn:
+        cur = conn.execute(
+            f"UPDATE items SET category = ? WHERE id IN ({placeholders})",
+            [category, *item_ids],
+        )
+        conn.commit()
+        return cur.rowcount
 
 
 def get_total_count() -> int:
