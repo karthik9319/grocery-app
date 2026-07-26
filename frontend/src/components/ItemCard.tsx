@@ -123,6 +123,20 @@ export function ItemCard({
               }
             : undefined
         }
+        onKeyDown={
+          img && !selectable
+            ? (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setGalleryOpen(true);
+                }
+              }
+            : undefined
+        }
+        role={img && !selectable ? "button" : undefined}
+        tabIndex={img && !selectable ? 0 : undefined}
+        aria-label={img && !selectable ? `View photos of ${item.title}` : undefined}
         title={img && !selectable ? "View photos" : undefined}
       >
         {img ? (
@@ -172,6 +186,7 @@ export function ItemCard({
           <>
             <button
               onClick={() => changeQuantity(Math.max(0, item.quantity - useStep))}
+              aria-label={`Decrease ${item.title} quantity`}
               className="h-8 w-8 rounded-lg border-2 border-content font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
             >
               −
@@ -179,6 +194,7 @@ export function ItemCard({
             <input
               type="number"
               value={item.quantity}
+              aria-label={`${item.title} quantity`}
               onChange={(e) => {
                 const v = parseFloat(e.target.value);
                 if (!Number.isNaN(v)) qtyMutation.mutate(v);
@@ -187,6 +203,7 @@ export function ItemCard({
             />
             <button
               onClick={() => changeQuantity(item.quantity + useStep)}
+              aria-label={`Increase ${item.title} quantity`}
               className="h-8 w-8 rounded-lg border-2 border-content font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
             >
               +
@@ -219,17 +236,19 @@ export function ItemCard({
         <div className="flex shrink-0 gap-1">
           <button
             onClick={() => setEditOpen(true)}
+            aria-label={`Edit ${item.title}`}
             className="h-9 w-9 flex items-center justify-center rounded-xl border-2 border-content text-content hover:bg-theme-200 cursor-pointer transition-colors"
           >
-            <Pencil className="h-4 w-4" />
+            <Pencil className="h-4 w-4" aria-hidden />
           </button>
           <button
             onClick={() => {
               deleteMutation.mutate();
             }}
+            aria-label={`Delete ${item.title}`}
             className="h-9 w-9 flex items-center justify-center rounded-xl border-2 border-content text-content hover:bg-red-400 hover:text-white cursor-pointer transition-colors"
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash2 className="h-4 w-4" aria-hidden />
           </button>
         </div>
       )}

@@ -1,4 +1,6 @@
 import axios from "axios";
+import type { AxiosError, InternalAxiosRequestConfig } from "axios";
+import { enqueue } from "@/lib/offlineQueue";
 // Simple offline cache using localStorage. Keys are based on URL and params.
 const cacheGet = async <T>(url: string, params?: any): Promise<T> => {
   const key = `cache:${url}:${JSON.stringify(params || {})}`;
@@ -44,6 +46,61 @@ import type {
 // never even triggers (it only retries on an actual rejection). A bounded timeout turns
 // a silent infinite hang into a real error that gets retried automatically instead.
 const client = axios.create({ baseURL: "/api", timeout: 30000 });
+
+// Offline write queue: when a mutating request fails with a NETWORK error (no response -
+// i.e. offline/unreachable, not a 4xx/5xx from the server), persist a serializable copy
+// and resolve optimistically so the UI proceeds. The queue is replayed on reconnect.
+// Photo uploads (FormData containing a File) are not queued and fail normally.
+const MUTATING = new Set(["post", "put", "patch", "delete"]);
+
+function serializeForQueue(config: InternalAxiosRequestConfig) {
+  const method = (config.method || "get").toLowerCase();
+  if (!MUTATING.has(method)) return null;
+  const url = `${config.baseURL ?? ""}${config.url ?? ""}`;
+  const data = config.data;
+  if (data instanceof FormData) {
+    const fields: Record<string, string> = {};
+    for (const [k, v] of data.entries()) {
+      if (typeof v !== "string") return null; // contains a File - don't queue
+      fields[k] = v;
+    }
+    return { method: method.toUpperCase(), url, fields };
+  }
+  if (typeof data === "string") {
+    try {
+      return { method: method.toUpperCase(), url, json: JSON.parse(data) };
+    } catch {
+      return null;
+    }
+  }
+  if (data == null) {
+    return { method: method.toUpperCase(), url };
+  }
+  return null;
+}
+
+client.interceptors.response.use(
+  (r) => r,
+  (error: AxiosError) => {
+    const isNetworkError = !error.response; // no server response at all
+    if (isNetworkError && error.config) {
+      const queued = serializeForQueue(error.config as InternalAxiosRequestConfig);
+      if (queued) {
+        enqueue(queued);
+        return Promise.resolve({
+          data: { queued: true },
+          status: 202,
+          statusText: "Queued offline",
+          headers: {},
+          config: error.config,
+        });
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
+export { flushOfflineQueue, queueSize } from "@/lib/offlineQueue";
 
 export const api = {
   meta: () => cacheGet<Meta>("/meta"),
@@ -144,7 +201,7 @@ export const api = {
 
   clearItems: (category?: string) =>
     client
-      .delete<{ deleted: number }>("/items/clear", { params: category ? { category } : {} })
+      .delete<{ deleted: number; backup: string | null }>("/items/clear", { params: category ? { category } : {} })
       .then((r) => r.data),
 
   listBackups: () => client.get<Backup[]>("/backups").then((r) => r.data),

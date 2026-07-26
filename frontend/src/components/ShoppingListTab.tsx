@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Printer, RefreshCw, X } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Meta } from "@/types";
+import type { Meta, ShoppingListItem } from "@/types";
 import { titleCase } from "@/lib/utils";
 import { Button, Card, Checkbox, EmptyState, Select } from "@/components/ui";
 import { TitleAutocomplete } from "@/components/TitleAutocomplete";
@@ -40,8 +40,19 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
   });
 
   const deleteItem = useMutation({
-    mutationFn: (id: number) => api.deleteShoppingItem(id),
-    onSuccess: invalidate,
+    mutationFn: (item: ShoppingListItem) => api.deleteShoppingItem(item.id).then(() => item),
+    onSuccess: (item) => {
+      invalidate();
+      toast(`Removed "${item.title}"`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            await api.addShoppingItem(item.title, item.category ?? undefined);
+            invalidate();
+          },
+        },
+      });
+    },
   });
 
   const clearChecked = useMutation({
@@ -122,10 +133,11 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
               </span>
             </label>
             <button
-              onClick={() => deleteItem.mutate(item.id)}
+              onClick={() => deleteItem.mutate(item)}
+              aria-label={`Remove ${item.title} from shopping list`}
               className="rounded-full p-1 text-subtle hover:bg-red-500/10 hover:text-red-500 cursor-pointer print:hidden"
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4" aria-hidden />
             </button>
           </Card>
         ))}

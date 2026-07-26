@@ -26,7 +26,7 @@ function DuplicateGroupCard({
 }: {
   group: Item[];
   meta: Meta;
-  onMerge: (keepId: number, mergeIds: number[]) => void;
+  onMerge: (keepId: number, group: Item[]) => void;
   merging: boolean;
 }) {
   const defaultKeep = group.reduce((a, b) => (b.quantity > a.quantity ? b : a), group[0]);
@@ -57,7 +57,7 @@ function DuplicateGroupCard({
         size="sm"
         className="w-full justify-center"
         disabled={merging}
-        onClick={() => onMerge(keepId, group.filter((g) => g.id !== keepId).map((g) => g.id))}
+        onClick={() => onMerge(keepId, group)}
       >
         Merge into selected
       </Button>
@@ -127,22 +127,45 @@ export function SettingsSidebar({ meta }: { meta: Meta }) {
 
   const clearCategories = useMutation({
     mutationFn: async () => {
-      const results = await Promise.all(Array.from(selectedCats).map((c) => api.clearItems(c)));
-      return results.reduce((sum, r) => sum + r.deleted, 0);
+      return Promise.all(Array.from(selectedCats).map((c) => api.clearItems(c)));
     },
-    onSuccess: (deleted) => {
-      toast.success(`Cleared ${deleted} item(s)`);
+    onSuccess: (results) => {
+      const deleted = results.reduce((sum, r) => sum + r.deleted, 0);
+      const backups = results.map((r) => r.backup).filter(Boolean) as string[];
       setSelectedCats(new Set());
       invalidateAfterClear();
+      toast(`Cleared ${deleted} item(s)`, {
+        action: backups.length
+          ? {
+              label: "Undo",
+              onClick: async () => {
+                await Promise.all(backups.map((b) => api.restoreBackup(b)));
+                invalidateAfterClear();
+                toast.success("Restored cleared items");
+              },
+            }
+          : undefined,
+      });
     },
   });
 
   const clearAll = useMutation({
     mutationFn: () => api.clearItems(),
     onSuccess: (res) => {
-      toast.success(`Cleared the entire inventory (${res.deleted} item(s))`);
       setSelectedCats(new Set());
       invalidateAfterClear();
+      toast(`Cleared the entire inventory (${res.deleted} item(s))`, {
+        action: res.backup
+          ? {
+              label: "Undo",
+              onClick: async () => {
+                await api.restoreBackup(res.backup!);
+                invalidateAfterClear();
+                toast.success("Restored inventory");
+              },
+            }
+          : undefined,
+      });
     },
   });
 
@@ -220,13 +243,31 @@ export function SettingsSidebar({ meta }: { meta: Meta }) {
   });
 
   const mergeDuplicates = useMutation({
-    mutationFn: ({ keepId, mergeIds }: { keepId: number; mergeIds: number[] }) =>
-      api.mergeDuplicates(keepId, mergeIds),
-    onSuccess: () => {
-      toast.success("Merged duplicate items.");
+    mutationFn: async ({ keepId, group }: { keepId: number; group: Item[] }) => {
+      const keep = group.find((g) => g.id === keepId)!;
+      const merged = group.filter((g) => g.id !== keepId);
+      await api.mergeDuplicates(keepId, merged.map((m) => m.id));
+      return { keep, merged };
+    },
+    onSuccess: ({ keep, merged }) => {
       queryClient.invalidateQueries({ queryKey: ["duplicates"] });
       queryClient.invalidateQueries({ queryKey: ["items"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
+      toast("Merged duplicate items.", {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            // Restore the kept item's original quantity and re-add the merged rows with
+            // their original data/uuid (best-effort: images removed during merge are lost).
+            await api.patchQuantity(keep.id, keep.quantity);
+            await Promise.all(merged.map((m) => api.restoreItem(m)));
+            queryClient.invalidateQueries({ queryKey: ["duplicates"] });
+            queryClient.invalidateQueries({ queryKey: ["items"] });
+            queryClient.invalidateQueries({ queryKey: ["summary"] });
+            toast.success("Merge undone");
+          },
+        },
+      });
     },
   });
 
@@ -432,7 +473,7 @@ export function SettingsSidebar({ meta }: { meta: Meta }) {
                 group={group}
                 meta={meta}
                 merging={mergeDuplicates.isPending}
-                onMerge={(keepId, mergeIds) => mergeDuplicates.mutate({ keepId, mergeIds })}
+                onMerge={(keepId, group) => mergeDuplicates.mutate({ keepId, group })}
               />
             ))}
           </div>

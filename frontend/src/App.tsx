@@ -1,7 +1,8 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, CalendarDays, PlusCircle, Search, ShoppingBag } from "lucide-react";
+import { BarChart3, CalendarDays, CloudOff, PlusCircle, Search, ShoppingBag } from "lucide-react";
 import { api } from "@/lib/api";
+import { QUEUE_CHANGED_EVENT, queueSize } from "@/lib/offlineQueue";
 import { Header } from "@/components/Header";
 import { AddItemsTab } from "@/components/AddItemsTab";
 import { CategoryView } from "@/components/CategoryView";
@@ -205,6 +206,7 @@ function App() {
 
       {/* Main content */}
       <main className="min-w-0 flex-1 space-y-7">
+        <OfflineBanner />
         <div className="print:hidden">
           <Header meta={meta} />
         </div>
@@ -271,3 +273,42 @@ function App() {
 }
 
 export default App;
+
+/** Shows a banner when the browser is offline or when writes are queued waiting to sync. */
+function OfflineBanner() {
+  const [offline, setOffline] = useState(!navigator.onLine);
+  const [pending, setPending] = useState(queueSize());
+
+  useEffect(() => {
+    const update = () => {
+      setOffline(!navigator.onLine);
+      setPending(queueSize());
+    };
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    window.addEventListener(QUEUE_CHANGED_EVENT, update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+      window.removeEventListener(QUEUE_CHANGED_EVENT, update);
+    };
+  }, []);
+
+  if (!offline && pending === 0) return null;
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="flex items-center gap-2 rounded-2xl border-[3px] border-content bg-accent-200 px-4 py-2.5 text-sm font-bold text-content shadow-[4px_4px_0_var(--line)] print:hidden"
+    >
+      <CloudOff className="h-4 w-4 shrink-0" aria-hidden />
+      {offline ? "You're offline — changes are saved and will sync when you reconnect." : "Back online — syncing your changes…"}
+      {pending > 0 && (
+        <span className="ml-auto rounded-full border-2 border-content bg-surface-solid px-2 py-0.5 text-xs">
+          {pending} pending
+        </span>
+      )}
+    </div>
+  );
+}

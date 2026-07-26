@@ -126,18 +126,20 @@ export function MealPlannerTab() {
       <div className="glass flex flex-wrap items-center gap-3 rounded-2xl p-3 shadow-[4px_4px_0_var(--line)] print:hidden">
         <button
           onClick={() => setWeekStart((d) => addDays(d, -7))}
+          aria-label="Previous week"
           className="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-content hover:bg-theme-200 cursor-pointer"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-4 w-4" aria-hidden />
         </button>
         <p className="flex-1 text-center font-display text-sm text-content">
           {format(weekStart, "MMM d")} – {format(days[6], "MMM d, yyyy")}
         </p>
         <button
           onClick={() => setWeekStart((d) => addDays(d, 7))}
+          aria-label="Next week"
           className="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-content hover:bg-theme-200 cursor-pointer"
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-4 w-4" aria-hidden />
         </button>
         <Button
           variant="outline"
@@ -188,7 +190,16 @@ export function MealPlannerTab() {
                         {slotEntries.map((e) => (
                           <div
                             key={e.id}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`Edit ${e.title} (${slot.label} ${dateStr})`}
                             onClick={() => setEditing({ date: dateStr, slot: slot.value, entry: e })}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                setEditing({ date: dateStr, slot: slot.value, entry: e });
+                              }
+                            }}
                             className={cn(
                               "group flex w-full items-center justify-between gap-2 rounded-lg border-2 border-content bg-surface-solid px-2 py-1 text-left text-xs font-semibold text-content hover:bg-theme-200 cursor-pointer",
                               e.done && "opacity-70"

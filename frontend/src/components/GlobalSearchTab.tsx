@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Meta } from "@/types";
 import { ItemCard, useUndoableDelete } from "@/components/ItemCard";
-import { Card, EmptyState, Input, Select } from "@/components/ui";
+import { Button, Card, EmptyState, Input, Select } from "@/components/ui";
 import { SORT_OPTIONS, sortItems } from "@/lib/utils";
 
 const MEAL_SLOT_LABELS: Record<string, string> = {
@@ -35,6 +35,14 @@ export function GlobalSearchTab({ meta }: { meta: Meta }) {
   const shoppingMatches = results?.shopping_list ?? [];
   const mealMatches = results?.meal_plan ?? [];
   const totalMatches = sortedItems.length + shoppingMatches.length + mealMatches.length;
+
+  // Lazy-render inventory matches in pages to keep a broad search responsive.
+  const PAGE_SIZE = 24;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [q, sort]);
+  const visibleItems = sortedItems.slice(0, visibleCount);
 
   function thresholdFor(item: (typeof sortedItems)[number]) {
     if (item.custom_threshold != null) return item.custom_threshold;
@@ -77,7 +85,7 @@ export function GlobalSearchTab({ meta }: { meta: Meta }) {
             Inventory <span className="text-subtle">({sortedItems.length})</span>
           </h3>
           <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
-            {sortedItems.map((item) => (
+            {visibleItems.map((item) => (
               <ItemCard
                 key={item.id}
                 item={item}
@@ -92,6 +100,13 @@ export function GlobalSearchTab({ meta }: { meta: Meta }) {
               />
             ))}
           </div>
+          {sortedItems.length > visibleCount && (
+            <div className="flex justify-center">
+              <Button variant="outline" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
+                Load more ({sortedItems.length - visibleCount} remaining)
+              </Button>
+            </div>
+          )}
         </section>
       )}
 

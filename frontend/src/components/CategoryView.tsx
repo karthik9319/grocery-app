@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, X } from "lucide-react";
 import { toast } from "sonner";
@@ -42,6 +42,14 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
     return sortItems(result, sort);
   }, [items, search, lowOnly, inUseOnly, sort, threshold]);
 
+  // Lazy-render in pages so a large category doesn't mount hundreds of cards at once.
+  const PAGE_SIZE = 24;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search, sort, lowOnly, inUseOnly, category]);
+  const visible = filtered.slice(0, visibleCount);
+
   function toggleId(id: number) {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -65,23 +73,46 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
 
   const bulkDelete = useMutation({
     mutationFn: async () => {
-      return api.bulkDeleteItems(Array.from(selectedIds));
+      const toRestore = (items ?? []).filter((i) => selectedIds.has(i.id));
+      await api.bulkDeleteItems(Array.from(selectedIds));
+      return toRestore;
     },
-    onSuccess: () => {
-      toast.success(`Deleted ${selectedIds.size} item(s)`);
+    onSuccess: (restorable) => {
+      const count = restorable.length;
       invalidateAfterBulk();
       exitSelectMode();
+      toast(`Deleted ${count} item(s)`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            await Promise.all(restorable.map((it) => api.restoreItem(it)));
+            invalidateAfterBulk();
+            toast.success(`Restored ${count} item(s)`);
+          },
+        },
+      });
     },
   });
 
   const bulkMove = useMutation({
     mutationFn: async () => {
-      return api.bulkMoveItems(Array.from(selectedIds), bulkTargetCategory);
+      const ids = Array.from(selectedIds);
+      await api.bulkMoveItems(ids, bulkTargetCategory);
+      return { ids, target: bulkTargetCategory };
     },
-    onSuccess: () => {
-      toast.success(`Moved ${selectedIds.size} item(s) to ${bulkTargetCategory}`);
+    onSuccess: ({ ids, target }) => {
       invalidateAfterBulk();
       exitSelectMode();
+      toast(`Moved ${ids.length} item(s) to ${target}`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            await api.bulkMoveItems(ids, category);
+            invalidateAfterBulk();
+            toast.success("Move undone");
+          },
+        },
+      });
     },
   });
 
@@ -145,9 +176,10 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
           </Button>
           <button
             onClick={exitSelectMode}
+            aria-label="Exit select mode"
             className="ml-auto rounded-full p-1 text-subtle hover:bg-red-500/10 hover:text-red-500 cursor-pointer"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden />
           </button>
         </div>
       )}
@@ -163,7 +195,7 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
-        {filtered.map((item) => (
+        {visible.map((item) => (
           <ItemCard
             key={item.id}
             item={item}
@@ -179,6 +211,17 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
           />
         ))}
       </div>
+
+      {filtered.length > visibleCount && (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+          >
+            Load more ({filtered.length - visibleCount} remaining)
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
