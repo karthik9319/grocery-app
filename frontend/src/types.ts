@@ -62,6 +62,29 @@ export interface ReceiptCandidate {
   title: string;
   category: string;
   quantity: number;
+  price: number | null;
+}
+
+export interface Purchase {
+  id: number;
+  title: string;
+  category: string | null;
+  quantity: number;
+  total_price: number;
+  source: string | null;
+  purchased_at: string;
+}
+
+export interface SpendSummary {
+  total_spend: number;
+  spend_over_time: { month: string; total: number }[];
+  spend_by_item: { title: string; total: number; quantity: number }[];
+}
+
+export interface QuickAddItem {
+  title: string;
+  quantity: number;
+  category: string;
 }
 
 export interface Suggestion {
@@ -99,4 +122,10 @@ export interface MealPlanEntry {
   notes: string | null;
   done: boolean;
   created_at: string;
+}
+
+export interface SearchResults {
+  items: Item[];
+  shopping_list: ShoppingListItem[];
+  meal_plan: MealPlanEntry[];
 }

@@ -71,6 +71,30 @@ export function ItemCard({
 
   const img = imageUrl(item.image_path);
 
+  function changeQuantity(next: number) {
+    const prev = item.quantity;
+    qtyMutation.mutate(next);
+    if (next > 0) {
+      toast(`${item.title}: ${formatQuantity(next, unit)}`, {
+        action: { label: "Undo", onClick: () => qtyMutation.mutate(prev) },
+      });
+    }
+  }
+
+  function useOne() {
+    useItemMutation.mutate(useStep);
+    toast(`Marked ${formatQuantity(useStep, unit)} of ${item.title} in use`, {
+      action: { label: "Undo", onClick: () => returnItemMutation.mutate(useStep) },
+    });
+  }
+
+  function returnOne() {
+    returnItemMutation.mutate(useStep);
+    toast(`Returned ${formatQuantity(useStep, unit)} of ${item.title} to stock`, {
+      action: { label: "Undo", onClick: () => useItemMutation.mutate(useStep) },
+    });
+  }
+
   return (
     <Card
       interactive
@@ -147,7 +171,7 @@ export function ItemCard({
         {!selectable && (
           <>
             <button
-              onClick={() => qtyMutation.mutate(Math.max(0, item.quantity - useStep))}
+              onClick={() => changeQuantity(Math.max(0, item.quantity - useStep))}
               className="h-8 w-8 rounded-lg border-2 border-content font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
             >
               −
@@ -162,7 +186,7 @@ export function ItemCard({
               className="h-8 w-16 rounded-lg border-2 border-content bg-surface-solid text-center text-sm font-bold text-content outline-none"
             />
             <button
-              onClick={() => qtyMutation.mutate(item.quantity + useStep)}
+              onClick={() => changeQuantity(item.quantity + useStep)}
               className="h-8 w-8 rounded-lg border-2 border-content font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
             >
               +
@@ -173,7 +197,7 @@ export function ItemCard({
               variant="outline"
               className="h-8 px-2 text-xs"
               disabled={useItemMutation.isPending || item.quantity < useStep}
-              onClick={() => useItemMutation.mutate(useStep)}
+              onClick={useOne}
             >
               Use {useStep}
             </Button>
@@ -183,7 +207,7 @@ export function ItemCard({
               variant="outline"
               className="h-8 px-2 text-xs"
               disabled={returnItemMutation.isPending || item.in_use_quantity < useStep}
-              onClick={() => returnItemMutation.mutate(useStep)}
+              onClick={returnOne}
             >
               Return {useStep}
             </Button>

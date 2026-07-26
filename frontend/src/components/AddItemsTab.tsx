@@ -1,13 +1,19 @@
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Camera, FileSpreadsheet, Loader2, Upload } from "lucide-react";
+import { Camera, FileSpreadsheet, Loader2, Mic, ScanBarcode, Sparkles, Upload, X } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Meta } from "@/types";
+import type { Meta, QuickAddItem } from "@/types";
 import { compressImageFile, titleCase } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/Tabs";
 import { Button, Card, Checkbox, Input, Select } from "@/components/ui";
 import { TitleAutocomplete } from "@/components/TitleAutocomplete";
+
+// The barcode scanner pulls in the ZXing library (~40KB+). Lazy-load it so that weight
+// only lands on users who actually open the scanner, keeping the initial bundle lean.
+const BarcodeScannerDialog = lazy(() =>
+  import("@/components/BarcodeScannerDialog").then((m) => ({ default: m.BarcodeScannerDialog }))
+);
 
 type DraftEntry = {
   id: string;
@@ -54,11 +60,15 @@ export function AddItemsTab({ meta }: { meta: Meta }) {
     <Tabs defaultValue="photo">
       <TabsList>
         <TabsTrigger value="photo">📷 By Photo</TabsTrigger>
+        <TabsTrigger value="quick">⚡ Quick Add</TabsTrigger>
         <TabsTrigger value="receipt">🧾 By Receipt</TabsTrigger>
         <TabsTrigger value="csv">📄 By CSV</TabsTrigger>
       </TabsList>
       <TabsContent value="photo" className="pt-4">
         <PhotoAddPanel meta={meta} />
+      </TabsContent>
+      <TabsContent value="quick" className="pt-4">
+        <QuickAddPanel meta={meta} />
       </TabsContent>
       <TabsContent value="receipt" className="pt-4">
         <ReceiptScanPanel meta={meta} />
@@ -75,6 +85,8 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
   const [drafts, setDrafts] = useState<DraftEntry[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [preparing, setPreparing] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
 
   async function handleFiles(files: FileList | null) {
     if (!files) return;
@@ -89,6 +101,37 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
 
   function addBlankDraft() {
     setDrafts((prev) => [...prev, makeDraft(null, meta)]);
+  }
+
+  async function handleBarcode(code: string) {
+    setScannerOpen(false);
+    setLookingUp(true);
+    try {
+      const result = await api.lookupBarcode(code);
+      const category = meta.categories.includes(result.category)
+        ? result.category
+        : meta.categories[0];
+      const isWeight = meta.units[category] === "g";
+      setDrafts((prev) => [
+        ...prev,
+        {
+          ...makeDraft(null, meta),
+          title: result.title ? titleCase(result.title) : "",
+          category,
+          unit: isWeight ? "g" : "count",
+          quantity: isWeight ? 500 : 1,
+        },
+      ]);
+      if (result.found) {
+        toast.success(`Found: ${result.title}`, { icon: "\uD83D\uDCE6" });
+      } else {
+        toast.warning(`Barcode ${code} not recognized \u2014 add the details manually.`);
+      }
+    } catch {
+      toast.error("Couldn't look up that barcode.");
+    } finally {
+      setLookingUp(false);
+    }
   }
 
   function updateDraft(id: string, patch: Partial<DraftEntry>) {
@@ -159,12 +202,33 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
         <span className="text-xs font-bold uppercase text-subtle">or</span>
         <div className="h-px flex-1 bg-line" />
       </div>
-      <Button variant="outline" onClick={addBlankDraft} className="w-full sm:w-auto">
-        + Add an item without a photo
-      </Button>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button variant="outline" onClick={addBlankDraft} className="w-full sm:w-auto">
+          + Add an item without a photo
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => setScannerOpen(true)}
+          disabled={lookingUp}
+          className="w-full sm:w-auto"
+        >
+          {lookingUp ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanBarcode className="h-4 w-4" />}
+          Scan barcode
+        </Button>
+      </div>
       <p className="text-xs text-subtle">
         Tip: skipping the photo? We'll try to find a matching picture for you automatically.
       </p>
+
+      {scannerOpen && (
+        <Suspense fallback={null}>
+          <BarcodeScannerDialog
+            open={scannerOpen}
+            onOpenChange={setScannerOpen}
+            onDetected={handleBarcode}
+          />
+        </Suspense>
+      )}
 
       {drafts.map((draft) => (
         <Card key={draft.id} className="flex gap-4 p-4">
@@ -298,7 +362,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [candidates, setCandidates] = useState<
-    { title: string; category: string; quantity: number }[]
+    { title: string; category: string; quantity: number; price: number | null }[]
   >([]);
 
   async function scan() {
@@ -314,6 +378,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
           title: titleCase(c.title),
           category: c.category,
           quantity: c.quantity,
+          price: c.price,
         }))
       );
     } catch {
@@ -327,6 +392,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
     let added = 0;
     let merged = 0;
     let skipped = 0;
+    let spent = 0;
     for (const c of candidates) {
       if (!c.title.trim()) {
         skipped++;
@@ -336,7 +402,9 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
         title: titleCase(c.title),
         category: c.category,
         quantity: c.quantity,
+        price: c.price,
       });
+      if (c.price) spent += c.price;
       if (result.status === "merged") merged++;
       else added++;
     }
@@ -345,7 +413,11 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
     setPreviewUrl(null);
     queryClient.invalidateQueries({ queryKey: ["items"] });
     queryClient.invalidateQueries({ queryKey: ["summary"] });
-    toast.success(`Receipt: added ${added}, merged ${merged}, skipped ${skipped}`, { icon: "🧾" });
+    queryClient.invalidateQueries({ queryKey: ["purchases"] });
+    const spentNote = spent > 0 ? `, $${spent.toFixed(2)} logged` : "";
+    toast.success(`Receipt: added ${added}, merged ${merged}, skipped ${skipped}${spentNote}`, {
+      icon: "🧾",
+    });
   }
 
   return (
@@ -396,7 +468,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
             skip that line):
           </p>
           {candidates.map((c, idx) => (
-            <div key={idx} className="grid grid-cols-[1fr_auto_auto] gap-2">
+            <div key={idx} className="grid grid-cols-[1fr_auto_auto_auto] gap-2">
               <Input
                 value={c.title}
                 onChange={(e) =>
@@ -416,7 +488,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
                   setCandidates((prev) => prev.map((p, i) => (i === idx ? { ...p, category } : p)))
                 }
                 options={meta.categories.map((cat) => ({ value: cat, label: `${meta.icons[cat]} ${cat}` }))}
-                className="w-40"
+                className="w-36"
               />
               <Input
                 type="number"
@@ -428,14 +500,215 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
                     )
                   )
                 }
-                className="w-24"
+                className="w-20"
               />
+              <div className="relative w-24">
+                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-sm text-subtle">
+                  $
+                </span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="price"
+                  value={c.price ?? ""}
+                  onChange={(e) =>
+                    setCandidates((prev) =>
+                      prev.map((p, i) =>
+                        i === idx
+                          ? { ...p, price: e.target.value === "" ? null : parseFloat(e.target.value) }
+                          : p
+                      )
+                    )
+                  }
+                  className="pl-5"
+                />
+              </div>
             </div>
           ))}
           <div className="flex gap-2">
             <Button onClick={addAll}>Add all {candidates.length} items</Button>
             <Button variant="outline" onClick={() => setCandidates([])}>
               Discard all
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QuickAddPanel({ meta }: { meta: Meta }) {
+  const queryClient = useQueryClient();
+  const [text, setText] = useState("");
+  const [parsing, setParsing] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [listening, setListening] = useState(false);
+  const [items, setItems] = useState<QuickAddItem[]>([]);
+  const recognitionRef = useRef<any>(null);
+
+  const speechSupported =
+    typeof window !== "undefined" &&
+    ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
+
+  async function parse(input: string) {
+    const value = input.trim();
+    if (!value) {
+      setItems([]);
+      return;
+    }
+    setParsing(true);
+    try {
+      const result = await api.quickAddParse(value);
+      setItems(result.items);
+      if (result.items.length === 0) {
+        toast.warning('Couldn\'t parse any items. Try e.g. "2 milk, 3 eggs, 500g rice".');
+      }
+    } catch {
+      toast.error("Couldn't parse that. Try again.");
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  function toggleMic() {
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast.error("Voice input isn't supported in this browser.");
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((r: any) => r[0].transcript)
+        .join(" ");
+      const next = text ? `${text}, ${transcript}` : transcript;
+      setText(next);
+      parse(next);
+    };
+    recognition.onerror = () => {
+      toast.error("Couldn't hear that. Try again or type it in.");
+      setListening(false);
+    };
+    recognition.onend = () => setListening(false);
+    recognitionRef.current = recognition;
+    setListening(true);
+    recognition.start();
+  }
+
+  async function addAll() {
+    setAdding(true);
+    let added = 0;
+    let merged = 0;
+    for (const it of items) {
+      if (!it.title.trim()) continue;
+      try {
+        const result = await api.createItem({
+          title: titleCase(it.title),
+          category: it.category,
+          quantity: it.quantity,
+        });
+        if (result.status === "merged") merged++;
+        else added++;
+      } catch {
+        // skip failures, keep going
+      }
+    }
+    setAdding(false);
+    setItems([]);
+    setText("");
+    queryClient.invalidateQueries({ queryKey: ["items"] });
+    queryClient.invalidateQueries({ queryKey: ["summary"] });
+    toast.success(`Quick add: added ${added}, merged ${merged}`, { icon: "⚡" });
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted">
+        Type or speak what you bought in plain language — e.g.{" "}
+        <span className="font-semibold text-content">"2 milk, 3 eggs and 500g rice"</span> — and
+        we'll split it into items with categories for you to review.
+      </p>
+
+      <div className="flex gap-2">
+        <Input
+          placeholder='e.g. "2 milk, a dozen eggs, shampoo"'
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") parse(text);
+          }}
+          className="flex-1"
+        />
+        {speechSupported && (
+          <Button
+            type="button"
+            variant={listening ? "danger" : "outline"}
+            onClick={toggleMic}
+            title="Speak your items"
+          >
+            <Mic className={listening ? "h-4 w-4 animate-pulse" : "h-4 w-4"} />
+            {listening ? "Listening…" : "Speak"}
+          </Button>
+        )}
+        <Button onClick={() => parse(text)} disabled={parsing || !text.trim()}>
+          {parsing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          Parse
+        </Button>
+      </div>
+
+      {items.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-sm text-muted">Review before adding:</p>
+          {items.map((it, idx) => (
+            <div key={idx} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2">
+              <Input
+                value={it.title}
+                onChange={(e) =>
+                  setItems((prev) => prev.map((p, i) => (i === idx ? { ...p, title: e.target.value } : p)))
+                }
+              />
+              <Select
+                value={it.category}
+                onValueChange={(category) =>
+                  setItems((prev) => prev.map((p, i) => (i === idx ? { ...p, category } : p)))
+                }
+                options={meta.categories.map((cat) => ({ value: cat, label: `${meta.icons[cat]} ${cat}` }))}
+                className="w-36"
+              />
+              <Input
+                type="number"
+                value={it.quantity}
+                onChange={(e) =>
+                  setItems((prev) =>
+                    prev.map((p, i) => (i === idx ? { ...p, quantity: parseFloat(e.target.value) || 0 } : p))
+                  )
+                }
+                className="w-20"
+              />
+              <button
+                onClick={() => setItems((prev) => prev.filter((_, i) => i !== idx))}
+                className="rounded-lg p-1 text-subtle hover:bg-red-500/10 hover:text-red-500 cursor-pointer"
+                title="Remove"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <Button onClick={addAll} disabled={adding}>
+              {adding && <Loader2 className="h-4 w-4 animate-spin" />}
+              Add all {items.length} items
+            </Button>
+            <Button variant="outline" onClick={() => setItems([])}>
+              Clear
             </Button>
           </div>
         </div>

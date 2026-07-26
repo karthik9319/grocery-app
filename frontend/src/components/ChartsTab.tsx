@@ -30,6 +30,10 @@ export function ChartsTab({ meta }: { meta: Meta }) {
     queryKey: ["charts", "added-over-time", category],
     queryFn: () => api.chartAddedOverTime(category),
   });
+  const { data: spend } = useQuery({
+    queryKey: ["purchases", "summary"],
+    queryFn: api.purchasesSummary,
+  });
 
   const countsData = meta.categories.map((c) => ({
     category: c,
@@ -39,6 +43,42 @@ export function ChartsTab({ meta }: { meta: Meta }) {
 
   return (
     <div className="space-y-6">
+      {spend && spend.total_spend > 0 && (
+        <Card className="p-5">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h3 className="font-semibold text-content">💰 Spending</h3>
+            <span className="font-display text-lg text-content">
+              ${spend.total_spend.toFixed(2)} <span className="text-xs text-subtle">total</span>
+            </span>
+          </div>
+          {spend.spend_over_time.length > 0 && (
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={spend.spend_over_time}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} label={{ value: "Spend ($)", angle: -90, position: "insideLeft", fontSize: 12 }} />
+                <Tooltip formatter={(v) => `$${Number(v).toFixed(2)}`} />
+                <Bar dataKey="total" fill="#1B7A4D" radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+          {spend.spend_by_item.length > 0 && (
+            <div className="mt-4">
+              <p className="mb-2 text-sm font-semibold text-content">Top items by spend</p>
+              <ResponsiveContainer width="100%" height={Math.max(160, spend.spend_by_item.length * 34)}>
+                <BarChart data={spend.spend_by_item} layout="vertical" margin={{ left: 24 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
+                  <XAxis type="number" tick={{ fontSize: 12 }} />
+                  <YAxis type="category" dataKey="title" tick={{ fontSize: 12 }} width={110} />
+                  <Tooltip formatter={(v) => `$${Number(v).toFixed(2)}`} />
+                  <Bar dataKey="total" fill="#6C63FF" radius={[0, 2, 2, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Card>
+      )}
+
       <Card className="p-5">
         <h3 className="mb-3 font-semibold text-content">📁 Items per category</h3>
         <ResponsiveContainer width="100%" height={220}>

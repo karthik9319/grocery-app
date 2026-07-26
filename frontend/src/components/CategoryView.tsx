@@ -12,6 +12,7 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("newest");
   const [lowOnly, setLowOnly] = useState(false);
+  const [inUseOnly, setInUseOnly] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkTargetCategory, setBulkTargetCategory] = useState(category);
@@ -35,8 +36,11 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
     if (lowOnly) {
       result = result.filter((i) => i.quantity <= (i.custom_threshold ?? threshold));
     }
+    if (inUseOnly) {
+      result = result.filter((i) => i.in_use_quantity > 0);
+    }
     return sortItems(result, sort);
-  }, [items, search, lowOnly, sort, threshold]);
+  }, [items, search, lowOnly, inUseOnly, sort, threshold]);
 
   function toggleId(id: number) {
     setSelectedIds((prev) => {
@@ -111,6 +115,10 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
         <label className="flex items-center gap-2 text-sm font-medium text-muted">
           <Switch checked={lowOnly} onCheckedChange={(v) => setLowOnly(v === true)} />
           Low stock only
+        </label>
+        <label className="flex items-center gap-2 text-sm font-medium text-muted">
+          <Switch checked={inUseOnly} onCheckedChange={(v) => setInUseOnly(v === true)} />
+          In use only
         </label>
         <Button
           variant={selectMode ? "default" : "outline"}

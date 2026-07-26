@@ -26,11 +26,15 @@ import type {
   MealPlanEntry,
   MealSlot,
   Meta,
+  Purchase,
+  QuickAddItem,
   ReceiptCandidate,
   Settings,
   ShoppingListItem,
+  SpendSummary,
   Suggestion,
   Summary,
+  SearchResults,
   TunnelStatus,
 } from "@/types";
 
@@ -60,6 +64,14 @@ export const api = {
   suggestTitles: (q: string) =>
     cacheGet<Suggestion[]>('/suggestions', { q }),
 
+  searchAll: (q: string) =>
+    client.get<SearchResults>('/search', { params: { q } }).then((r) => r.data),
+
+  lookupBarcode: (code: string) =>
+    client.get<{ found: boolean; title: string; category: string }>(
+      `/barcode/${encodeURIComponent(code)}`
+    ).then((r) => r.data),
+
   classifyTitle: (title: string) =>
     cacheGet<{ category: string }>('/classify', { title }),
 
@@ -70,6 +82,7 @@ export const api = {
     notes?: string;
     custom_threshold?: number | null;
     expiration_date?: string | null;
+    price?: number | null;
     image?: File | null;
   }) => {
     const form = new FormData();
@@ -80,6 +93,7 @@ export const api = {
     if (data.custom_threshold != null)
       form.append("custom_threshold", String(data.custom_threshold));
     if (data.expiration_date) form.append("expiration_date", data.expiration_date);
+    if (data.price != null) form.append("price", String(data.price));
     if (data.image) form.append("image", data.image);
     return client.post("/items", form, { timeout: 90000 }).then((r) => r.data);
   },
@@ -282,4 +296,13 @@ export const api = {
   tunnelStatus: () => client.get<TunnelStatus>("/tunnel/status").then((r) => r.data),
   startTunnel: () => client.post<TunnelStatus>("/tunnel/start").then((r) => r.data),
   stopTunnel: () => client.post<TunnelStatus>("/tunnel/stop").then((r) => r.data),
+
+  quickAddParse: (text: string) =>
+    client.get<{ items: QuickAddItem[] }>("/quick-add/parse", { params: { text } }).then((r) => r.data),
+
+  purchasesSummary: () => client.get<SpendSummary>("/purchases/summary").then((r) => r.data),
+  purchases: (limit?: number) =>
+    client.get<Purchase[]>("/purchases", { params: limit ? { limit } : {} }).then((r) => r.data),
+  lastPrice: (title: string) =>
+    client.get<{ unit_price: number | null }>("/purchases/last-price", { params: { title } }).then((r) => r.data),
 };

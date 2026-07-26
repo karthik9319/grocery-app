@@ -26,6 +26,7 @@ import inventory
 import receipt
 import classifier
 import image_search
+import barcode as barcode_lookup
 
 register_heif_opener()
 
@@ -449,6 +450,51 @@ def list_items(category: Optional[str] = None):
     return [item for cat in CATEGORIES for item in inventory.get_items_by_category(cat)]
 
 
+@app.get("/api/search")
+def search_all(q: str = ""):
+    """Search across everything at once: inventory items (by title, category, OR a known
+    alias), shopping-list entries, and meal-plan entries (title or notes). Powers the
+    global Search tab so one query surfaces matches from every list, not just items."""
+    q_lower = q.strip().lower()
+    if not q_lower:
+        return {"items": [], "shopping_list": [], "meal_plan": []}
+
+    all_items = [item for cat in CATEGORIES for item in inventory.get_items_by_category(cat)]
+    alias_item_ids = {
+        alias["item_id"]
+        for alias in inventory.get_all_aliases()
+        if q_lower in alias["alias"].lower()
+    }
+    items = [
+        item
+        for item in all_items
+        if q_lower in item["title"].lower()
+        or q_lower in item["category"].lower()
+        or item["id"] in alias_item_ids
+    ]
+    shopping_list = [
+        row for row in inventory.get_shopping_list() if q_lower in row["title"].lower()
+    ]
+    meal_plan = [
+        entry
+        for entry in inventory.get_all_meal_plan_entries()
+        if q_lower in entry["title"].lower() or q_lower in (entry.get("notes") or "").lower()
+    ]
+    return {"items": items, "shopping_list": shopping_list, "meal_plan": meal_plan}
+
+
+@app.get("/api/barcode/{code}")
+def lookup_barcode(code: str):
+    """Look up a scanned barcode against Open Food Facts and return a best-effort product
+    name + guessed category to pre-fill the Add Item form. `found` is False (with an empty
+    title) when the barcode is unknown - the UI then just lets the user type it manually."""
+    name = barcode_lookup.lookup_product_name(code)
+    if not name:
+        return {"found": False, "title": "", "category": CATEGORIES[0]}
+    return {"found": True, "title": name, "category": guess_category(name)}
+
+
+
 @app.get("/api/suggestions")
 def get_suggestions(q: str = ""):
     """Title autocomplete: merges existing inventory titles, the COMMON_ITEMS keyword
@@ -489,12 +535,15 @@ def create_item(
     notes: Optional[str] = Form(None),
     custom_threshold: Optional[float] = Form(None),
     expiration_date: Optional[str] = Form(None),
+    price: Optional[float] = Form(None),
     image: Optional[UploadFile] = File(None),
 ):
     # An alias (e.g. "soda" for a "Coca-Cola" item) always wins first, merging into the
     # canonical item regardless of whatever category was picked in the form.
     aliased = inventory.find_item_by_alias(title)
     existing = aliased or inventory.find_item_by_title(title, category)
+    if price is not None and price > 0:
+        inventory.add_purchase(title, category, quantity, price, source="manual")
     if existing:
         new_total = existing["quantity"] + quantity
         inventory.update_item(
@@ -938,7 +987,9 @@ async def scan_receipt(image: UploadFile = File(...)):
             quantity = c["weight_grams"] if c["weight_grams"] is not None else 500
         else:
             quantity = c["quantity"] if c["quantity"] is not None else 1
-        results.append({"title": title, "category": category, "quantity": quantity})
+        results.append(
+            {"title": title, "category": category, "quantity": quantity, "price": c.get("price")}
+        )
     return {"candidates": results}
 
 
@@ -965,6 +1016,96 @@ def chart_added_over_time(category: str):
         day = item["created_at"][:10]
         totals[day] = totals.get(day, 0) + item["quantity"]
     return [{"date": k, "quantity": v} for k, v in sorted(totals.items())]
+
+
+# --- Purchases / spending ---
+@app.get("/api/purchases")
+def list_purchases(limit: Optional[int] = None):
+    return inventory.get_purchases(limit)
+
+
+@app.get("/api/purchases/summary")
+def purchases_summary():
+    return {
+        "total_spend": inventory.get_total_spend(),
+        "spend_over_time": inventory.get_spend_over_time(),
+        "spend_by_item": inventory.get_spend_by_item(),
+    }
+
+
+@app.get("/api/purchases/last-price")
+def last_price(title: str):
+    return {"unit_price": inventory.get_last_price(title)}
+
+
+# --- Quick add (voice/free-text) ---
+QUICK_ADD_UNITS = {
+    "kg": 1000, "kgs": 1000, "kilogram": 1000, "kilograms": 1000,
+    "g": 1, "gram": 1, "grams": 1,
+    "lb": 453.592, "lbs": 453.592, "pound": 453.592, "pounds": 453.592,
+    "oz": 28.3495, "ounce": 28.3495, "ounces": 28.3495,
+}
+QUICK_ADD_LINE_RE = re.compile(
+    r"^\s*(?:(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?\s+(?:of\s+)?)?(.+?)\s*$"
+)
+
+
+def parse_quick_add(text: str) -> list:
+    """Parse a free-text / dictated add request into structured items. Handles things like
+    "2 milk, 3 eggs and 500g rice" -> three items with quantities/categories. Splits on
+    commas, semicolons, newlines, and the word "and"; each chunk may start with a number
+    and an optional unit."""
+    chunks = re.split(r"[,;\n]+|\band\b|\bplus\b", text, flags=re.IGNORECASE)
+    results = []
+    for chunk in chunks:
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        # strip a leading verb like "add"/"buy"/"get"
+        chunk = re.sub(r"^(add|buy|get|need|want)\s+", "", chunk, flags=re.IGNORECASE).strip()
+        match = QUICK_ADD_LINE_RE.match(chunk)
+        if not match:
+            continue
+        number, unit, name = match.group(1), match.group(2), match.group(3)
+        name = (name or "").strip(" -.:").strip()
+        if not name or len(name) < 2:
+            continue
+
+        category = guess_category(name)
+        unit_lower = (unit or "").lower()
+        quantity: float = 1
+        if number:
+            amount = float(number)
+            if unit_lower in QUICK_ADD_UNITS and CATEGORY_UNITS.get(category) == "g":
+                quantity = round(amount * QUICK_ADD_UNITS[unit_lower], 1)
+            elif unit_lower in QUICK_ADD_UNITS:
+                # a weight was given but the category is count-based - keep the count
+                quantity = amount
+            else:
+                # the "unit" was actually the start of the name (e.g. "2 apples")
+                quantity = amount
+                if unit and unit_lower not in QUICK_ADD_UNITS:
+                    name = f"{unit} {name}".strip()
+                    category = guess_category(name)
+        elif unit and not number:
+            # no leading number at all - the regex's unit group is really part of the name
+            name = f"{unit} {name}".strip()
+            category = guess_category(name)
+
+        # default sensible quantity for weight-based categories with no explicit weight
+        if CATEGORY_UNITS.get(category) == "g" and (not number or unit_lower not in QUICK_ADD_UNITS):
+            quantity = 500 if quantity == 1 else quantity
+
+        results.append(
+            {"title": name.title(), "quantity": quantity, "category": category}
+        )
+    return results
+
+
+@app.get("/api/quick-add/parse")
+def quick_add_parse(text: str = ""):
+    """Parse a free-text / voice-dictated add request into reviewable structured items."""
+    return {"items": parse_quick_add(text)}
 
 
 # --- Export ---

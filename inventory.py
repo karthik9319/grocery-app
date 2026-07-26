@@ -91,6 +91,19 @@ def init_db() -> None:
             """
         )
         conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS purchases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                category TEXT,
+                quantity REAL NOT NULL DEFAULT 1,
+                total_price REAL NOT NULL,
+                source TEXT,
+                purchased_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
             "INSERT OR IGNORE INTO settings (id, count_threshold, weight_threshold) "
             "VALUES (1, 2, 200)"
         )
@@ -764,3 +777,93 @@ def delete_meal_plan_entry(entry_id: int) -> None:
     with get_connection() as conn:
         conn.execute("DELETE FROM meal_plan WHERE id = ?", (entry_id,))
         conn.commit()
+
+
+# --- Purchases / spending history ---
+def add_purchase(
+    title: str,
+    category: Optional[str],
+    quantity: float,
+    total_price: float,
+    source: Optional[str] = None,
+    purchased_at: Optional[str] = None,
+) -> int:
+    """Record a purchase (used for spend-over-time and price-per-item history). total_price
+    is the amount paid for this line; quantity lets us derive a unit price."""
+    with get_connection() as conn:
+        cur = conn.execute(
+            "INSERT INTO purchases (title, category, quantity, total_price, source, purchased_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                title.strip(),
+                category,
+                quantity,
+                total_price,
+                source,
+                purchased_at or datetime.now().isoformat(),
+            ),
+        )
+        conn.commit()
+        return cur.lastrowid
+
+
+def get_purchases(limit: Optional[int] = None):
+    with get_connection() as conn:
+        sql = "SELECT * FROM purchases ORDER BY purchased_at DESC"
+        if limit:
+            sql += f" LIMIT {int(limit)}"
+        rows = conn.execute(sql).fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_spend_over_time():
+    """Total spend grouped by month (YYYY-MM), oldest first."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT substr(purchased_at, 1, 7) AS month, SUM(total_price) AS total
+            FROM purchases
+            GROUP BY month
+            ORDER BY month ASC
+            """
+        ).fetchall()
+        return [{"month": row["month"], "total": round(row["total"], 2)} for row in rows]
+
+
+def get_spend_by_item(limit: int = 15):
+    """Total spend grouped by item title, highest first."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT title, SUM(total_price) AS total, SUM(quantity) AS qty
+            FROM purchases
+            GROUP BY lower(title)
+            ORDER BY total DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [
+            {"title": row["title"], "total": round(row["total"], 2), "quantity": row["qty"]}
+            for row in rows
+        ]
+
+
+def get_last_price(title: str, category: Optional[str] = None):
+    """Most recent unit price seen for an item title, or None - used to pre-fill a price."""
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT total_price, quantity FROM purchases WHERE lower(title) = lower(?) "
+            "ORDER BY purchased_at DESC LIMIT 1",
+            (title.strip(),),
+        ).fetchone()
+        if not row or not row["quantity"]:
+            return None
+        return round(row["total_price"] / row["quantity"], 2)
+
+
+def get_total_spend():
+    with get_connection() as conn:
+        row = conn.execute("SELECT COALESCE(SUM(total_price), 0) AS total FROM purchases").fetchone()
+        return round(row["total"], 2)
+
