@@ -1,9 +1,10 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, CalendarDays, CloudOff, PlusCircle, Search, ShoppingBag } from "lucide-react";
+import { BarChart3, CalendarDays, CloudOff, LayoutDashboard, PlusCircle, Search, ShoppingBag } from "lucide-react";
 import { api } from "@/lib/api";
 import { QUEUE_CHANGED_EVENT, queueSize } from "@/lib/offlineQueue";
 import { Header } from "@/components/Header";
+import { OverviewTab } from "@/components/OverviewTab";
 import { AddItemsTab } from "@/components/AddItemsTab";
 import { CategoryView } from "@/components/CategoryView";
 import { SettingsSidebar } from "@/components/SettingsSidebar";
@@ -56,7 +57,7 @@ function App() {
     queryFn: api.chartCategoryCounts,
   });
   const { data: shopping } = useQuery({ queryKey: ["shopping-list"], queryFn: api.shoppingList });
-  const [active, setActive] = useState("add-items");
+  const [active, setActive] = useState("overview");
 
   if (isError) {
     return (
@@ -90,6 +91,12 @@ function App() {
   const shoppingOpen = shopping?.filter((s) => !s.checked).length ?? 0;
 
   const nav: NavItem[] = [
+    {
+      value: "overview",
+      label: "Overview",
+      icon: <LayoutDashboard className="h-[18px] w-[18px]" />,
+      accent: "var(--theme-500)",
+    },
     {
       value: "add-items",
       label: "Add Items",
@@ -207,9 +214,11 @@ function App() {
       {/* Main content */}
       <main className="min-w-0 flex-1 space-y-7">
         <OfflineBanner />
-        <div className="print:hidden">
-          <Header meta={meta} />
-        </div>
+        {active !== "overview" && (
+          <div className="print:hidden">
+            <Header meta={meta} />
+          </div>
+        )}
 
         {/* Mobile nav (horizontal scroll) */}
         <div className="flex gap-2 overflow-x-auto pb-1 lg:hidden print:hidden">
@@ -245,6 +254,7 @@ function App() {
               {activeItem?.label}
             </h2>
             <p className="text-xs font-semibold text-subtle">
+              {active === "overview" && "Your pantry at a glance"}
               {active === "add-items" && "Snap a photo or scan a receipt to stock up"}
               {active === "search" && "Find any item across every category"}
               {active === "shopping" && "Plan your next grocery run"}
@@ -256,6 +266,7 @@ function App() {
         </div>
 
         <div className="animate-fade-in">
+          {active === "overview" && <OverviewTab meta={meta} onNavigate={setActive} />}
           {active === "add-items" && <AddItemsTab meta={meta} />}
           {meta.categories.map(
             (c) => active === c && <CategoryView key={c} category={c} meta={meta} />

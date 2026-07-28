@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Option 7 — Command Center (rich dark)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --brand:#34D399; --veg:#FB923C; --house:#A78BFA; --snack:#F472B6; --amber:#FBBF24;
+    --canvas:#0E1512; --surface:#16201C; --surface2:#1D2A24; --line:#26332C;
+    --content:#EAF2EE; --muted:#9DB0A6; --subtle:#6C7E75;
+  }
+  body{font-family:'Inter',sans-serif;background:var(--canvas);color:var(--content);}
+  .display{font-family:'Space Grotesk',sans-serif;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;}
+  .pill{border:1px solid var(--line);border-radius:8px;background:var(--surface2);}
+  .chip{border-radius:999px;font-size:11px;font-weight:700;padding:2px 8px;display:inline-flex;align-items:center;gap:4px;}
+  .bar{height:6px;border-radius:999px;background:#0E1512;overflow:hidden;}
+  .bar>span{display:block;height:100%;border-radius:999px;}
+  .navitem{border-radius:9px;font-size:13px}
+  .navitem.active{background:rgba(52,211,153,.15);color:var(--brand);border:1px solid rgba(52,211,153,.35)}
+  .glow{box-shadow:0 0 0 1px var(--line), 0 8px 30px rgba(0,0,0,.35)}
+  tr:hover td{background:var(--surface2);}
+</style>
+</head>
+<body class="min-h-screen">
+  <div class="grid grid-cols-[200px_1fr] min-h-screen">
+    <aside class="border-r border-[var(--line)] bg-[var(--surface)] p-3 flex flex-col gap-1">
+      <div class="flex items-center gap-2 px-2 py-2 mb-2">
+        <div class="w-8 h-8 rounded-lg grid place-items-center text-lg" style="background:var(--brand);color:#06251A">🛒</div>
+        <span class="display font-700 text-[15px]">Pantry Pilot</span>
+      </div>
+      <a class="navitem active px-3 py-2 font-semibold cursor-pointer">📊 Overview</a>
+      <a class="navitem px-3 py-2 text-[var(--muted)] hover:bg-[var(--surface2)] cursor-pointer flex">🧺 Groceries <span class="ml-auto text-[var(--subtle)]">9</span></a>
+      <a class="navitem px-3 py-2 text-[var(--muted)] hover:bg-[var(--surface2)] cursor-pointer flex">🥕 Vegetables <span class="ml-auto text-[var(--subtle)]">2</span></a>
+      <a class="navitem px-3 py-2 text-[var(--muted)] hover:bg-[var(--surface2)] cursor-pointer flex">🧴 Household <span class="ml-auto text-[var(--subtle)]">1</span></a>
+      <a class="navitem px-3 py-2 text-[var(--muted)] hover:bg-[var(--surface2)] cursor-pointer flex">🍿 Snacks <span class="ml-auto text-[var(--subtle)]">0</span></a>
+      <div class="h-px bg-[var(--line)] my-2"></div>
+      <a class="navitem px-3 py-2 text-[var(--muted)] hover:bg-[var(--surface2)] cursor-pointer">➕ Add Items</a>
+      <a class="navitem px-3 py-2 text-[var(--muted)] hover:bg-[var(--surface2)] cursor-pointer flex">🛍️ Shopping <span class="ml-auto chip" style="background:rgba(167,139,250,.2);color:var(--house)">2</span></a>
+      <a class="navitem px-3 py-2 text-[var(--muted)] hover:bg-[var(--surface2)] cursor-pointer">📅 Meal Planner</a>
+      <a class="navitem px-3 py-2 text-[var(--muted)] hover:bg-[var(--surface2)] cursor-pointer">📈 Charts</a>
+    </aside>
+
+    <div class="flex flex-col min-w-0">
+      <header class="h-14 border-b border-[var(--line)] bg-[var(--surface)] flex items-center gap-3 px-5">
+        <h1 class="display font-700 text-[15px]">Overview</h1>
+        <div class="ml-3 flex-1 max-w-md relative">
+          <input placeholder="Search everything…" class="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-[var(--line)] bg-[var(--surface2)] text-[var(--content)] outline-none focus:border-[var(--brand)]"/>
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--subtle)]">🔍</span>
+        </div>
+        <button class="ml-auto rounded-lg h-9 px-3.5 text-sm font-semibold" style="background:var(--brand);color:#06251A">+ Add item</button>
+      </header>
+
+      <main class="p-5 space-y-5">
+        <!-- KPI row -->
+        <div class="grid grid-cols-4 gap-3">
+          <div class="card glow p-3.5">
+            <p class="text-[11px] font-semibold uppercase text-[var(--subtle)]">Total items</p>
+            <p class="display text-2xl font-700">5</p>
+            <p class="text-[11px]" style="color:var(--brand)">▲ 2 this week</p>
+          </div>
+          <div class="card glow p-3.5">
+            <p class="text-[11px] font-semibold uppercase text-[var(--subtle)]">Low stock</p>
+            <p class="display text-2xl font-700" style="color:var(--veg)">1</p>
+            <div class="bar mt-2"><span style="width:20%;background:var(--veg)"></span></div>
+          </div>
+          <div class="card glow p-3.5">
+            <p class="text-[11px] font-semibold uppercase text-[var(--subtle)]">Expiring ≤7d</p>
+            <p class="display text-2xl font-700">0</p>
+            <p class="text-[11px] text-[var(--subtle)]">all good ✓</p>
+          </div>
+          <div class="card glow p-3.5">
+            <p class="text-[11px] font-semibold uppercase text-[var(--subtle)]">Spent / mo</p>
+            <p class="display text-2xl font-700">$42</p>
+            <svg viewBox="0 0 80 20" class="w-full h-4 mt-0.5"><polyline fill="none" stroke="var(--brand)" stroke-width="2" points="0,16 16,12 32,14 48,7 64,9 80,4"/></svg>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-[1fr_280px] gap-5 items-start">
+          <!-- Inventory -->
+          <section class="card overflow-hidden">
+            <div class="flex items-center gap-3 px-4 py-3 border-b border-[var(--line)]">
+              <h2 class="display font-700 text-[14px]">Inventory</h2>
+              <div class="ml-auto flex items-center gap-1.5 text-[13px]">
+                <button class="pill px-2.5 py-1 font-medium" style="color:var(--brand)">All</button>
+                <button class="px-2.5 py-1 text-[var(--muted)]">Low</button>
+                <button class="px-2.5 py-1 text-[var(--muted)]">In use</button>
+              </div>
+            </div>
+            <table class="w-full text-sm">
+              <tbody>
+                <tr class="border-b border-[var(--line)]">
+                  <td class="px-4 py-2.5"><div class="flex items-center gap-2.5"><div class="w-8 h-8 rounded-lg grid place-items-center" style="background:rgba(52,211,153,.12)">🧺</div><div><p class="font-semibold">Atta</p><p class="text-[11px] text-[var(--subtle)]">Groceries · exp Jan 5</p></div></div></td>
+                  <td class="px-2 py-2.5 w-40"><div class="flex items-center gap-2"><span class="font-semibold w-6">3</span><div class="bar flex-1"><span style="width:60%;background:var(--brand)"></span></div></div></td>
+                  <td class="px-4 py-2.5 text-right whitespace-nowrap"><button class="pill px-2 py-1 text-xs">Use 1</button><button class="text-[var(--subtle)] px-1">✏️</button></td>
+                </tr>
+                <tr class="border-b border-[var(--line)]">
+                  <td class="px-4 py-2.5"><div class="flex items-center gap-2.5"><div class="w-8 h-8 rounded-lg grid place-items-center" style="background:rgba(52,211,153,.12)">🧺</div><div><p class="font-semibold">Semiya</p><p class="text-[11px] text-[var(--subtle)]">Groceries</p></div></div></td>
+                  <td class="px-2 py-2.5"><div class="flex items-center gap-2"><span class="font-semibold w-6">6</span><div class="bar flex-1"><span style="width:100%;background:var(--brand)"></span></div></div></td>
+                  <td class="px-4 py-2.5 text-right whitespace-nowrap"><button class="pill px-2 py-1 text-xs">Use 1</button><button class="text-[var(--subtle)] px-1">✏️</button></td>
+                </tr>
+                <tr class="border-b border-[var(--line)]">
+                  <td class="px-4 py-2.5"><div class="flex items-center gap-2.5"><div class="w-8 h-8 rounded-lg grid place-items-center" style="background:rgba(251,146,60,.14)">🥕</div><div><p class="font-semibold flex items-center gap-1.5">Garlic <span class="chip" style="background:rgba(167,139,250,.2);color:var(--house)">in use</span></p><p class="text-[11px] text-[var(--subtle)]">Vegetables</p></div></div></td>
+                  <td class="px-2 py-2.5"><div class="flex items-center gap-2"><span class="font-semibold w-10">500g</span><div class="bar flex-1"><span style="width:80%;background:var(--veg)"></span></div></div></td>
+                  <td class="px-4 py-2.5 text-right whitespace-nowrap"><button class="pill px-2 py-1 text-xs">Use 50g</button><button class="text-[var(--subtle)] px-1">✏️</button></td>
+                </tr>
+                <tr class="border-b border-[var(--line)]">
+                  <td class="px-4 py-2.5"><div class="flex items-center gap-2.5"><div class="w-8 h-8 rounded-lg grid place-items-center" style="background:rgba(251,146,60,.14)">🥕</div><div><p class="font-semibold">Potatoes</p><p class="text-[11px] text-[var(--subtle)]">Vegetables</p></div></div></td>
+                  <td class="px-2 py-2.5"><div class="flex items-center gap-2"><span class="font-semibold w-10">500g</span><div class="bar flex-1"><span style="width:70%;background:var(--veg)"></span></div></div></td>
+                  <td class="px-4 py-2.5 text-right whitespace-nowrap"><button class="pill px-2 py-1 text-xs">Use 50g</button><button class="text-[var(--subtle)] px-1">✏️</button></td>
+                </tr>
+                <tr>
+                  <td class="px-4 py-2.5"><div class="flex items-center gap-2.5"><div class="w-8 h-8 rounded-lg grid place-items-center" style="background:rgba(167,139,250,.16)">🧴</div><div><p class="font-semibold flex items-center gap-1.5">Toothpaste <span class="chip" style="background:rgba(251,146,60,.2);color:var(--veg)">low</span></p><p class="text-[11px] text-[var(--subtle)]">Household</p></div></div></td>
+                  <td class="px-2 py-2.5"><div class="flex items-center gap-2"><span class="font-semibold w-6">1</span><div class="bar flex-1"><span style="width:20%;background:var(--veg)"></span></div></div></td>
+                  <td class="px-4 py-2.5 text-right whitespace-nowrap"><button class="pill px-2 py-1 text-xs">Use 1</button><button class="text-[var(--subtle)] px-1">✏️</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <!-- Right rail -->
+          <div class="space-y-4">
+            <div class="card p-4">
+              <p class="text-[11px] font-bold uppercase text-[var(--subtle)] mb-2">By category</p>
+              <div class="flex items-center gap-3">
+                <div class="w-16 h-16 rounded-full" style="background:conic-gradient(var(--brand) 0 65%, var(--veg) 65% 90%, var(--house) 90% 100%)"></div>
+                <ul class="text-[13px] space-y-1">
+                  <li class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:var(--brand)"></span>Groceries <span class="text-[var(--subtle)]">9</span></li>
+                  <li class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:var(--veg)"></span>Vegetables <span class="text-[var(--subtle)]">2</span></li>
+                  <li class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full" style="background:var(--house)"></span>Household <span class="text-[var(--subtle)]">1</span></li>
+                </ul>
+              </div>
+            </div>
+            <div class="card p-4">
+              <p class="text-[11px] font-bold uppercase text-[var(--subtle)] mb-2">Needs attention</p>
+              <div class="flex items-center justify-between text-sm"><span>🧴 Toothpaste</span><button class="chip" style="background:rgba(167,139,250,.2);color:var(--house)">+ list</button></div>
+            </div>
+            <div class="card p-4">
+              <p class="text-[11px] font-bold uppercase text-[var(--subtle)] mb-2">Tonight</p>
+              <div class="flex items-center gap-2 text-sm"><span>🍝</span><span>Beans curry + rice</span></div>
+            </div>
+          </div>
+        </div>
+        <p class="text-center text-xs text-[var(--subtle)]">Mockup 7 — Command Center: same dense layout as 6, in a calm dark theme with subtle glow &amp; neon-ish accents.</p>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Option 4 — Calm & Dense (utility-first)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --brand:#1B7A4D; --veg:#E8792B; --house:#6C63FF; --snack:#C2185B;
+    --canvas:#F7F7F4; --surface:#FFFFFF; --line:#E7E5DF;
+    --content:#1C1D1A; --muted:#5B5E57; --subtle:#8A8D85;
+  }
+  body{font-family:'Inter',sans-serif;background:var(--canvas);color:var(--content);}
+  .display{font-family:'Space Grotesk',sans-serif;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+    box-shadow:0 1px 2px rgba(20,20,15,.04);}
+  .soft-hover:hover{box-shadow:0 2px 8px rgba(20,20,15,.08);}
+  .pill{border:1px solid var(--line);border-radius:9px;background:var(--surface);}
+  .navitem{border-radius:9px;}
+  .navitem.active{background:var(--brand);color:#fff;}
+  .chip{border-radius:999px;font-size:11px;font-weight:700;padding:2px 8px;}
+</style>
+</head>
+<body class="min-h-screen">
+  <!-- Slim top header -->
+  <header class="sticky top-0 z-10 border-b border-[var(--line)] bg-[var(--surface)]/90 backdrop-blur">
+    <div class="mx-auto max-w-6xl flex items-center gap-3 px-4 h-14">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg grid place-items-center text-lg" style="background:var(--brand);color:#fff">🛒</div>
+        <span class="display font-700 text-[15px]">Pantry Pilot</span>
+      </div>
+      <div class="ml-3 flex-1 max-w-md relative">
+        <input placeholder="Search items, shopping list, meals…"
+          class="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-[var(--line)] bg-[var(--canvas)] outline-none focus:border-[var(--brand)]" />
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--subtle)]">🔍</span>
+      </div>
+      <button class="ml-auto pill h-9 px-3 text-sm font-semibold soft-hover">+ Add</button>
+      <button class="pill h-9 w-9 grid place-items-center soft-hover">⚙️</button>
+    </div>
+  </header>
+
+  <div class="mx-auto max-w-6xl grid grid-cols-[180px_1fr] gap-6 px-4 py-6">
+    <!-- Sidebar -->
+    <aside class="space-y-1 h-fit sticky top-20 text-sm">
+      <a class="navitem active flex items-center gap-2 px-3 py-2 font-semibold cursor-pointer">📊 Overview</a>
+      <a class="navitem flex items-center gap-2 px-3 py-2 font-medium text-[var(--muted)] hover:bg-[var(--surface)] cursor-pointer">🧺 Groceries <span class="ml-auto text-[var(--subtle)]">9</span></a>
+      <a class="navitem flex items-center gap-2 px-3 py-2 font-medium text-[var(--muted)] hover:bg-[var(--surface)] cursor-pointer">🥕 Vegetables <span class="ml-auto text-[var(--subtle)]">2</span></a>
+      <a class="navitem flex items-center gap-2 px-3 py-2 font-medium text-[var(--muted)] hover:bg-[var(--surface)] cursor-pointer">🧴 Household <span class="ml-auto text-[var(--subtle)]">1</span></a>
+      <a class="navitem flex items-center gap-2 px-3 py-2 font-medium text-[var(--muted)] hover:bg-[var(--surface)] cursor-pointer">🍿 Snacks <span class="ml-auto text-[var(--subtle)]">0</span></a>
+      <div class="h-px bg-[var(--line)] my-2"></div>
+      <a class="navitem flex items-center gap-2 px-3 py-2 font-medium text-[var(--muted)] hover:bg-[var(--surface)] cursor-pointer">➕ Add Items</a>
+      <a class="navitem flex items-center gap-2 px-3 py-2 font-medium text-[var(--muted)] hover:bg-[var(--surface)] cursor-pointer">🛍️ Shopping List <span class="ml-auto chip text-white" style="background:var(--house)">2</span></a>
+      <a class="navitem flex items-center gap-2 px-3 py-2 font-medium text-[var(--muted)] hover:bg-[var(--surface)] cursor-pointer">📅 Meal Planner</a>
+      <a class="navitem flex items-center gap-2 px-3 py-2 font-medium text-[var(--muted)] hover:bg-[var(--surface)] cursor-pointer">📈 Charts</a>
+    </aside>
+
+    <!-- Main -->
+    <main class="space-y-5">
+      <!-- Compact metric strip (replaces 6 big cards) -->
+      <div class="card flex flex-wrap items-stretch divide-x divide-[var(--line)]">
+        <div class="px-4 py-3 flex-1 min-w-[110px]">
+          <p class="text-[11px] font-semibold uppercase tracking-wide text-[var(--subtle)]">Total items</p>
+          <p class="display text-2xl font-700">5</p>
+        </div>
+        <div class="px-4 py-3 flex-1 min-w-[110px]">
+          <p class="text-[11px] font-semibold uppercase tracking-wide text-[var(--subtle)]">Low stock</p>
+          <p class="display text-2xl font-700 text-[var(--veg)]">1</p>
+        </div>
+        <div class="px-4 py-3 flex-1 min-w-[110px]">
+          <p class="text-[11px] font-semibold uppercase tracking-wide text-[var(--subtle)]">Expiring ≤3d</p>
+          <p class="display text-2xl font-700">0</p>
+        </div>
+        <div class="px-4 py-3 flex-1 min-w-[130px]">
+          <p class="text-[11px] font-semibold uppercase tracking-wide text-[var(--subtle)]">Spent this month</p>
+          <p class="display text-2xl font-700">$0.00</p>
+        </div>
+      </div>
+
+      <!-- Attention row -->
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div class="card p-4">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="chip text-white" style="background:var(--veg)">⚠️ Low stock</span>
+            <span class="text-sm text-[var(--muted)]">1 item</span>
+          </div>
+          <div class="flex items-center justify-between text-sm py-1.5">
+            <span>🧴 Toothpaste</span>
+            <span class="text-[var(--subtle)]">1 left</span>
+          </div>
+        </div>
+        <div class="card p-4">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="chip" style="background:#EAF5EE;color:var(--brand)">⚡ Quick add favorites</span>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button class="pill px-3 py-1.5 text-sm soft-hover">+ Semiya</button>
+            <button class="pill px-3 py-1.5 text-sm soft-hover">+ Atta</button>
+            <button class="pill px-3 py-1.5 text-sm soft-hover">+ Milk</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Inventory list (default content, dense rows) -->
+      <section class="card overflow-hidden">
+        <div class="flex items-center gap-3 px-4 py-3 border-b border-[var(--line)]">
+          <h2 class="display font-700 text-[15px]">Inventory</h2>
+          <div class="ml-auto flex items-center gap-2 text-sm">
+            <button class="pill px-2.5 py-1 font-medium">All</button>
+            <button class="px-2.5 py-1 text-[var(--muted)]">Low stock</button>
+            <button class="px-2.5 py-1 text-[var(--muted)]">In use</button>
+            <select class="pill px-2 py-1 text-[var(--muted)]"><option>Newest</option></select>
+          </div>
+        </div>
+
+        <ul class="divide-y divide-[var(--line)]">
+          <!-- row -->
+          <li class="flex items-center gap-3 px-4 py-2.5 soft-hover">
+            <div class="w-9 h-9 rounded-lg grid place-items-center text-lg" style="background:#EAF5EE">🧺</div>
+            <div class="min-w-0 flex-1">
+              <p class="font-semibold text-sm truncate">Atta</p>
+              <p class="text-xs text-[var(--subtle)]">Groceries · exp Jan 5</p>
+            </div>
+            <div class="flex items-center gap-1">
+              <button class="w-7 h-7 rounded-md border border-[var(--line)]">−</button>
+              <span class="w-8 text-center text-sm font-semibold">3</span>
+              <button class="w-7 h-7 rounded-md border border-[var(--line)]">+</button>
+            </div>
+            <button class="text-xs text-[var(--muted)] px-2 py-1 pill">Use 1</button>
+            <button class="w-7 h-7 grid place-items-center text-[var(--subtle)] hover:text-[var(--content)]">✏️</button>
+          </li>
+          <li class="flex items-center gap-3 px-4 py-2.5 soft-hover">
+            <div class="w-9 h-9 rounded-lg grid place-items-center text-lg" style="background:#EAF5EE">🧺</div>
+            <div class="min-w-0 flex-1">
+              <p class="font-semibold text-sm truncate">Semiya</p>
+              <p class="text-xs text-[var(--subtle)]">Groceries</p>
+            </div>
+            <div class="flex items-center gap-1">
+              <button class="w-7 h-7 rounded-md border border-[var(--line)]">−</button>
+              <span class="w-8 text-center text-sm font-semibold">6</span>
+              <button class="w-7 h-7 rounded-md border border-[var(--line)]">+</button>
+            </div>
+            <button class="text-xs text-[var(--muted)] px-2 py-1 pill">Use 1</button>
+            <button class="w-7 h-7 grid place-items-center text-[var(--subtle)] hover:text-[var(--content)]">✏️</button>
+          </li>
+          <li class="flex items-center gap-3 px-4 py-2.5 soft-hover">
+            <div class="w-9 h-9 rounded-lg grid place-items-center text-lg" style="background:#FDEEE2">🥕</div>
+            <div class="min-w-0 flex-1">
+              <p class="font-semibold text-sm truncate">Garlic <span class="chip ml-1" style="background:#EFEDFF;color:var(--house)">in use 100g</span></p>
+              <p class="text-xs text-[var(--subtle)]">Vegetables</p>
+            </div>
+            <div class="flex items-center gap-1">
+              <button class="w-7 h-7 rounded-md border border-[var(--line)]">−</button>
+              <span class="w-10 text-center text-sm font-semibold">500g</span>
+              <button class="w-7 h-7 rounded-md border border-[var(--line)]">+</button>
+            </div>
+            <button class="text-xs text-[var(--muted)] px-2 py-1 pill">Use 50g</button>
+            <button class="w-7 h-7 grid place-items-center text-[var(--subtle)] hover:text-[var(--content)]">✏️</button>
+          </li>
+          <li class="flex items-center gap-3 px-4 py-2.5 soft-hover">
+            <div class="w-9 h-9 rounded-lg grid place-items-center text-lg" style="background:#FDEEE2">🥕</div>
+            <div class="min-w-0 flex-1">
+              <p class="font-semibold text-sm truncate">Potatoes</p>
+              <p class="text-xs text-[var(--subtle)]">Vegetables</p>
+            </div>
+            <div class="flex items-center gap-1">
+              <button class="w-7 h-7 rounded-md border border-[var(--line)]">−</button>
+              <span class="w-10 text-center text-sm font-semibold">500g</span>
+              <button class="w-7 h-7 rounded-md border border-[var(--line)]">+</button>
+            </div>
+            <button class="text-xs text-[var(--muted)] px-2 py-1 pill">Use 50g</button>
+            <button class="w-7 h-7 grid place-items-center text-[var(--subtle)] hover:text-[var(--content)]">✏️</button>
+          </li>
+          <li class="flex items-center gap-3 px-4 py-2.5 soft-hover" style="background:#FFF9F4">
+            <div class="w-9 h-9 rounded-lg grid place-items-center text-lg" style="background:#EFEDFF">🧴</div>
+            <div class="min-w-0 flex-1">
+              <p class="font-semibold text-sm truncate">Toothpaste <span class="chip ml-1 text-white" style="background:var(--veg)">low</span></p>
+              <p class="text-xs text-[var(--subtle)]">Household</p>
+            </div>
+            <div class="flex items-center gap-1">
+              <button class="w-7 h-7 rounded-md border border-[var(--line)]">−</button>
+              <span class="w-8 text-center text-sm font-semibold">1</span>
+              <button class="w-7 h-7 rounded-md border border-[var(--line)]">+</button>
+            </div>
+            <button class="text-xs text-[var(--muted)] px-2 py-1 pill">Use 1</button>
+            <button class="w-7 h-7 grid place-items-center text-[var(--subtle)] hover:text-[var(--content)]">✏️</button>
+          </li>
+        </ul>
+      </section>
+      <p class="text-center text-xs text-[var(--subtle)]">Mockup — calm & dense direction. Quieter borders, compact metric strip, inventory-first, one-line item rows.</p>
+    </main>
+  </div>
+</body>
+</html>

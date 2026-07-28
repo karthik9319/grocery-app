@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Option 5 — Calm Cards (soft & friendly)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --brand:#1B7A4D; --veg:#E8792B; --house:#6C63FF; --snack:#C2185B;
+    --canvas:#F4F6F5; --surface:#FFFFFF; --line:#ECECE8;
+    --content:#1C1D1A; --muted:#5B5E57; --subtle:#8A8D85;
+  }
+  body{font-family:'Inter',sans-serif;background:var(--canvas);color:var(--content);}
+  .display{font-family:'Space Grotesk',sans-serif;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;
+    box-shadow:0 1px 2px rgba(20,20,15,.03), 0 6px 16px rgba(20,20,15,.04);}
+  .soft-hover{transition:.15s}
+  .soft-hover:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(20,20,15,.08);}
+  .pill{border:1px solid var(--line);border-radius:999px;background:var(--surface);}
+  .stat{border-radius:14px;}
+  .chip{border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;}
+</style>
+</head>
+<body class="min-h-screen">
+  <header class="sticky top-0 z-10 border-b border-[var(--line)] bg-[var(--surface)]/85 backdrop-blur">
+    <div class="mx-auto max-w-6xl flex items-center gap-3 px-5 h-16">
+      <div class="w-9 h-9 rounded-xl grid place-items-center text-lg" style="background:var(--brand);color:#fff">🛒</div>
+      <span class="display font-700 text-base">Pantry Pilot</span>
+      <div class="ml-4 flex-1 max-w-md relative">
+        <input placeholder="Search everything…"
+          class="w-full h-10 pl-9 pr-3 text-sm rounded-full border border-[var(--line)] bg-[var(--canvas)] outline-none focus:border-[var(--brand)]" />
+        <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--subtle)]">🔍</span>
+      </div>
+      <button class="ml-auto rounded-full h-10 px-4 text-sm font-semibold text-white soft-hover" style="background:var(--brand)">+ Add item</button>
+    </div>
+  </header>
+
+  <div class="mx-auto max-w-6xl px-5 py-6 space-y-6">
+    <!-- Greeting + compact stats inline -->
+    <div class="flex flex-wrap items-center gap-4">
+      <div class="mr-auto">
+        <h1 class="display text-xl font-700">Your pantry</h1>
+        <p class="text-sm text-[var(--muted)]">5 items · 1 running low · nothing expiring soon</p>
+      </div>
+      <div class="flex gap-3 text-sm">
+        <div class="stat px-4 py-2 bg-[var(--surface)] border border-[var(--line)]">
+          <span class="text-[var(--subtle)] text-xs font-semibold uppercase">Items</span>
+          <span class="display font-700 text-lg ml-2">5</span>
+        </div>
+        <div class="stat px-4 py-2 bg-[var(--surface)] border border-[var(--line)]">
+          <span class="text-[var(--subtle)] text-xs font-semibold uppercase">Low</span>
+          <span class="display font-700 text-lg ml-2 text-[var(--veg)]">1</span>
+        </div>
+        <div class="stat px-4 py-2 bg-[var(--surface)] border border-[var(--line)]">
+          <span class="text-[var(--subtle)] text-xs font-semibold uppercase">Spend</span>
+          <span class="display font-700 text-lg ml-2">$0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category quick-nav as soft chips -->
+    <div class="flex flex-wrap gap-2">
+      <button class="pill px-4 py-2 text-sm font-semibold" style="background:var(--brand);color:#fff;border-color:var(--brand)">All</button>
+      <button class="pill px-4 py-2 text-sm font-medium soft-hover">🧺 Groceries · 9</button>
+      <button class="pill px-4 py-2 text-sm font-medium soft-hover">🥕 Vegetables · 2</button>
+      <button class="pill px-4 py-2 text-sm font-medium soft-hover">🧴 Household · 1</button>
+      <button class="pill px-4 py-2 text-sm font-medium soft-hover">🍿 Snacks · 0</button>
+    </div>
+
+    <!-- Item cards (softer, 3-up, calmer than brutalist) -->
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <!-- card -->
+      <div class="card p-4 soft-hover">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-2xl grid place-items-center text-2xl" style="background:#EAF5EE">🧺</div>
+          <div class="min-w-0 flex-1">
+            <p class="font-semibold truncate">Atta</p>
+            <p class="text-xs text-[var(--subtle)]">Groceries · exp Jan 5</p>
+          </div>
+        </div>
+        <div class="flex items-center justify-between mt-4">
+          <div class="flex items-center gap-1.5">
+            <button class="w-8 h-8 rounded-lg border border-[var(--line)]">−</button>
+            <span class="w-8 text-center font-semibold">3</span>
+            <button class="w-8 h-8 rounded-lg border border-[var(--line)]">+</button>
+          </div>
+          <button class="pill px-3 py-1.5 text-xs font-semibold">Use 1</button>
+        </div>
+      </div>
+
+      <div class="card p-4 soft-hover">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-2xl grid place-items-center text-2xl" style="background:#EAF5EE">🧺</div>
+          <div class="min-w-0 flex-1">
+            <p class="font-semibold truncate">Semiya</p>
+            <p class="text-xs text-[var(--subtle)]">Groceries</p>
+          </div>
+        </div>
+        <div class="flex items-center justify-between mt-4">
+          <div class="flex items-center gap-1.5">
+            <button class="w-8 h-8 rounded-lg border border-[var(--line)]">−</button>
+            <span class="w-8 text-center font-semibold">6</span>
+            <button class="w-8 h-8 rounded-lg border border-[var(--line)]">+</button>
+          </div>
+          <button class="pill px-3 py-1.5 text-xs font-semibold">Use 1</button>
+        </div>
+      </div>
+
+      <div class="card p-4 soft-hover">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-2xl grid place-items-center text-2xl" style="background:#FDEEE2">🥕</div>
+          <div class="min-w-0 flex-1">
+            <p class="font-semibold truncate">Garlic</p>
+            <p class="text-xs text-[var(--subtle)]">Vegetables</p>
+          </div>
+          <span class="chip text-white" style="background:var(--house)">in use</span>
+        </div>
+        <div class="flex items-center justify-between mt-4">
+          <div class="flex items-center gap-1.5">
+            <button class="w-8 h-8 rounded-lg border border-[var(--line)]">−</button>
+            <span class="w-12 text-center font-semibold">500g</span>
+            <button class="w-8 h-8 rounded-lg border border-[var(--line)]">+</button>
+          </div>
+          <button class="pill px-3 py-1.5 text-xs font-semibold">Use 50g</button>
+        </div>
+      </div>
+
+      <div class="card p-4 soft-hover">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-2xl grid place-items-center text-2xl" style="background:#FDEEE2">🥕</div>
+          <div class="min-w-0 flex-1">
+            <p class="font-semibold truncate">Potatoes</p>
+            <p class="text-xs text-[var(--subtle)]">Vegetables</p>
+          </div>
+        </div>
+        <div class="flex items-center justify-between mt-4">
+          <div class="flex items-center gap-1.5">
+            <button class="w-8 h-8 rounded-lg border border-[var(--line)]">−</button>
+            <span class="w-12 text-center font-semibold">500g</span>
+            <button class="w-8 h-8 rounded-lg border border-[var(--line)]">+</button>
+          </div>
+          <button class="pill px-3 py-1.5 text-xs font-semibold">Use 50g</button>
+        </div>
+      </div>
+
+      <div class="card p-4 soft-hover ring-1" style="--tw-ring-color:#F2D9C2">
+        <div class="flex items-center gap-3">
+          <div class="w-12 h-12 rounded-2xl grid place-items-center text-2xl" style="background:#EFEDFF">🧴</div>
+          <div class="min-w-0 flex-1">
+            <p class="font-semibold truncate">Toothpaste</p>
+            <p class="text-xs text-[var(--subtle)]">Household</p>
+          </div>
+          <span class="chip text-white" style="background:var(--veg)">low</span>
+        </div>
+        <div class="flex items-center justify-between mt-4">
+          <div class="flex items-center gap-1.5">
+            <button class="w-8 h-8 rounded-lg border border-[var(--line)]">−</button>
+            <span class="w-8 text-center font-semibold">1</span>
+            <button class="w-8 h-8 rounded-lg border border-[var(--line)]">+</button>
+          </div>
+          <button class="pill px-3 py-1.5 text-xs font-semibold">Use 1</button>
+        </div>
+      </div>
+
+      <button class="card p-4 grid place-items-center text-[var(--muted)] border-dashed soft-hover min-h-[112px]">
+        <span class="text-sm font-semibold">+ Add an item</span>
+      </button>
+    </div>
+    <p class="text-center text-xs text-[var(--subtle)]">Mockup — calm cards direction. Soft rounded cards, gentle shadows, category chips, keeps a friendly feel without the heavy borders.</p>
+  </div>
+</body>
+</html>
