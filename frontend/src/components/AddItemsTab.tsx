@@ -235,7 +235,7 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
           {draft.previewUrl ? (
             <img src={draft.previewUrl} className="h-24 w-24 shrink-0 rounded-xl object-cover" />
           ) : (
-            <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-content text-3xl">
+            <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl border-2 border-dashed border-line text-3xl">
               🔍
             </div>
           )}

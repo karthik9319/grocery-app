@@ -34,7 +34,7 @@ function DuplicateGroupCard({
   const groupKey = group.map((g) => g.id).join("-");
 
   return (
-    <div className="space-y-2 rounded-xl border-2 border-content bg-surface-solid p-2.5 text-xs">
+    <div className="space-y-2 rounded-xl border border-line bg-surface-solid p-2.5 text-xs">
       {group.map((item) => (
         <label key={item.id} className="flex items-center gap-2 cursor-pointer">
           <input
@@ -301,14 +301,14 @@ export function SettingsSidebar({ meta }: { meta: Meta }) {
           </div>
 
           {tunnel?.running && !tunnel.url && (
-            <div className="flex items-center gap-2 rounded-xl border-2 border-content bg-surface-solid p-2.5 text-xs text-muted">
+            <div className="flex items-center gap-2 rounded-xl border border-line bg-surface-solid p-2.5 text-xs text-muted">
               <Spinner className="h-4 w-4 shrink-0" />
               Starting tunnel… this can take about 10 seconds.
             </div>
           )}
 
           {tunnel?.url && (
-            <div className="space-y-1.5 rounded-xl border-2 border-content bg-surface-solid p-2.5">
+            <div className="space-y-1.5 rounded-xl border border-line bg-surface-solid p-2.5">
               <p className="break-all font-mono text-xs font-bold text-content">{tunnel.url}</p>
               <div className="flex gap-1.5">
                 <Button variant="outline" size="sm" className="flex-1 justify-center" onClick={copyTunnelUrl}>
@@ -423,7 +423,7 @@ export function SettingsSidebar({ meta }: { meta: Meta }) {
             {backups?.map((b) => (
               <div
                 key={b.filename}
-                className="flex items-center gap-2 rounded-xl border-2 border-content bg-surface-solid p-2 text-xs"
+                className="flex items-center gap-2 rounded-xl border border-line bg-surface-solid p-2 text-xs"
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-bold text-content">
@@ -435,7 +435,7 @@ export function SettingsSidebar({ meta }: { meta: Meta }) {
                   title="Restore"
                   onClick={() => handleRestore(b.filename)}
                   disabled={restoreBackup.isPending}
-                  className="flex h-7 w-7 items-center justify-center rounded-lg border-2 border-content text-content hover:bg-theme-200 cursor-pointer"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-line text-content hover:bg-theme-200 cursor-pointer"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                 </button>
@@ -443,7 +443,7 @@ export function SettingsSidebar({ meta }: { meta: Meta }) {
                   href={api.backupDownloadUrl(b.filename)}
                   download
                   title="Download"
-                  className="flex h-7 w-7 items-center justify-center rounded-lg border-2 border-content text-content hover:bg-theme-200 cursor-pointer"
+                  className="flex h-7 w-7 items-center justify-center rounded-lg border border-line text-content hover:bg-theme-200 cursor-pointer"
                 >
                   <Download className="h-3.5 w-3.5" />
                 </a>

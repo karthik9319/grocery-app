@@ -56,10 +56,10 @@
   --color-muted: var(--muted);
   --color-subtle: var(--subtle);
 
-  --shadow-soft: 3px 3px 0 var(--line);
-  --shadow-medium: 5px 5px 0 var(--line);
-  --shadow-lifted: 8px 8px 0 var(--line);
-  --shadow-glow: 5px 5px 0 var(--line);
+  --shadow-soft: 0 1px 2px rgba(20, 20, 15, 0.06);
+  --shadow-medium: 0 4px 14px rgba(20, 20, 15, 0.08);
+  --shadow-lifted: 0 12px 30px rgba(20, 20, 15, 0.12);
+  --shadow-glow: 0 6px 20px rgba(20, 20, 15, 0.10);
 
   --animate-fade-in: fade-in 0.3s ease-out;
   --animate-pop: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -79,12 +79,12 @@
   --canvas: #fff7ec;
   --surface: #f3ecdd;
   --surface-solid: #ffffff;
-  --line: #14140f;
+  --line: rgba(20, 20, 15, 0.14);
   --content: #14140f;
   --muted: #52514a;
   --subtle: #8c8878;
 
-  --dot-opacity: 0.32;
+  --dot-opacity: 0;
 
   /* Default accent theme: Forest (green) */
   --theme-50: #eefaf3;
@@ -129,12 +129,12 @@
   --canvas: #121009;
   --surface: rgba(255, 255, 255, 0.06);
   --surface-solid: #1e1b14;
-  --line: #f5f1e8;
+  --line: rgba(245, 241, 232, 0.16);
   --content: #f5f1e8;
   --muted: #c9c3b4;
   --subtle: #8c8878;
 
-  --dot-opacity: 0.24;
+  --dot-opacity: 0;
 }
 
 html, body, #root { height: 100%; }
@@ -161,7 +161,7 @@ body::before {
 
 @utility glass {
   background: var(--surface-solid);
-  border: 3px solid var(--line);
+  border: 1px solid var(--line);
 }
 
 @utility font-display {
@@ -190,8 +190,8 @@ body::before {
 .card-hover {
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.card-hover:hover { transform: translate(-3px, -3px); }
-.card-hover:active { transform: translate(0, 0); box-shadow: none !important; }
+.card-hover:hover { transform: translateY(-2px); }
+.card-hover:active { transform: translateY(0); }
 
 * {
   scrollbar-width: thin;

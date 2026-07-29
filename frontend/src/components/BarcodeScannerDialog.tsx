@@ -68,7 +68,7 @@ export function BarcodeScannerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title="Scan a barcode">
         <div className="space-y-4">
-          <div className="relative overflow-hidden rounded-xl border-[3px] border-content bg-black">
+          <div className="relative overflow-hidden rounded-xl border border-line bg-black">
             <video ref={videoRef} className="h-56 w-full object-cover" muted playsInline />
             {starting && (
               <div className="absolute inset-0 flex items-center justify-center text-white">

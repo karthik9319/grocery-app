@@ -33,7 +33,7 @@ export function ThemeToggle() {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-1 rounded-xl border-[3px] border-content bg-surface-solid p-1">
+      <div className="flex items-center gap-1 rounded-xl border border-line bg-surface-solid p-1">
         {OPTIONS.map((opt) => {
           const Icon = opt.icon;
           const active = mode === opt.value;
@@ -53,7 +53,7 @@ export function ThemeToggle() {
           );
         })}
       </div>
-      <div className="flex items-center gap-1.5 rounded-xl border-[3px] border-content bg-surface-solid px-2 py-1.5">
+      <div className="flex items-center gap-1.5 rounded-xl border border-line bg-surface-solid px-2 py-1.5">
         {COLOR_THEMES.map((t) => {
           const active = color === t.value;
           return (
@@ -64,7 +64,7 @@ export function ThemeToggle() {
               onClick={() => chooseColor(t.value)}
               className={cn(
                 "h-5 w-5 shrink-0 rounded-full border-2 transition-transform cursor-pointer",
-                active ? "scale-110 border-content" : "border-content/40 hover:scale-105"
+                active ? "scale-110 border-line" : "border-line/40 hover:scale-105"
               )}
               style={{ backgroundColor: t.swatch }}
             />

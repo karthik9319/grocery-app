@@ -44,7 +44,7 @@ export function PhotoGalleryDialog({
           <EmptyState icon="🖼️" title="No photos for this item yet" />
         ) : (
           <div className="space-y-3">
-            <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border-2 border-content bg-surface-solid">
+            <div className="relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border border-line bg-surface-solid">
               <img
                 src={imageUrl(current) ?? undefined}
                 alt={item.title}
@@ -54,14 +54,14 @@ export function PhotoGalleryDialog({
                 <>
                   <button
                     onClick={() => setIndex((i) => (i - 1 + allPaths.length) % allPaths.length)}
-                    className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border-2 border-content bg-surface-solid text-content hover:bg-theme-200 cursor-pointer"
+                    className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface-solid text-content hover:bg-theme-200 cursor-pointer"
                     aria-label="Previous photo"
                   >
                     <ChevronLeft className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => setIndex((i) => (i + 1) % allPaths.length)}
-                    className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border-2 border-content bg-surface-solid text-content hover:bg-theme-200 cursor-pointer"
+                    className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface-solid text-content hover:bg-theme-200 cursor-pointer"
                     aria-label="Next photo"
                   >
                     <ChevronRight className="h-4 w-4" />
@@ -77,7 +77,7 @@ export function PhotoGalleryDialog({
                     onClick={() => setIndex(i)}
                     aria-label={`Photo ${i + 1}`}
                     className={cn(
-                      "h-2.5 w-2.5 rounded-full border-2 border-content cursor-pointer",
+                      "h-2.5 w-2.5 rounded-full border border-line cursor-pointer",
                       i === index ? "bg-theme-500" : "bg-surface-solid"
                     )}
                   />

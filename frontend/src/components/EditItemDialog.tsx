@@ -203,7 +203,7 @@ export function EditItemDialog({
               type="file"
               accept="image/png,image/jpeg,.heic,.heif"
               onChange={(e) => setNewImage(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-lg file:border-2 file:border-content file:bg-theme-400 file:px-3 file:py-1.5 file:text-white file:font-bold"
+              className="block w-full text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-lg file:border-2 file:border-line file:bg-theme-400 file:px-3 file:py-1.5 file:text-white file:font-bold"
             />
           </div>
 
@@ -264,13 +264,13 @@ export function EditItemDialog({
                       alt="Item"
                       className={cn(
                         "h-16 w-16 rounded-lg border-2 object-cover",
-                        isCover ? "border-theme-500" : "border-content"
+                        isCover ? "border-theme-500" : "border-line"
                       )}
                     />
                     <button
                       type="button"
                       onClick={() => deletePhotoMutation.mutate(p.id)}
-                      className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-content bg-red-500 text-white"
+                      className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-line bg-red-500 text-white"
                       aria-label="Delete photo"
                     >
                       <X className="h-3 w-3" />
@@ -303,7 +303,7 @@ export function EditItemDialog({
                 if (file) addPhotoMutation.mutate(file);
                 e.target.value = "";
               }}
-              className="block w-full text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-lg file:border-2 file:border-content file:bg-theme-400 file:px-3 file:py-1.5 file:text-white file:font-bold"
+              className="block w-full text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-lg file:border-2 file:border-line file:bg-theme-400 file:px-3 file:py-1.5 file:text-white file:font-bold"
             />
           </div>
 

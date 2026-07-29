@@ -112,8 +112,8 @@ export function ItemCard({
       <div
         className={
           img && !selectable
-            ? "h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 border-content cursor-zoom-in"
-            : "h-14 w-14 shrink-0 overflow-hidden rounded-xl border-2 border-content"
+            ? "h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-line cursor-zoom-in"
+            : "h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-line"
         }
         onClick={
           img && !selectable
@@ -154,7 +154,7 @@ export function ItemCard({
       <div className="min-w-[150px] flex-1 basis-40">
         <div className="flex items-center gap-2">
           <span
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 border-content text-xs"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-line text-xs"
             style={{ backgroundColor: `${dotColor}33` }}
             title={item.category}
           >
@@ -187,7 +187,7 @@ export function ItemCard({
             <button
               onClick={() => changeQuantity(Math.max(0, item.quantity - useStep))}
               aria-label={`Decrease ${item.title} quantity`}
-              className="h-8 w-8 rounded-lg border-2 border-content font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
+              className="h-8 w-8 rounded-lg border border-line font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
             >
               −
             </button>
@@ -199,12 +199,12 @@ export function ItemCard({
                 const v = parseFloat(e.target.value);
                 if (!Number.isNaN(v)) qtyMutation.mutate(v);
               }}
-              className="h-8 w-16 rounded-lg border-2 border-content bg-surface-solid text-center text-sm font-bold text-content outline-none"
+              className="h-8 w-16 rounded-lg border border-line bg-surface-solid text-center text-sm font-bold text-content outline-none"
             />
             <button
               onClick={() => changeQuantity(item.quantity + useStep)}
               aria-label={`Increase ${item.title} quantity`}
-              className="h-8 w-8 rounded-lg border-2 border-content font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
+              className="h-8 w-8 rounded-lg border border-line font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
             >
               +
             </button>
@@ -237,7 +237,7 @@ export function ItemCard({
           <button
             onClick={() => setEditOpen(true)}
             aria-label={`Edit ${item.title}`}
-            className="h-9 w-9 flex items-center justify-center rounded-xl border-2 border-content text-content hover:bg-theme-200 cursor-pointer transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-xl border border-line text-content hover:bg-theme-200 cursor-pointer transition-colors"
           >
             <Pencil className="h-4 w-4" aria-hidden />
           </button>
@@ -246,7 +246,7 @@ export function ItemCard({
               deleteMutation.mutate();
             }}
             aria-label={`Delete ${item.title}`}
-            className="h-9 w-9 flex items-center justify-center rounded-xl border-2 border-content text-content hover:bg-red-400 hover:text-white cursor-pointer transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-xl border border-line text-content hover:bg-red-400 hover:text-white cursor-pointer transition-colors"
           >
             <Trash2 className="h-4 w-4" aria-hidden />
           </button>

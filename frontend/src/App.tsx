@@ -150,9 +150,9 @@ function App() {
     >
       {/* Left nav rail */}
       <aside className="sticky top-[max(1.5rem,env(safe-area-inset-top))] hidden h-[calc(100vh-3rem)] w-64 shrink-0 flex-col lg:flex 2xl:w-72 print:hidden">
-        <div className="glass flex flex-1 flex-col overflow-y-auto rounded-3xl p-3 shadow-[5px_5px_0_var(--line)]">
+        <div className="glass flex flex-1 flex-col overflow-y-auto rounded-3xl p-3 shadow-lg">
           <div className="mb-4 flex items-center gap-3 px-2 pt-2">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border-[3px] border-content bg-theme-400 text-2xl shadow-[3px_3px_0_var(--line)]">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-line bg-theme-400 text-2xl shadow-sm">
               🛒
             </div>
             <div className="leading-tight">
@@ -169,10 +169,10 @@ function App() {
                   key={item.value}
                   onClick={() => setActive(item.value)}
                   className={cn(
-                    "group relative flex items-center gap-3 rounded-2xl border-[3px] px-3 py-2.5 text-sm font-bold transition-all duration-150 cursor-pointer",
+                    "group relative flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-bold transition-all duration-150 cursor-pointer",
                     isActive
-                      ? "border-content text-white -translate-x-0.5 -translate-y-0.5 shadow-[3px_3px_0_var(--line)]"
-                      : "border-transparent text-muted hover:border-content hover:bg-surface"
+                      ? "border-line text-white shadow-sm"
+                      : "border-transparent text-muted hover:border-line hover:bg-surface"
                   )}
                   style={isActive ? { backgroundColor: item.accent } : undefined}
                 >
@@ -229,8 +229,8 @@ function App() {
                 key={item.value}
                 onClick={() => setActive(item.value)}
                 className={cn(
-                  "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border-[3px] border-content px-3 py-2 text-sm font-bold transition-all cursor-pointer",
-                  isActive ? "text-white shadow-[3px_3px_0_var(--line)]" : "bg-surface-solid text-content"
+                  "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-line px-3 py-2 text-sm font-bold transition-all cursor-pointer",
+                  isActive ? "text-white shadow-sm" : "bg-surface-solid text-content"
                 )}
                 style={isActive ? { backgroundColor: item.accent } : undefined}
               >
@@ -244,7 +244,7 @@ function App() {
         {/* Section header */}
         <div className="flex items-center gap-3 print:hidden">
           <span
-            className="flex h-10 w-10 items-center justify-center rounded-2xl border-[3px] border-content text-xl shadow-[3px_3px_0_var(--line)]"
+            className="flex h-10 w-10 items-center justify-center rounded-2xl border border-line text-xl shadow-sm"
             style={{ backgroundColor: `${activeItem?.accent}33` }}
           >
             {activeItem?.emoji ?? activeItem?.icon}
@@ -311,12 +311,12 @@ function OfflineBanner() {
     <div
       role="status"
       aria-live="polite"
-      className="flex items-center gap-2 rounded-2xl border-[3px] border-content bg-accent-200 px-4 py-2.5 text-sm font-bold text-content shadow-[4px_4px_0_var(--line)] print:hidden"
+      className="flex items-center gap-2 rounded-2xl border border-line bg-accent-200 px-4 py-2.5 text-sm font-bold text-content shadow-md print:hidden"
     >
       <CloudOff className="h-4 w-4 shrink-0" aria-hidden />
       {offline ? "You're offline — changes are saved and will sync when you reconnect." : "Back online — syncing your changes…"}
       {pending > 0 && (
-        <span className="ml-auto rounded-full border-2 border-content bg-surface-solid px-2 py-0.5 text-xs">
+        <span className="ml-auto rounded-full border border-line bg-surface-solid px-2 py-0.5 text-xs">
           {pending} pending
         </span>
       )}

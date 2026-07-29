@@ -17,12 +17,12 @@ export function Button({
 }) {
   const variants: Record<string, string> = {
     default:
-      "bg-theme-500 text-white border-[3px] border-content shadow-[4px_4px_0_var(--line)] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_var(--line)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none",
+      "bg-theme-500 text-white border border-line shadow-md hover:shadow-lg active:shadow-none",
     outline:
-      "bg-surface-solid text-content border-[3px] border-content shadow-[4px_4px_0_var(--line)] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_var(--line)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none",
-    ghost: "text-muted border-[3px] border-transparent hover:bg-surface hover:text-content",
+      "bg-surface-solid text-content border border-line shadow-md hover:shadow-lg active:shadow-none",
+    ghost: "text-muted border border-transparent hover:bg-surface hover:text-content",
     danger:
-      "bg-red-500 text-white border-[3px] border-content shadow-[4px_4px_0_var(--line)] hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_var(--line)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none",
+      "bg-red-500 text-white border border-line shadow-md hover:shadow-lg active:shadow-none",
   };
   const sizes: Record<string, string> = {
     sm: "h-8 px-3 text-sm",
@@ -50,8 +50,8 @@ export function Card({
   return (
     <div
       className={cn(
-        "glass rounded-2xl text-content shadow-[4px_4px_0_var(--line)] transition-all duration-150",
-        interactive && "card-hover cursor-pointer hover:shadow-[6px_6px_0_var(--line)]",
+        "glass rounded-2xl text-content shadow-md transition-all duration-150",
+        interactive && "card-hover cursor-pointer hover:shadow-lg",
         className
       )}
       {...props}
@@ -79,7 +79,7 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border-2 border-content px-2.5 py-1 text-xs font-bold shadow-[2px_2px_0_var(--line)]",
+        "inline-flex items-center gap-1 rounded-full border border-line px-2.5 py-1 text-xs font-bold shadow-sm",
         colors[color],
         className
       )}
@@ -92,7 +92,7 @@ export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInp
   return (
     <input
       className={cn(
-        "h-10 w-full rounded-xl border-[3px] border-content bg-surface-solid px-3 text-sm font-semibold text-content placeholder:text-subtle placeholder:font-normal outline-none transition-all focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[3px_3px_0_var(--line)]",
+        "h-10 w-full rounded-xl border border-line bg-surface-solid px-3 text-sm font-semibold text-content placeholder:text-subtle placeholder:font-normal outline-none transition-all focus:shadow-sm",
         className
       )}
       {...props}
@@ -107,7 +107,7 @@ export function Textarea({
   return (
     <textarea
       className={cn(
-        "w-full rounded-xl border-[3px] border-content bg-surface-solid px-3 py-2 text-sm font-semibold text-content placeholder:text-subtle placeholder:font-normal outline-none transition-all focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[3px_3px_0_var(--line)]",
+        "w-full rounded-xl border border-line bg-surface-solid px-3 py-2 text-sm font-semibold text-content placeholder:text-subtle placeholder:font-normal outline-none transition-all focus:shadow-sm",
         className
       )}
       {...props}
@@ -134,7 +134,7 @@ export function Checkbox({
   return (
     <CheckboxPrimitive.Root
       className={cn(
-        "h-5 w-5 shrink-0 rounded-md border-2 border-content bg-surface-solid data-[state=checked]:bg-theme-500 flex items-center justify-center transition-colors cursor-pointer",
+        "h-5 w-5 shrink-0 rounded-md border border-line bg-surface-solid data-[state=checked]:bg-theme-500 flex items-center justify-center transition-colors cursor-pointer",
         className
       )}
       {...props}
@@ -150,12 +150,12 @@ export function Switch({ className, ...props }: React.ComponentProps<typeof Swit
   return (
     <SwitchPrimitive.Root
       className={cn(
-        "w-10 h-6 rounded-full border-2 border-content bg-surface-solid data-[state=checked]:bg-theme-500 relative transition-colors cursor-pointer outline-none",
+        "w-10 h-6 rounded-full border border-line bg-surface-solid data-[state=checked]:bg-theme-500 relative transition-colors cursor-pointer outline-none",
         className
       )}
       {...props}
     >
-      <SwitchPrimitive.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full border-2 border-content bg-surface-solid transition-transform data-[state=checked]:translate-x-[17px] data-[state=checked]:bg-white" />
+      <SwitchPrimitive.Thumb className="block h-4 w-4 translate-x-0.5 rounded-full border border-line bg-surface-solid transition-transform data-[state=checked]:translate-x-[17px] data-[state=checked]:bg-white" />
     </SwitchPrimitive.Root>
   );
 }
@@ -177,7 +177,7 @@ export function Select({
     <SelectPrimitive.Root value={value} onValueChange={onValueChange}>
       <SelectPrimitive.Trigger
         className={cn(
-          "h-10 w-full inline-flex items-center justify-between gap-2 rounded-xl border-[3px] border-content bg-surface-solid px-3 text-sm font-semibold text-content outline-none cursor-pointer transition-all focus:-translate-x-0.5 focus:-translate-y-0.5 focus:shadow-[3px_3px_0_var(--line)]",
+          "h-10 w-full inline-flex items-center justify-between gap-2 rounded-xl border border-line bg-surface-solid px-3 text-sm font-semibold text-content outline-none cursor-pointer transition-all focus:shadow-sm",
           className
         )}
       >
@@ -187,7 +187,7 @@ export function Select({
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal>
-        <SelectPrimitive.Content className="overflow-hidden rounded-xl border-[3px] border-content bg-surface-solid text-content shadow-[6px_6px_0_var(--line)] z-50">
+        <SelectPrimitive.Content className="overflow-hidden rounded-xl border border-line bg-surface-solid text-content shadow-lg z-50">
           <SelectPrimitive.Viewport className="p-1">
             {options.map((opt) => (
               <SelectPrimitive.Item
@@ -215,7 +215,7 @@ export function EmptyState({
   description?: string;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border-[3px] border-dashed border-content bg-surface-solid py-12 text-center">
+    <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-line bg-surface-solid py-12 text-center">
       {icon && <div className="text-3xl mb-1 opacity-70">{icon}</div>}
       <p className="font-bold text-content">{title}</p>
       {description && <p className="text-sm text-muted max-w-sm">{description}</p>}

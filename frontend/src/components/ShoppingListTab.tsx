@@ -144,7 +144,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
       </div>
 
       {checked.length > 0 && (
-        <details className="rounded-2xl border-[3px] border-content bg-surface-solid p-3 print:hidden">
+        <details className="rounded-2xl border border-line bg-surface-solid p-3 print:hidden">
           <summary className="cursor-pointer text-sm font-bold text-muted">
             ✅ Checked off ({checked.length})
           </summary>

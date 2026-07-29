@@ -123,11 +123,11 @@ export function MealPlannerTab() {
 
   return (
     <div className="space-y-4">
-      <div className="glass flex flex-wrap items-center gap-3 rounded-2xl p-3 shadow-[4px_4px_0_var(--line)] print:hidden">
+      <div className="glass flex flex-wrap items-center gap-3 rounded-2xl p-3 shadow-md print:hidden">
         <button
           onClick={() => setWeekStart((d) => addDays(d, -7))}
           aria-label="Previous week"
-          className="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-content hover:bg-theme-200 cursor-pointer"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-line hover:bg-theme-200 cursor-pointer"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden />
         </button>
@@ -137,7 +137,7 @@ export function MealPlannerTab() {
         <button
           onClick={() => setWeekStart((d) => addDays(d, 7))}
           aria-label="Next week"
-          className="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-content hover:bg-theme-200 cursor-pointer"
+          className="flex h-8 w-8 items-center justify-center rounded-lg border border-line hover:bg-theme-200 cursor-pointer"
         >
           <ChevronRight className="h-4 w-4" aria-hidden />
         </button>
@@ -173,7 +173,7 @@ export function MealPlannerTab() {
           return (
             <Card
               key={dateStr}
-              className={cn("p-3", isToday && "border-theme-500 shadow-[4px_4px_0_var(--color-theme-500)]")}
+              className={cn("p-3", isToday && "border-theme-500 shadow-md")}
             >
               <p className="font-display text-sm text-content">{format(day, "EEEE")}</p>
               <p className="mb-2 text-xs text-subtle">{format(day, "MMM d")}</p>
@@ -201,7 +201,7 @@ export function MealPlannerTab() {
                               }
                             }}
                             className={cn(
-                              "group flex w-full items-center justify-between gap-2 rounded-lg border-2 border-content bg-surface-solid px-2 py-1 text-left text-xs font-semibold text-content hover:bg-theme-200 cursor-pointer",
+                              "group flex w-full items-center justify-between gap-2 rounded-lg border border-line bg-surface-solid px-2 py-1 text-left text-xs font-semibold text-content hover:bg-theme-200 cursor-pointer",
                               e.done && "opacity-70"
                             )}
                           >
@@ -221,7 +221,7 @@ export function MealPlannerTab() {
                         ))}
                         <button
                           onClick={() => setEditing({ date: dateStr, slot: slot.value })}
-                          className="flex w-full items-center justify-center gap-1 rounded-lg border-2 border-dashed border-content/40 py-1 text-[10px] font-semibold text-subtle hover:border-content hover:text-content cursor-pointer print:hidden"
+                          className="flex w-full items-center justify-center gap-1 rounded-lg border-2 border-dashed border-line/40 py-1 text-[10px] font-semibold text-subtle hover:border-line hover:text-content cursor-pointer print:hidden"
                         >
                           <Plus className="h-3 w-3" /> Add
                         </button>

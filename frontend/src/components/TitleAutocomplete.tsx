@@ -78,7 +78,7 @@ export function TitleAutocomplete({
         }}
       />
       {showList && (
-        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-56 overflow-y-auto rounded-xl border-[3px] border-content bg-surface-solid shadow-[4px_4px_0_var(--line)]">
+        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-56 overflow-y-auto rounded-xl border border-line bg-surface-solid shadow-md">
           {suggestions!.map((s) => (
             <button
               key={`${s.title}-${s.category}`}

@@ -118,7 +118,7 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
 
   return (
     <div className="space-y-5">
-      <div className="glass flex flex-col gap-3 rounded-2xl p-4 shadow-[4px_4px_0_var(--line)] sm:flex-row sm:items-center">
+      <div className="glass flex flex-col gap-3 rounded-2xl p-4 shadow-md sm:flex-row sm:items-center">
         <div className="relative sm:max-w-xs sm:flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
           <Input
@@ -148,7 +148,7 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
       </div>
 
       {selectMode && (
-        <div className="glass flex flex-wrap items-center gap-3 rounded-2xl p-3 shadow-[4px_4px_0_var(--line)]">
+        <div className="glass flex flex-wrap items-center gap-3 rounded-2xl p-3 shadow-md">
           <span className="text-sm font-bold text-content">
             {selectedIds.size} selected
           </span>

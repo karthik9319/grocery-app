@@ -30,7 +30,7 @@ export function Header({ meta }: { meta: Meta }) {
   return (
     <div className="space-y-6">
       {/* Hero */}
-      <div className="relative overflow-hidden rounded-3xl border-[3px] border-content bg-theme-200 px-8 py-8 shadow-[8px_8px_0_var(--line)]">
+      <div className="relative overflow-hidden rounded-3xl border border-line bg-theme-200 px-8 py-8 shadow-xl">
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.15]"
           style={{
@@ -41,7 +41,7 @@ export function Header({ meta }: { meta: Meta }) {
           aria-hidden
         />
         <div className="relative flex items-center gap-5">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border-[3px] border-content bg-surface-solid text-4xl shadow-[4px_4px_0_var(--line)]">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-line bg-surface-solid text-4xl shadow-md">
             🛒
           </div>
           <div>
@@ -65,14 +65,14 @@ export function Header({ meta }: { meta: Meta }) {
       {/* Metrics */}
       <div className="flex flex-wrap gap-4">
         <Card interactive className="min-w-[150px] flex-1 p-4">
-          <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl border-2 border-content bg-theme-200 text-lg">
+          <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-theme-200 text-lg">
             📦
           </div>
           <p className="text-xs font-bold text-muted">Total Items</p>
           <p className="mt-0.5 text-2xl font-display text-content">{summary?.total_rows ?? "–"}</p>
         </Card>
         <Card interactive className="min-w-[150px] flex-1 p-4">
-          <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl border-2 border-content bg-veg-200 text-lg">
+          <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-veg-200 text-lg">
             ⚠️
           </div>
           <p className="text-xs font-bold text-muted">Low Stock</p>
@@ -83,7 +83,7 @@ export function Header({ meta }: { meta: Meta }) {
         {meta.categories.map((cat) => (
           <Card key={cat} interactive className="min-w-[150px] flex-1 p-4">
             <div
-              className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl border-2 border-content text-lg"
+              className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl border border-line text-lg"
               style={{ backgroundColor: `${meta.palette[cat]}55` }}
             >
               {meta.icons[cat]}
@@ -106,13 +106,13 @@ export function Header({ meta }: { meta: Meta }) {
             {favorites.map((fav) => (
               <div
                 key={fav.id}
-                className="glass card-hover group flex items-center gap-1 rounded-full pl-1 pr-1.5 py-1 shadow-[3px_3px_0_var(--line)] hover:shadow-[4px_4px_0_var(--line)]"
+                className="glass card-hover group flex items-center gap-1 rounded-full pl-1 pr-1.5 py-1 shadow-sm hover:shadow-md"
               >
                 <button
                   onClick={() => quickAdd.mutate(fav.id)}
                   className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-bold text-content cursor-pointer"
                 >
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full border-2 border-content bg-brand-400 text-xs text-white">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full border border-line bg-brand-400 text-xs text-white">
                     +
                   </span>
                   {meta.icons[fav.category]} {fav.title}
