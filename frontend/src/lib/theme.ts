@@ -18,7 +18,17 @@ export function setTheme(mode: ThemeMode) {
   applyTheme(mode);
 }
 
-export type ColorTheme = "forest" | "ocean" | "sunset" | "grape" | "punk";
+export type ColorTheme =
+  | "forest"
+  | "ocean"
+  | "sunset"
+  | "grape"
+  | "punk"
+  | "teal"
+  | "rose"
+  | "amber"
+  | "indigo"
+  | "slate";
 
 export const COLOR_THEMES: { value: ColorTheme; label: string; swatch: string }[] = [
   { value: "forest", label: "Forest", swatch: "#1b7a4d" },
@@ -26,6 +36,11 @@ export const COLOR_THEMES: { value: ColorTheme; label: string; swatch: string }[
   { value: "sunset", label: "Sunset", swatch: "#e4572e" },
   { value: "grape", label: "Grape", swatch: "#8e44ad" },
   { value: "punk", label: "Punk", swatch: "#d7263d" },
+  { value: "teal", label: "Teal", swatch: "#0d9488" },
+  { value: "rose", label: "Rose", swatch: "#e11d48" },
+  { value: "amber", label: "Amber", swatch: "#d97706" },
+  { value: "indigo", label: "Indigo", swatch: "#4f46e5" },
+  { value: "slate", label: "Slate", swatch: "#475569" },
 ];
 
 const COLOR_THEME_KEY = "colorTheme";

@@ -549,8 +549,10 @@ def lookup_barcode(code: str):
     title) when the barcode is unknown - the UI then just lets the user type it manually."""
     name = barcode_lookup.lookup_product_name(code)
     if not name:
-        return {"found": False, "title": "", "category": CATEGORIES[0]}
-    return {"found": True, "title": name, "category": guess_category(name)}
+        return {"found": False, "title": "", "category": CATEGORIES[0], "expiration_date": None}
+    category = guess_category(name)
+    exp = (date.today() + timedelta(days=estimate_shelf_life_days(name, category))).isoformat()
+    return {"found": True, "title": name, "category": category, "expiration_date": exp}
 
 
 
@@ -615,10 +617,18 @@ def create_item(
             existing.get("custom_threshold"),
             expiration_date or existing.get("expiration_date"),
         )
+        inventory.log_usage_event(
+            existing["id"], existing["title"], existing["category"], "restock", quantity, new_total
+        )
         return {"status": "merged", "id": existing["id"], "quantity": new_total}
 
     image_path = save_upload(image) if image is not None else auto_fetch_image(title)
     inventory.add_item(title, category, quantity, image_path, notes, custom_threshold, expiration_date)
+    created = inventory.find_item_by_title(title, category)
+    if created:
+        inventory.log_usage_event(
+            created["id"], created["title"], created["category"], "add", quantity, created["quantity"]
+        )
     retrain_classifier()
     return {"status": "added"}
 
@@ -682,7 +692,15 @@ def update_item(
 
 @app.patch("/api/items/{item_id}/quantity")
 def patch_quantity(item_id: int, quantity: float = Form(...)):
+    old = inventory.get_item(item_id)
     inventory.update_quantity(item_id, quantity)
+    if old:
+        delta = quantity - float(old["quantity"])
+        if delta != 0:
+            inventory.log_usage_event(
+                item_id, old["title"], old["category"],
+                "consume" if delta < 0 else "restock", delta, quantity,
+            )
     return {"status": "ok"}
 
 
@@ -692,6 +710,9 @@ def use_item(item_id: int, amount: float = Form(1)):
         inventory.move_to_in_use(item_id, amount)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+    it = inventory.get_item(item_id)
+    if it:
+        inventory.log_usage_event(item_id, it["title"], it["category"], "use", amount, it["quantity"])
     return {"status": "ok"}
 
 
@@ -701,7 +722,36 @@ def return_item(item_id: int, amount: float = Form(1)):
         inventory.move_from_in_use(item_id, amount)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+    it = inventory.get_item(item_id)
+    if it:
+        inventory.log_usage_event(item_id, it["title"], it["category"], "return", amount, it["quantity"])
     return {"status": "ok"}
+
+
+@app.get("/api/items/{item_id}/history")
+def item_history(item_id: int):
+    return inventory.get_usage_events(item_id)
+
+
+@app.get("/api/insights/predictions")
+def usage_predictions():
+    """Run-out predictions from real consumption history: for each item with enough
+    history, days-until-empty = current on-hand total / average daily consumption. Only
+    confident estimates are returned, soonest-first."""
+    all_items = [item for cat in CATEGORIES for item in inventory.get_items_by_category(cat)]
+    results = []
+    for item in all_items:
+        rate = inventory.get_consumption_rate(item["id"])
+        if not rate or rate["rate_per_day"] <= 0:
+            continue
+        on_hand = float(item["quantity"]) + float(item.get("in_use_quantity") or 0)
+        results.append({
+            "item": item,
+            "days_left": round(on_hand / rate["rate_per_day"], 1),
+            "rate_per_day": rate["rate_per_day"],
+        })
+    results.sort(key=lambda r: r["days_left"])
+    return results
 
 
 @app.delete("/api/items/{item_id}")
@@ -715,6 +765,10 @@ def remove_item(item_id: int):
     for photo in deleted_photos:
         _remove_image_file(photo["image_path"])
     write_backup([deleted], "delete-item")
+    inventory.log_usage_event(
+        item_id, deleted["title"], deleted["category"], "remove",
+        float(deleted["quantity"]) + float(deleted.get("in_use_quantity") or 0), 0,
+    )
     return deleted
 
 
@@ -904,10 +958,20 @@ def quick_add_favorite(favorite_id: int):
     if existing:
         new_qty = existing["quantity"] + fav["default_quantity"]
         inventory.update_quantity(existing["id"], new_qty)
+        inventory.log_usage_event(
+            existing["id"], existing["title"], existing["category"], "restock",
+            fav["default_quantity"], new_qty,
+        )
     else:
         inventory.add_item(
             fav["title"], fav["category"], fav["default_quantity"], auto_fetch_image(fav["title"])
         )
+        created = inventory.find_item_by_title(fav["title"], fav["category"])
+        if created:
+            inventory.log_usage_event(
+                created["id"], created["title"], created["category"], "add",
+                fav["default_quantity"], created["quantity"],
+            )
     return {"status": "ok"}
 
 
@@ -1053,8 +1117,17 @@ async def scan_receipt(image: UploadFile = File(...)):
             quantity = c["weight_grams"] if c["weight_grams"] is not None else 500
         else:
             quantity = c["quantity"] if c["quantity"] is not None else 1
+        expiration_date = (
+            date.today() + timedelta(days=estimate_shelf_life_days(title, category))
+        ).isoformat()
         results.append(
-            {"title": title, "category": category, "quantity": quantity, "price": c.get("price")}
+            {
+                "title": title,
+                "category": category,
+                "quantity": quantity,
+                "price": c.get("price"),
+                "expiration_date": expiration_date,
+            }
         )
     return {"candidates": results}
 

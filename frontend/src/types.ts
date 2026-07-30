@@ -63,6 +63,24 @@ export interface ReceiptCandidate {
   category: string;
   quantity: number;
   price: number | null;
+  expiration_date: string | null;
+}
+
+export interface UsageEvent {
+  id: number;
+  item_id: number | null;
+  title: string;
+  category: string | null;
+  event_type: string;
+  amount: number;
+  quantity_after: number | null;
+  created_at: string;
+}
+
+export interface Prediction {
+  item: Item;
+  days_left: number;
+  rate_per_day: number;
 }
 
 export interface Purchase {

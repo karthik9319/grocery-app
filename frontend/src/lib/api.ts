@@ -28,6 +28,7 @@ import type {
   MealPlanEntry,
   MealSlot,
   Meta,
+  Prediction,
   Purchase,
   QuickAddItem,
   ReceiptCandidate,
@@ -38,6 +39,7 @@ import type {
   Summary,
   SearchResults,
   TunnelStatus,
+  UsageEvent,
 } from "@/types";
 
 // A stalled mobile connection (e.g. through a Cloudflare Tunnel on a flaky 5G signal)
@@ -125,7 +127,7 @@ export const api = {
     client.get<SearchResults>('/search', { params: { q } }).then((r) => r.data),
 
   lookupBarcode: (code: string) =>
-    client.get<{ found: boolean; title: string; category: string }>(
+    client.get<{ found: boolean; title: string; category: string; expiration_date: string | null }>(
       `/barcode/${encodeURIComponent(code)}`
     ).then((r) => r.data),
 
@@ -364,4 +366,8 @@ export const api = {
     client.get<Purchase[]>("/purchases", { params: limit ? { limit } : {} }).then((r) => r.data),
   lastPrice: (title: string) =>
     client.get<{ unit_price: number | null }>("/purchases/last-price", { params: { title } }).then((r) => r.data),
+
+  itemHistory: (itemId: number) =>
+    client.get<UsageEvent[]>(`/items/${itemId}/history`).then((r) => r.data),
+  predictions: () => client.get<Prediction[]>("/insights/predictions").then((r) => r.data),
 };

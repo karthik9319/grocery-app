@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Camera, FileSpreadsheet, Loader2, Mic, ScanBarcode, Sparkles, Upload, X } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Meta, QuickAddItem } from "@/types";
-import { compressImageFile, titleCase } from "@/lib/utils";
+import { compressImageFile, formatMoney, titleCase } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/Tabs";
 import { Button, Card, Checkbox, Input, Select } from "@/components/ui";
 import { TitleAutocomplete } from "@/components/TitleAutocomplete";
@@ -120,6 +120,8 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
           category,
           unit: isWeight ? "g" : "count",
           quantity: isWeight ? 500 : 1,
+          trackExpiry: !!result.expiration_date,
+          expiryDate: result.expiration_date ?? todayPlus(14),
         },
       ]);
       if (result.found) {
@@ -362,7 +364,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [candidates, setCandidates] = useState<
-    { title: string; category: string; quantity: number; price: number | null }[]
+    { title: string; category: string; quantity: number; price: number | null; expiration_date: string | null }[]
   >([]);
 
   async function scan() {
@@ -379,6 +381,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
           category: c.category,
           quantity: c.quantity,
           price: c.price,
+          expiration_date: c.expiration_date,
         }))
       );
     } catch {
@@ -403,6 +406,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
         category: c.category,
         quantity: c.quantity,
         price: c.price,
+        expiration_date: c.expiration_date,
       });
       if (c.price) spent += c.price;
       if (result.status === "merged") merged++;
@@ -414,7 +418,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
     queryClient.invalidateQueries({ queryKey: ["items"] });
     queryClient.invalidateQueries({ queryKey: ["summary"] });
     queryClient.invalidateQueries({ queryKey: ["purchases"] });
-    const spentNote = spent > 0 ? `, $${spent.toFixed(2)} logged` : "";
+    const spentNote = spent > 0 ? `, ${formatMoney(spent)} logged` : "";
     toast.success(`Receipt: added ${added}, merged ${merged}, skipped ${skipped}${spentNote}`, {
       icon: "🧾",
     });
@@ -504,7 +508,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
               />
               <div className="relative w-24">
                 <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-sm text-subtle">
-                  $
+                  ₹
                 </span>
                 <Input
                   type="number"

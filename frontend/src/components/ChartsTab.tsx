@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import { api } from "@/lib/api";
 import type { Meta } from "@/types";
+import { formatMoney } from "@/lib/utils";
 import { Card, Select } from "@/components/ui";
 
 export function ChartsTab({ meta }: { meta: Meta }) {
@@ -48,7 +49,7 @@ export function ChartsTab({ meta }: { meta: Meta }) {
           <div className="mb-3 flex items-baseline justify-between">
             <h3 className="font-semibold text-content">💰 Spending</h3>
             <span className="font-display text-lg text-content">
-              ${spend.total_spend.toFixed(2)} <span className="text-xs text-subtle">total</span>
+              {formatMoney(spend.total_spend)} <span className="text-xs text-subtle">total</span>
             </span>
           </div>
           {spend.spend_over_time.length > 0 && (
@@ -56,8 +57,8 @@ export function ChartsTab({ meta }: { meta: Meta }) {
               <BarChart data={spend.spend_over_time}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
                 <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} label={{ value: "Spend ($)", angle: -90, position: "insideLeft", fontSize: 12 }} />
-                <Tooltip formatter={(v) => `$${Number(v).toFixed(2)}`} />
+                <YAxis tick={{ fontSize: 12 }} label={{ value: "Spend (₹)", angle: -90, position: "insideLeft", fontSize: 12 }} />
+                <Tooltip formatter={(v) => formatMoney(Number(v))} />
                 <Bar dataKey="total" fill="#1B7A4D" radius={[2, 2, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -70,7 +71,7 @@ export function ChartsTab({ meta }: { meta: Meta }) {
                   <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
                   <XAxis type="number" tick={{ fontSize: 12 }} />
                   <YAxis type="category" dataKey="title" tick={{ fontSize: 12 }} width={110} />
-                  <Tooltip formatter={(v) => `$${Number(v).toFixed(2)}`} />
+                  <Tooltip formatter={(v) => formatMoney(Number(v))} />
                   <Bar dataKey="total" fill="#6C63FF" radius={[0, 2, 2, 0]} />
                 </BarChart>
               </ResponsiveContainer>

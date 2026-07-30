@@ -53,7 +53,7 @@ export function ThemeToggle() {
           );
         })}
       </div>
-      <div className="flex items-center gap-1.5 rounded-xl border border-line bg-surface-solid px-2 py-1.5">
+      <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-line bg-surface-solid px-2 py-1.5">
         {COLOR_THEMES.map((t) => {
           const active = color === t.value;
           return (

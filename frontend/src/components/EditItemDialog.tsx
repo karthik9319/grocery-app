@@ -44,6 +44,11 @@ export function EditItemDialog({
     queryFn: () => api.itemPhotos(item.id),
     enabled: open,
   });
+  const historyQuery = useQuery({
+    queryKey: ["item-history", item.id],
+    queryFn: () => api.itemHistory(item.id),
+    enabled: open,
+  });
 
   const addAliasMutation = useMutation({
     mutationFn: (alias: string) => api.addItemAlias(item.id, alias),
@@ -305,6 +310,38 @@ export function EditItemDialog({
               }}
               className="block w-full text-sm text-muted file:mr-3 file:cursor-pointer file:rounded-lg file:border-2 file:border-line file:bg-theme-400 file:px-3 file:py-1.5 file:text-white file:font-bold"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label>History</Label>
+            <div className="max-h-44 space-y-1 overflow-y-auto rounded-xl border-2 border-line p-2">
+              {(historyQuery.data ?? []).map((ev) => {
+                const label =
+                  {
+                    add: "Added",
+                    restock: "Restocked",
+                    consume: "Used",
+                    use: "In use",
+                    return: "Returned",
+                    remove: "Removed",
+                  }[ev.event_type] ?? ev.event_type;
+                const sign = ["consume", "remove"].includes(ev.event_type) ? "-" : "+";
+                return (
+                  <div key={ev.id} className="flex items-center justify-between text-xs">
+                    <span className="font-medium">{label}</span>
+                    <span className="text-subtle">
+                      {sign}
+                      {ev.amount}
+                      {ev.quantity_after != null ? ` \u2192 ${ev.quantity_after}` : ""} \u00b7{" "}
+                      {new Date(ev.created_at).toLocaleDateString()}
+                    </span>
+                  </div>
+                );
+              })}
+              {(historyQuery.data ?? []).length === 0 && (
+                <span className="text-xs text-subtle">No activity recorded yet.</span>
+              )}
+            </div>
           </div>
 
           <div className="flex gap-2 pt-2">

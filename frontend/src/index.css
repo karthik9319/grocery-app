@@ -123,6 +123,41 @@
   --theme-500: #d7263d;
   --theme-600: #a81d30;
 }
+[data-theme="teal"] {
+  --theme-50: #eafaf7;
+  --theme-200: #a7e8dc;
+  --theme-400: #2dbfa6;
+  --theme-500: #0d9488;
+  --theme-600: #0a766c;
+}
+[data-theme="rose"] {
+  --theme-50: #ffecf0;
+  --theme-200: #fbc2cf;
+  --theme-400: #f2637f;
+  --theme-500: #e11d48;
+  --theme-600: #b3163a;
+}
+[data-theme="amber"] {
+  --theme-50: #fff6e8;
+  --theme-200: #fbdca0;
+  --theme-400: #f0ad3c;
+  --theme-500: #d97706;
+  --theme-600: #ad5f05;
+}
+[data-theme="indigo"] {
+  --theme-50: #eeeefc;
+  --theme-200: #c3c4f2;
+  --theme-400: #7a7ce6;
+  --theme-500: #4f46e5;
+  --theme-600: #3d37b8;
+}
+[data-theme="slate"] {
+  --theme-50: #eef1f5;
+  --theme-200: #c2ccd8;
+  --theme-400: #6b7c91;
+  --theme-500: #475569;
+  --theme-600: #374151;
+}
 
 /* ---------- Dark (Neo-Pop) theme ---------- */
 .dark {

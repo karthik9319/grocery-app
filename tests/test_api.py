@@ -107,3 +107,39 @@ def test_price_capture_records_purchase(client):
     summary = client.get("/api/purchases/summary").json()
     assert summary["total_spend"] == 4.50
     assert any(row["title"] == "Cheese" for row in summary["spend_by_item"])
+
+
+def test_usage_events_logged_and_history(client):
+    _add_item(client, "Milk", quantity=5)
+    item = client.get("/api/items").json()[0]
+    # adding logs an 'add' event
+    hist = client.get(f"/api/items/{item['id']}/history").json()
+    assert any(e["event_type"] == "add" for e in hist)
+    # decreasing quantity logs a 'consume' event
+    client.patch(f"/api/items/{item['id']}/quantity", data={"quantity": 3})
+    hist = client.get(f"/api/items/{item['id']}/history").json()
+    assert any(e["event_type"] == "consume" for e in hist)
+
+
+def test_predictions_from_history(client):
+    import datetime as dt
+
+    import inventory
+
+    _add_item(client, "Milk", quantity=10)
+    item = client.get("/api/items").json()[0]
+    with inventory.get_connection() as conn:
+        for days_ago, after in ((4, 8), (0, 6)):
+            conn.execute(
+                "INSERT INTO usage_events (item_id, title, category, event_type, amount, "
+                "quantity_after, created_at) VALUES (?, ?, ?, 'consume', -2, ?, ?)",
+                (item["id"], "Milk", "Groceries", after,
+                 (dt.datetime.now() - dt.timedelta(days=days_ago)).isoformat()),
+            )
+        conn.commit()
+    preds = client.get("/api/insights/predictions").json()
+    milk = next((p for p in preds if p["item"]["title"] == "Milk"), None)
+    assert milk is not None
+    assert milk["rate_per_day"] == 1.0  # 4 consumed over 4 days
+    assert milk["days_left"] == 10.0  # 10 on hand / 1 per day
+

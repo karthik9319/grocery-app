@@ -17,6 +17,17 @@ export function formatQuantity(quantity: number, unit: string): string {
   return Number.isInteger(quantity) ? String(quantity) : String(quantity);
 }
 
+const moneyFormatter = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 2,
+});
+
+/** Format a number as Indian Rupees, e.g. 1234.5 -> "₹1,234.50". */
+export function formatMoney(amount: number): string {
+  return moneyFormatter.format(amount || 0);
+}
+
 export function daysUntil(dateStr: string | null): number | null {
   if (!dateStr) return null;
   const target = new Date(dateStr + "T00:00:00");

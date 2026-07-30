@@ -107,6 +107,20 @@ def init_db() -> None:
             """
         )
         conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS usage_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id INTEGER,
+                title TEXT NOT NULL,
+                category TEXT,
+                event_type TEXT NOT NULL,
+                amount REAL NOT NULL DEFAULT 0,
+                quantity_after REAL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
             "INSERT OR IGNORE INTO settings (id, count_threshold, weight_threshold) "
             "VALUES (1, 2, 200)"
         )
@@ -920,4 +934,94 @@ def get_total_spend():
     with get_connection() as conn:
         row = conn.execute("SELECT COALESCE(SUM(total_price), 0) AS total FROM purchases").fetchone()
         return round(row["total"], 2)
+
+
+# --- Usage / consumption history ---
+def get_item(item_id: int):
+    """Fetch a single item row by id, or None."""
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+        return dict(row) if row else None
+
+
+def log_usage_event(
+    item_id: Optional[int],
+    title: str,
+    category: Optional[str],
+    event_type: str,
+    amount: float,
+    quantity_after: Optional[float] = None,
+) -> None:
+    """Append an event to the usage/consumption history (add/restock/consume/use/return/
+    remove). Powers per-item history + run-out prediction + waste insights. Never raises -
+    a logging hiccup must not break the actual inventory action."""
+    try:
+        with get_connection() as conn:
+            conn.execute(
+                "INSERT INTO usage_events (item_id, title, category, event_type, amount, "
+                "quantity_after, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    item_id,
+                    (title or "").strip(),
+                    category,
+                    event_type,
+                    amount,
+                    quantity_after,
+                    datetime.now().isoformat(),
+                ),
+            )
+            conn.commit()
+    except Exception:
+        pass
+
+
+def get_usage_events(item_id: Optional[int] = None, limit: int = 50):
+    with get_connection() as conn:
+        if item_id is not None:
+            rows = conn.execute(
+                "SELECT * FROM usage_events WHERE item_id = ? ORDER BY created_at DESC LIMIT ?",
+                (item_id, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM usage_events ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def get_consumption_rate(item_id: int):
+    """Estimate an item's average daily consumption from its history. Consumption = the
+    amount that actually LEFT stock ('consume' quantity decrements + 'remove' deletions);
+    moving to in-use ('use') is a signal but not a depletion, so it's excluded. Returns
+    {rate_per_day, consumed, span_days, events} or None when there isn't enough data to
+    be meaningful (needs >=2 consumption events spanning a real time window)."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT amount, created_at FROM usage_events "
+            "WHERE item_id = ? AND event_type IN ('consume', 'remove') ORDER BY created_at ASC",
+            (item_id,),
+        ).fetchall()
+    if len(rows) < 2:
+        return None
+    consumed = sum(abs(float(r["amount"])) for r in rows)
+    if consumed <= 0:
+        return None
+    try:
+        first = datetime.fromisoformat(rows[0]["created_at"])
+        last = datetime.fromisoformat(rows[-1]["created_at"])
+    except ValueError:
+        return None
+    span_days = (last - first).total_seconds() / 86400
+    if span_days < 0.25:  # too short a window to extrapolate honestly
+        return None
+    rate = consumed / span_days
+    if rate <= 0:
+        return None
+    return {
+        "rate_per_day": round(rate, 3),
+        "consumed": round(consumed, 2),
+        "span_days": round(span_days, 2),
+        "events": len(rows),
+    }
+
 
