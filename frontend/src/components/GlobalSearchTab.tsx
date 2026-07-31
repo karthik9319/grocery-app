@@ -84,7 +84,7 @@ export function GlobalSearchTab({ meta }: { meta: Meta }) {
           <h3 className="font-display text-sm text-content">
             Inventory <span className="text-subtle">({sortedItems.length})</span>
           </h3>
-          <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {visibleItems.map((item) => (
               <ItemCard
                 key={item.id}

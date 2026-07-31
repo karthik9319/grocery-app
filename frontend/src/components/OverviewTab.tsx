@@ -1,21 +1,15 @@
-import { useId, useMemo } from "react";
+import { useEffect, useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle,
-  CalendarClock,
   Camera,
-  ChevronRight,
-  FileText,
-  PackageOpen,
   Receipt,
   ShoppingBag,
   Sparkles,
-  TrendingUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { Item, Meta } from "@/types";
-import { formatMoney, formatQuantity, imageUrl } from "@/lib/utils";
+import { cn, formatMoney, formatQuantity, imageUrl } from "@/lib/utils";
 import { Spinner } from "@/components/ui";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -60,21 +54,6 @@ export function OverviewTab({
       toast.success(`Added ${res.added} low-stock item(s) to the shopping list`, { icon: "🛍️" });
     },
   });
-
-  const donut = useMemo(() => {
-    const cats = meta.categories;
-    const total = cats.reduce((s, c) => s + (counts?.[c] ?? 0), 0) || 1;
-    let acc = 0;
-    const stops = cats
-      .filter((c) => (counts?.[c] ?? 0) > 0)
-      .map((c) => {
-        const start = (acc / total) * 100;
-        acc += counts?.[c] ?? 0;
-        const end = (acc / total) * 100;
-        return `${meta.palette[c]} ${start}% ${end}%`;
-      });
-    return { total, background: stops.length ? `conic-gradient(${stops.join(", ")})` : "var(--line)" };
-  }, [counts, meta]);
 
   if (!summary || !items) {
     return (
@@ -146,93 +125,69 @@ export function OverviewTab({
     })
     .slice(0, 8);
 
-  const card = "rounded-2xl border border-black/10 bg-surface-solid p-4 shadow-sm dark:border-white/10";
-
-  const catSegments = meta.categories.map((c) => ({ color: meta.palette[c], value: counts?.[c] ?? 0 }));
+  const card = "rounded-2xl border border-line bg-surface-solid shadow-sm";
+  const label = "text-[11px] font-semibold uppercase tracking-[0.12em] text-subtle";
   const spendPoints = spendSeries.map((s) => s.total);
+  const catCount = meta.categories.filter((c) => (counts?.[c] ?? 0) > 0).length;
 
   return (
     <div className="space-y-5">
-      {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Total items" value={String(totalItems)} hint="in your pantry" icon={<PackageOpen className="h-4 w-4" />} footer={<StackBar segments={catSegments} />} />
-        <Kpi label="Low stock" value={String(lowCount)} hint={lowCount ? "needs restock" : "all good"} tone="#E8792B" icon={<AlertTriangle className="h-4 w-4" />} footer={<MiniBar pct={totalItems ? (lowCount / totalItems) * 100 : 0} color="#E8792B" />} />
-        <Kpi label="Expiring ≤3d" value={String(expiringCount)} hint={expiringCount ? "use soon" : "nothing soon"} tone="#FB7185" icon={<CalendarClock className="h-4 w-4" />} footer={<MiniBar pct={totalItems ? (expiringCount / totalItems) * 100 : 0} color="#FB7185" />} />
-        <Kpi label="Spent (logged)" value={formatMoney(totalSpend)} hint="from receipts" icon={<TrendingUp className="h-4 w-4" />} footer={spendPoints.length > 1 ? <AreaChart data={spendPoints} color="var(--theme-500)" className="h-7 w-full" /> : <MiniBar pct={totalSpend > 0 ? 100 : 0} color="var(--theme-500)" />} />
-      </div>
-
-      {/* Analytics row */}
-      <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr_1fr]">
-        {/* Spend chart */}
-        <div className={card}>
-          <div className="mb-3 flex items-baseline justify-between">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-subtle">Spend by month</p>
-            <p className="font-display text-lg font-bold text-content">{formatMoney(totalSpend)}</p>
+      {/* Hero stats */}
+      <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+        <div className={cn(card, "p-7")}>
+          <p className={label}>Spent this month</p>
+          <div className="mt-2 flex items-end gap-3">
+            <span className="font-display text-[42px] font-semibold leading-none tabular-nums text-content">
+              <CountUp value={totalSpend} format={formatMoney} />
+            </span>
           </div>
           {spendSeries.length > 0 ? (
-            <div>
-              <AreaChart data={spendSeries.map((s) => s.total)} color="var(--theme-500)" className="h-28 w-full" />
-              <div className="mt-1 flex justify-between">
+            <>
+              <AreaChart data={spendPoints} color="var(--theme-500)" className="mt-5 h-24 w-full" animate />
+              <div className="mt-2 flex justify-between text-[12px] text-subtle">
                 {spendSeries.map((s) => (
-                  <span key={s.month} className="text-[10px] text-subtle">
-                    {monthLabel(s.month)}
-                  </span>
+                  <span key={s.month}>{monthLabel(s.month)}</span>
                 ))}
               </div>
-            </div>
+            </>
           ) : (
-            <div className="flex h-28 items-center justify-center text-center text-xs text-subtle">
-              No spend logged yet — add prices when scanning a receipt to see this.
-            </div>
+            <p className="mt-6 text-sm text-muted">No spend logged yet — add prices when scanning a receipt to see this.</p>
           )}
         </div>
 
-        {/* Category donut */}
-        <div className={card}>
-          <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-subtle">Items by category</p>
-          <div className="flex items-center gap-3">
-            <div className="grid h-20 w-20 place-items-center rounded-full" style={{ background: donut.background }}>
-              <div className="grid h-11 w-11 place-items-center rounded-full bg-surface-solid font-display text-sm font-bold text-content">
-                {donut.total}
-              </div>
-            </div>
-            <ul className="space-y-1 text-[13px]">
-              {meta.categories.map((c) => (
-                <li key={c} className="flex items-center gap-1.5 text-content">
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: meta.palette[c] }} />
-                  {c} <span className="text-subtle">{counts?.[c] ?? 0}</span>
-                </li>
-              ))}
-            </ul>
+        <div className={cn(card, "flex flex-col justify-between p-7")}>
+          <div>
+            <p className={label}>In your pantry</p>
+            <p className="mt-2 font-display text-[42px] font-semibold leading-none tabular-nums text-content">
+              <CountUp value={totalItems} />
+            </p>
+            <p className="mt-2 text-[13px] text-muted">
+              {totalItems === 1 ? "item" : "items"} across {catCount} {catCount === 1 ? "category" : "categories"}
+            </p>
           </div>
-        </div>
-
-        {/* Stock health */}
-        <div className={card}>
-          <p className="mb-3 text-[11px] font-bold uppercase tracking-wide text-subtle">Stock health</p>
-          <div className="space-y-2.5 text-[13px]">
-            <HealthBar label="Well stocked" count={wellStocked} total={totalItems} color="var(--theme-500)" />
-            <HealthBar label="Low" count={lowCount} total={totalItems} color="#E8792B" />
-            <HealthBar label="Expiring soon" count={expiringCount} total={totalItems} color="#FB7185" />
+          <div className="mt-6 space-y-3 text-sm">
+            <StatRow dot="#E8792B" label="Low stock" value={lowCount} />
+            <StatRow dot="#C2554A" label="Expiring soon" value={expiringCount} />
+            <StatRow dot="var(--theme-500)" label="Well stocked" value={wellStocked} />
           </div>
         </div>
       </div>
 
-      {/* Inventory + insights */}
-      <div className="grid gap-3 lg:grid-cols-[1fr_300px] lg:items-start">
-        {/* Inventory preview */}
-        <section className="overflow-hidden rounded-2xl border border-black/10 bg-surface-solid shadow-sm dark:border-white/10">
-          <div className="flex items-center gap-3 border-b border-black/10 px-4 py-3 dark:border-white/10">
-            <h2 className="font-display text-sm font-bold text-content">Inventory</h2>
-            <span className="text-xs text-subtle">{totalItems} items</span>
+      {/* Inventory + right rail */}
+      <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr] lg:items-start">
+        {/* Inventory */}
+        <section className={cn(card, "overflow-hidden")}>
+          <div className="flex items-center gap-3 border-b border-line px-6 py-4">
+            <h2 className="font-display text-[18px] font-semibold text-content">Inventory</h2>
+            <span className="text-[13px] tabular-nums text-subtle">{totalItems} items</span>
             <button
               onClick={() => onNavigate(meta.categories[0])}
-              className="ml-auto text-xs font-semibold text-theme-600 hover:underline"
+              className="ml-auto text-[13px] font-semibold text-theme-600 hover:underline dark:text-theme-400"
             >
-              View all →
+              View all
             </button>
           </div>
-          <ul className="divide-y divide-black/5 dark:divide-white/10">
+          <ul className="divide-y divide-line">
             {previewItems.map((i) => {
               const unit = meta.units[i.category];
               const thr = thresholdFor(i);
@@ -240,23 +195,23 @@ export function OverviewTab({
               const fill = Math.max(6, Math.min(100, (i.quantity / (thr * 3)) * 100));
               const step = unit === "g" ? 50 : 1;
               return (
-                <li key={i.id} className="flex items-center gap-3 px-4 py-2.5">
+                <li key={i.id} className="flex items-center gap-4 px-6 py-4">
                   {imageUrl(i.image_path) ? (
                     <img
                       src={imageUrl(i.image_path)!}
                       alt=""
-                      className="h-9 w-9 shrink-0 rounded-lg border border-black/5 object-cover dark:border-white/10"
+                      className="h-10 w-10 shrink-0 rounded-xl border border-line object-cover"
                     />
                   ) : (
                     <div
-                      className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-base"
-                      style={{ background: `${meta.palette[i.category]}22` }}
+                      className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg"
+                      style={{ background: `${meta.palette[i.category]}1f` }}
                     >
                       {meta.icons[i.category]}
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-content">
+                    <p className="flex items-center gap-1.5 truncate text-[15px] font-semibold text-content">
                       {i.title}
                       {i.in_use_quantity > 0 && (
                         <span className="rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white" style={{ background: "#6C63FF" }}>
@@ -264,24 +219,19 @@ export function OverviewTab({
                         </span>
                       )}
                     </p>
-                    <p className="truncate text-[11px] text-subtle">{i.category}</p>
+                    <p className="truncate text-[13px] text-muted">{i.category}</p>
                   </div>
-                  <div className="hidden h-2 w-24 overflow-hidden rounded-full bg-black/5 sm:block dark:bg-white/10">
+                  <div className="hidden h-1.5 w-28 overflow-hidden rounded-full sm:block" style={{ background: "var(--surface)" }}>
                     <span
                       className="block h-full rounded-full"
-                      style={{
-                        width: `${fill}%`,
-                        background: isLow
-                          ? "linear-gradient(90deg,#E8792B,#f0a35e)"
-                          : `linear-gradient(90deg, ${meta.palette[i.category]}, ${meta.palette[i.category]}aa)`,
-                      }}
+                      style={{ width: `${fill}%`, background: isLow ? "#E8792B" : "var(--theme-500)" }}
                     />
                   </div>
-                  <span className="w-12 text-right text-sm font-semibold text-content">{formatQuantity(i.quantity, unit)}</span>
+                  <span className="w-12 text-right text-[15px] font-semibold tabular-nums text-content">{formatQuantity(i.quantity, unit)}</span>
                   <button
                     onClick={() => useMutation_.mutate({ id: i.id, amount: step })}
                     disabled={i.quantity < step}
-                    className="rounded-lg border border-black/10 px-2 py-1 text-xs font-semibold text-content hover:bg-surface disabled:opacity-40 dark:border-white/10"
+                    className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-content hover:bg-surface disabled:opacity-40"
                   >
                     Use
                   </button>
@@ -289,7 +239,7 @@ export function OverviewTab({
               );
             })}
             {previewItems.length === 0 && (
-              <li className="px-4 py-8 text-center text-sm text-subtle">
+              <li className="px-6 py-10 text-center text-sm text-subtle">
                 No items yet — add some from the Add Items tab.
               </li>
             )}
@@ -297,115 +247,69 @@ export function OverviewTab({
         </section>
 
         {/* Right rail */}
-        <div className="space-y-3">
-          <div className={card}>
-            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-theme-600">
-              <Sparkles className="h-3.5 w-3.5" /> Needs attention
-            </p>
+        <div className="space-y-5">
+          <div className={cn(card, "p-6")}>
+            <p className={cn(label, "mb-4")}>Needs attention</p>
             {insights.length === 0 ? (
-              <p className="py-2 text-sm text-subtle">All good — nothing needs attention right now. ✅</p>
+              <p className="text-sm text-muted">All good — nothing needs attention right now.</p>
             ) : (
-              <div className="space-y-2">
-                {insights.slice(0, 6).map((ins) =>
-                  ins.onClick ? (
-                    <button
-                      key={ins.key}
-                      onClick={ins.onClick}
-                      className="group flex w-full items-start gap-2.5 rounded-xl border border-black/5 bg-black/[0.02] p-2.5 text-left transition-colors hover:bg-black/[0.05] dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-                    >
-                      <span className="mt-0.5 h-9 w-1 shrink-0 rounded-full" style={{ background: ins.tone }} />
-                      <span className="min-w-0 flex-1">
-                        <p className="text-[13px] font-semibold text-content">{ins.title}</p>
-                        <p className="text-[11px] text-subtle">{ins.sub}</p>
+              <div className="space-y-4">
+                {insights.slice(0, 4).map((ins, idx) => {
+                  const num = String(idx + 1).padStart(2, "0");
+                  const body = (
+                    <>
+                      <span className="font-display text-[15px] font-semibold tabular-nums" style={{ color: ins.tone }}>
+                        {num}
                       </span>
-                      <ChevronRight className="mt-1.5 h-4 w-4 shrink-0 text-subtle transition-transform group-hover:translate-x-0.5" />
+                      <span className="min-w-0 flex-1">
+                        <p className="text-[14px] font-semibold text-content">{ins.title}</p>
+                        <p className="text-[13px] text-muted">{ins.sub}</p>
+                      </span>
+                    </>
+                  );
+                  return ins.onClick ? (
+                    <button key={ins.key} onClick={ins.onClick} className="flex w-full items-start gap-3 text-left">
+                      {body}
                     </button>
                   ) : (
-                    <div
-                      key={ins.key}
-                      className="flex items-start gap-2.5 rounded-xl border border-black/5 bg-black/[0.02] p-2.5 dark:border-white/10 dark:bg-white/5"
-                    >
-                      <span className="mt-0.5 h-9 w-1 shrink-0 rounded-full" style={{ background: ins.tone }} />
-                      <span className="min-w-0 flex-1">
-                        <p className="text-[13px] font-semibold text-content">{ins.title}</p>
-                        <p className="text-[11px] text-subtle">{ins.sub}</p>
-                      </span>
-                    </div>
-                  )
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className={card}>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-subtle">Quick actions</p>
-            <div className="grid grid-cols-2 gap-2 text-[13px]">
-              <QuickAction icon={<Camera className="h-4 w-4" />} label="Scan" onClick={() => onNavigate("add-items")} />
-              <QuickAction icon={<Sparkles className="h-4 w-4" />} label="Quick add" onClick={() => onNavigate("add-items")} />
-              <QuickAction icon={<Receipt className="h-4 w-4" />} label="Receipt" onClick={() => onNavigate("add-items")} />
-              <QuickAction icon={<ShoppingBag className="h-4 w-4" />} label="+ Low stock" onClick={() => addLowStock.mutate()} />
-            </div>
-          </div>
-
-          {spend && spend.spend_by_item.length > 0 && (
-            <div className={card}>
-              <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-subtle">
-                <FileText className="h-3.5 w-3.5" /> Top spend
-              </p>
-              <div className="space-y-1.5 text-[13px]">
-                {spend.spend_by_item.slice(0, 4).map((s) => {
-                  const max = spend.spend_by_item[0]?.total || 1;
-                  return (
-                    <div key={s.title} className="flex items-center gap-2">
-                      <span className="flex-1 truncate text-content">{s.title}</span>
-                      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-black/5 dark:bg-white/10">
-                        <span className="block h-full rounded-full" style={{ width: `${(s.total / max) * 100}%`, background: "#6C63FF" }} />
-                      </div>
-                      <span className="w-12 text-right text-subtle">{formatMoney(s.total)}</span>
+                    <div key={ins.key} className="flex items-start gap-3">
+                      {body}
                     </div>
                   );
                 })}
               </div>
+            )}
+          </div>
+
+          <div className={cn(card, "p-6")}>
+            <p className={cn(label, "mb-4")}>Quick actions</p>
+            <div className="grid grid-cols-2 gap-2.5">
+              <QuickAction icon={<Camera className="h-4 w-4" />} label="Scan" onClick={() => onNavigate("add-items")} />
+              <QuickAction icon={<Receipt className="h-4 w-4" />} label="Receipt" onClick={() => onNavigate("add-items")} />
+              <QuickAction icon={<Sparkles className="h-4 w-4" />} label="Quick add" onClick={() => onNavigate("add-items")} />
+              <QuickAction icon={<ShoppingBag className="h-4 w-4" />} label="Restock" onClick={() => addLowStock.mutate()} />
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function Kpi({
-  label,
-  value,
-  hint,
-  tone,
-  icon,
-  footer,
-}: {
-  label: string;
-  value: string;
-  hint: string;
-  tone?: string;
-  icon: React.ReactNode;
-  footer?: React.ReactNode;
-}) {
+function StatRow({ dot, label, value }: { dot: string; label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-black/10 bg-surface-solid p-3 shadow-sm dark:border-white/10">
-      <div className="mb-0.5 flex items-center justify-between">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-subtle">{label}</p>
-        <span className="text-subtle">{icon}</span>
-      </div>
-      <p className="font-display text-xl font-bold leading-tight" style={tone ? { color: tone } : { color: "var(--content)" }}>
-        {value}
-      </p>
-      <p className="text-[10px] text-subtle">{hint}</p>
-      {footer && <div className="mt-2">{footer}</div>}
+    <div className="flex items-center justify-between">
+      <span className="flex items-center gap-2 text-content">
+        <span className="h-[7px] w-[7px] rounded-full" style={{ background: dot }} />
+        {label}
+      </span>
+      <span className="font-semibold tabular-nums text-content">{value}</span>
     </div>
   );
 }
 
 /** Lightweight gradient area/sparkline chart (pure SVG, no chart lib). */
-function AreaChart({ data, color, className }: { data: number[]; color: string; className?: string }) {
+function AreaChart({ data, color, className, animate }: { data: number[]; color: string; className?: string; animate?: boolean }) {
   const gradientId = useId();
   const pts = data.length === 1 ? [data[0], data[0]] : data;
   if (pts.length < 2) return null;
@@ -438,54 +342,51 @@ function AreaChart({ data, color, className }: { data: number[]; color: string; 
         strokeLinecap="round"
         strokeLinejoin="round"
         vectorEffect="non-scaling-stroke"
+        pathLength={animate ? 1 : undefined}
+        style={animate ? { strokeDasharray: 1, strokeDashoffset: 1, animation: "draw-line 1.4s ease-out forwards" } : undefined}
       />
     </svg>
   );
 }
 
-/** Single-value proportion bar (e.g. low-stock share of total). */
-function MiniBar({ pct, color }: { pct: number; color: string }) {
-  return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-black/5 dark:bg-white/10">
-      <span className="block h-full rounded-full" style={{ width: `${Math.max(3, Math.min(100, pct))}%`, background: color }} />
-    </div>
-  );
+/** Animated count-up number (eases from 0 to the target on mount / change). */
+function CountUp({ value, format }: { value: number; format?: (n: number) => string }) {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce || document.hidden) {
+      setV(value);
+      return;
+    }
+    let raf = 0;
+    const start = performance.now();
+    const dur = 700;
+    const from = 0;
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - start) / dur);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setV(from + (value - from) * eased);
+      if (p < 1) raf = requestAnimationFrame(tick);
+      else setV(value);
+    };
+    setV(from);
+    raf = requestAnimationFrame(tick);
+    // Safety: rAF is paused in background tabs, so guarantee the final value lands.
+    const safety = setTimeout(() => setV(value), dur + 150);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(safety);
+    };
+  }, [value]);
+  return <>{format ? format(v) : Math.round(v).toString()}</>;
 }
 
-/** Stacked proportion bar of category segments. */
-function StackBar({ segments }: { segments: { color: string; value: number }[] }) {
-  const total = segments.reduce((s, x) => s + x.value, 0) || 1;
-  const visible = segments.filter((s) => s.value > 0);
-  if (visible.length === 0) return <div className="h-1.5 w-full rounded-full bg-black/5 dark:bg-white/10" />;
-  return (
-    <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-black/5 dark:bg-white/10">
-      {visible.map((s, i) => (
-        <span key={i} className="block h-full" style={{ width: `${(s.value / total) * 100}%`, background: s.color }} />
-      ))}
-    </div>
-  );
-}
-
-function HealthBar({ label, count, total, color }: { label: string; count: number; total: number; color: string }) {
-  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-  return (
-    <div>
-      <div className="mb-1 flex justify-between">
-        <span className="text-content">{label}</span>
-        <span className="text-subtle">{count}</span>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-black/5 dark:bg-white/10">
-        <span className="block h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
-      </div>
-    </div>
-  );
-}
-
+/** Left-aligned quick-action pill. */
 function QuickAction({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="flex items-center justify-center gap-1.5 rounded-lg border border-black/10 bg-surface px-2 py-2 font-medium text-content hover:bg-surface-solid dark:border-white/10"
+      className="flex items-center gap-2 rounded-xl border border-line px-3 py-2.5 text-[13px] font-semibold text-content hover:bg-surface"
     >
       {icon}
       {label}

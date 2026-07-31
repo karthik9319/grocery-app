@@ -194,7 +194,7 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
         />
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {visible.map((item) => (
           <ItemCard
             key={item.id}

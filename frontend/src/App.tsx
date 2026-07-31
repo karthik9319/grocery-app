@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { BarChart3, CalendarDays, CloudOff, LayoutDashboard, PlusCircle, Search, ShoppingBag } from "lucide-react";
 import { api } from "@/lib/api";
 import { QUEUE_CHANGED_EVENT, queueSize } from "@/lib/offlineQueue";
@@ -7,6 +8,7 @@ import { Header } from "@/components/Header";
 import { OverviewTab } from "@/components/OverviewTab";
 import { AddItemsTab } from "@/components/AddItemsTab";
 import { CategoryView } from "@/components/CategoryView";
+import { CommandPalette } from "@/components/CommandPalette";
 import { SettingsSidebar } from "@/components/SettingsSidebar";
 import { Button, Spinner } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -58,6 +60,14 @@ function App() {
   });
   const { data: shopping } = useQuery({ queryKey: ["shopping-list"], queryFn: api.shoppingList });
   const [active, setActive] = useState("overview");
+  const queryClient = useQueryClient();
+  const addLowStock = useMutation({
+    mutationFn: api.addLowStockToShoppingList,
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["shopping-list"] });
+      toast.success(`Added ${res.added} low-stock item(s) to the shopping list`, { icon: "🛍️" });
+    },
+  });
 
   if (isError) {
     return (
@@ -141,7 +151,7 @@ function App() {
 
   return (
     <div
-      className="mx-auto flex min-h-screen w-full max-w-[1680px] gap-6 px-4 py-6 lg:px-8 2xl:gap-8"
+      className="mx-auto flex min-h-screen w-full max-w-[1440px] gap-6 px-4 py-6 lg:px-8 2xl:gap-8"
       style={{
         paddingLeft: "max(1rem, env(safe-area-inset-left))",
         paddingRight: "max(1rem, env(safe-area-inset-right))",
@@ -279,6 +289,7 @@ function App() {
           </Suspense>
         </div>
       </main>
+      {meta && <CommandPalette meta={meta} onNavigate={setActive} onAddLowStock={() => addLowStock.mutate()} />}
     </div>
   );
 }

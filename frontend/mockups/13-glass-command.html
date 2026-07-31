@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Option 13 — Glass & Command (⌘K palette)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--content:#0e1220;--muted:#3f4660;--subtle:#6b7390}
+  body{font-family:'Inter',sans-serif;color:var(--content);
+    background:#0b1020;
+    background-image:
+      radial-gradient(50% 45% at 12% 8%, #7c5cff55, transparent 60%),
+      radial-gradient(45% 45% at 90% 4%, #22d3ee44, transparent 55%),
+      radial-gradient(60% 55% at 78% 96%, #34d39944, transparent 60%),
+      radial-gradient(50% 50% at 22% 92%, #f472b644, transparent 60%);
+    background-attachment:fixed;
+  }
+  .display{font-family:'Space Grotesk',sans-serif;letter-spacing:-0.01em}
+  .glass{background:rgba(255,255,255,.62);backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);border:1px solid rgba(255,255,255,.7);border-radius:20px;box-shadow:0 10px 40px rgba(10,16,40,.18)}
+  .glassd{background:rgba(18,22,40,.42);backdrop-filter:blur(18px) saturate(140%);-webkit-backdrop-filter:blur(18px) saturate(140%);border:1px solid rgba(255,255,255,.14);border-radius:16px;color:#eef1fb}
+  .navitem{border-radius:12px;font-size:13px;color:#e9ecf8}
+  .navitem:hover{background:rgba(255,255,255,.12)}
+  .navitem.active{background:rgba(255,255,255,.9);color:#0e1220;font-weight:700}
+  .bar{height:7px;border-radius:999px;background:rgba(0,0,0,.08);overflow:hidden}
+  .bar>span{display:block;height:100%;border-radius:999px}
+  .kbd{font-size:11px;font-weight:700;border:1px solid rgba(0,0,0,.14);border-bottom-width:2px;border-radius:6px;padding:1px 6px;background:#fff}
+  @keyframes pop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+  .pop{animation:pop .22s ease-out both}
+</style>
+</head>
+<body class="min-h-screen">
+  <div class="mx-auto max-w-[1360px] grid grid-cols-[210px_1fr] min-h-screen gap-5 px-5 py-5">
+    <!-- glass sidebar -->
+    <aside class="glassd p-3 flex flex-col gap-1 h-[calc(100vh-40px)] sticky top-5">
+      <div class="flex items-center gap-2 px-2 py-2 mb-2">
+        <div class="w-9 h-9 rounded-xl grid place-items-center text-lg" style="background:linear-gradient(135deg,#7c5cff,#22d3ee)">🛒</div>
+        <div class="display font-bold text-[14px]">Pantry Pilot</div>
+      </div>
+      <a class="navitem active px-3 py-2.5 cursor-pointer">📊 Overview</a>
+      <a class="navitem px-3 py-2.5 cursor-pointer flex">🧺 Groceries <span class="ml-auto opacity-60">2</span></a>
+      <a class="navitem px-3 py-2.5 cursor-pointer flex">🥕 Vegetables <span class="ml-auto opacity-60">2</span></a>
+      <a class="navitem px-3 py-2.5 cursor-pointer flex">🧴 Household <span class="ml-auto opacity-60">1</span></a>
+      <a class="navitem px-3 py-2.5 cursor-pointer flex">🍿 Snacks <span class="ml-auto opacity-60">0</span></a>
+      <div class="h-px bg-white/15 my-2"></div>
+      <a class="navitem px-3 py-2.5 cursor-pointer">➕ Add Items</a>
+      <a class="navitem px-3 py-2.5 cursor-pointer">🛍️ Shopping</a>
+      <a class="navitem px-3 py-2.5 cursor-pointer">📅 Meal Planner</a>
+      <a class="navitem px-3 py-2.5 cursor-pointer">📈 Charts</a>
+    </aside>
+
+    <main class="min-w-0">
+      <div class="flex items-center gap-3 mb-4">
+        <h1 class="display font-bold text-lg text-white drop-shadow">Overview</h1>
+        <button class="ml-auto glassd px-3 h-9 rounded-xl text-sm font-medium flex items-center gap-2">🔍 Search <span class="kbd" style="background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.25);color:#eef1fb">⌘K</span></button>
+        <button class="rounded-xl h-9 px-4 text-sm font-bold text-white" style="background:linear-gradient(120deg,#7c5cff,#22d3ee)">+ Add</button>
+      </div>
+
+      <!-- KPI glass row -->
+      <div class="grid grid-cols-4 gap-4 mb-4">
+        <div class="glass p-4"><p class="text-[11px] font-bold uppercase text-[var(--subtle)]">Total items</p><p class="display font-bold text-3xl mt-1">5</p><div class="bar mt-3"><span style="width:100%;background:linear-gradient(90deg,#7c5cff,#22d3ee)"></span></div></div>
+        <div class="glass p-4"><p class="text-[11px] font-bold uppercase text-[var(--subtle)]">Low stock</p><p class="display font-bold text-3xl mt-1" style="color:#e4572e">1</p><div class="bar mt-3"><span style="width:20%;background:#e4572e"></span></div></div>
+        <div class="glass p-4"><p class="text-[11px] font-bold uppercase text-[var(--subtle)]">Expiring ≤3d</p><p class="display font-bold text-3xl mt-1" style="color:#db2777">0</p><div class="bar mt-3"><span style="width:4%;background:#db2777"></span></div></div>
+        <div class="glass p-4"><p class="text-[11px] font-bold uppercase text-[var(--subtle)]">Spent</p><p class="display font-bold text-3xl mt-1">₹2,480</p><div class="bar mt-3"><span style="width:70%;background:linear-gradient(90deg,#34d399,#22d3ee)"></span></div></div>
+      </div>
+
+      <!-- content -->
+      <div class="grid grid-cols-3 gap-4">
+        <div class="glass p-5 col-span-2">
+          <div class="flex items-baseline justify-between mb-2"><p class="text-[11px] font-bold uppercase text-[var(--subtle)]">Spend trend</p><p class="display font-bold text-xl">₹2,480</p></div>
+          <svg class="w-full" viewBox="0 0 320 120" preserveAspectRatio="none" style="height:140px">
+            <defs><linearGradient id="gg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#7c5cff" stop-opacity=".4"/><stop offset="100%" stop-color="#7c5cff" stop-opacity="0"/></linearGradient></defs>
+            <path d="M0,88 L64,64 L128,96 L192,40 L256,56 L320,24 L320,120 L0,120 Z" fill="url(#gg)"/>
+            <path d="M0,88 L64,64 L128,96 L192,40 L256,56 L320,24" fill="none" stroke="#7c5cff" stroke-width="2.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="glass p-5">
+          <p class="text-[11px] font-bold uppercase text-[var(--subtle)] mb-3">Needs attention</p>
+          <div class="space-y-2 text-sm">
+            <div class="rounded-xl bg-white/50 p-2.5 border-l-4" style="border-color:#22d3ee"><p class="font-semibold">Semiya runs out ~5d</p><p class="text-[11px] text-[var(--subtle)]">add to list</p></div>
+            <div class="rounded-xl bg-white/50 p-2.5 border-l-4" style="border-color:#e4572e"><p class="font-semibold">Toothpaste is low</p><p class="text-[11px] text-[var(--subtle)]">1 left</p></div>
+          </div>
+        </div>
+      </div>
+      <p class="text-xs text-white/70 mt-5">Mockup 13 — Glass &amp; Command: frosted glassmorphism cards over an animated gradient mesh, plus a ⌘K command palette (shown open). ₹ currency.</p>
+    </main>
+  </div>
+
+  <!-- ⌘K command palette overlay (shown open) -->
+  <div class="fixed inset-0 grid place-items-start justify-center pt-[12vh]" style="background:rgba(6,10,24,.45)">
+    <div class="pop w-[560px] max-w-[92vw] rounded-2xl overflow-hidden" style="background:rgba(255,255,255,.9);backdrop-filter:blur(22px);border:1px solid rgba(255,255,255,.8);box-shadow:0 30px 80px rgba(6,10,30,.4)">
+      <div class="flex items-center gap-2 px-4 py-3 border-b border-black/10">
+        <span class="text-[var(--subtle)]">⌘</span>
+        <input autofocus placeholder="Search items, run an action…" class="flex-1 bg-transparent outline-none text-[15px]" value="mil"/>
+        <span class="kbd">esc</span>
+      </div>
+      <div class="p-2 max-h-[360px] overflow-auto text-sm">
+        <p class="px-3 py-1.5 text-[11px] font-bold uppercase text-[var(--subtle)]">Actions</p>
+        <div class="px-3 py-2 rounded-xl flex items-center gap-3" style="background:linear-gradient(90deg,#7c5cff22,transparent)"><span>➕</span> Add item <span class="ml-auto kbd">A</span></div>
+        <div class="px-3 py-2 rounded-xl flex items-center gap-3 hover:bg-black/5"><span>📷</span> Scan a receipt <span class="ml-auto kbd">R</span></div>
+        <div class="px-3 py-2 rounded-xl flex items-center gap-3 hover:bg-black/5"><span>🛍️</span> Add all low-stock to shopping list</div>
+        <p class="px-3 py-1.5 mt-1 text-[11px] font-bold uppercase text-[var(--subtle)]">Items</p>
+        <div class="px-3 py-2 rounded-xl flex items-center gap-3 hover:bg-black/5"><span class="w-7 h-7 rounded-lg grid place-items-center" style="background:#1b7a4d22">🧺</span> Milk <span class="text-[var(--subtle)]">· Groceries</span> <span class="ml-auto text-[var(--subtle)]">Go →</span></div>
+        <div class="px-3 py-2 rounded-xl flex items-center gap-3 hover:bg-black/5"><span class="w-7 h-7 rounded-lg grid place-items-center" style="background:#1b7a4d22">🧺</span> Semiya <span class="text-[var(--subtle)]">· Groceries</span> <span class="ml-auto text-[var(--subtle)]">Go →</span></div>
+      </div>
+      <div class="px-4 py-2 border-t border-black/10 flex items-center gap-3 text-[11px] text-[var(--subtle)]"><span class="kbd">↑</span><span class="kbd">↓</span> navigate <span class="kbd">↵</span> select</div>
+    </div>
+  </div>
+</body>
+</html>

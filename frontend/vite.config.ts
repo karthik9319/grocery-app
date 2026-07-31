@@ -12,7 +12,11 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
-      devOptions: { enabled: true, type: 'module' },
+      // Dev service worker is DISABLED: it was caching the app and serving a stale copy
+      // after `launch.sh` (Vite dev), so code changes appeared not to take effect. The
+      // production build (launch-tunnel.sh -> `npm run build`) still ships a real SW, so
+      // installable-PWA / offline behaviour on the phone is unaffected.
+      devOptions: { enabled: false },
       manifest: {
         name: 'Pantry Pilot',
         short_name: 'Pantry Pilot',
@@ -28,6 +32,9 @@ export default defineConfig({
         ],
       },
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         navigateFallbackDenylist: [/^\/api\//, /^\/images\//],
         runtimeCaching: [
           {

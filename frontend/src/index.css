@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800;900&display=swap");
 @import "tailwindcss";
 
 /* Enable class-based dark mode (.dark on <html>) */
@@ -6,7 +6,7 @@
 
 @theme {
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-display: "Space Grotesk", "Inter", sans-serif;
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
 
   --color-brand-50: #eefaf3;
   --color-brand-100: #d6f2e2;
@@ -56,10 +56,10 @@
   --color-muted: var(--muted);
   --color-subtle: var(--subtle);
 
-  --shadow-soft: 0 1px 2px rgba(20, 20, 15, 0.06);
-  --shadow-medium: 0 4px 14px rgba(20, 20, 15, 0.08);
-  --shadow-lifted: 0 12px 30px rgba(20, 20, 15, 0.12);
-  --shadow-glow: 0 6px 20px rgba(20, 20, 15, 0.10);
+  --shadow-soft: 0 1px 2px rgba(27, 26, 22, 0.04), 0 8px 24px rgba(27, 26, 22, 0.04);
+  --shadow-medium: 0 1px 2px rgba(27, 26, 22, 0.05), 0 12px 30px rgba(27, 26, 22, 0.06);
+  --shadow-lifted: 0 20px 48px rgba(27, 26, 22, 0.10);
+  --shadow-glow: 0 8px 24px rgba(27, 26, 22, 0.06);
 
   --animate-fade-in: fade-in 0.3s ease-out;
   --animate-pop: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -74,15 +74,15 @@
   }
 }
 
-/* ---------- Light theme ---------- */
+/* ---------- Light theme (Premium Editorial - warm paper) ---------- */
 :root {
-  --canvas: #fff7ec;
-  --surface: #f3ecdd;
+  --canvas: #fbfaf7;
+  --surface: #f3f1eb;
   --surface-solid: #ffffff;
-  --line: rgba(20, 20, 15, 0.14);
-  --content: #14140f;
-  --muted: #52514a;
-  --subtle: #8c8878;
+  --line: #eae7df;
+  --content: #1b1a16;
+  --muted: #6b6a62;
+  --subtle: #9a988e;
 
   --dot-opacity: 0;
 
@@ -159,15 +159,15 @@
   --theme-600: #374151;
 }
 
-/* ---------- Dark (Neo-Pop) theme ---------- */
+/* ---------- Dark theme (Premium Editorial - warm charcoal) ---------- */
 .dark {
-  --canvas: #121009;
-  --surface: rgba(255, 255, 255, 0.06);
-  --surface-solid: #1e1b14;
-  --line: rgba(245, 241, 232, 0.16);
-  --content: #f5f1e8;
-  --muted: #c9c3b4;
-  --subtle: #8c8878;
+  --canvas: #0e0f0d;
+  --surface: rgba(255, 255, 255, 0.04);
+  --surface-solid: #171916;
+  --line: #262823;
+  --content: #f1f0ea;
+  --muted: #a5a79c;
+  --subtle: #6e7066;
 
   --dot-opacity: 0;
 }
@@ -194,6 +194,11 @@ body::before {
   background-size: 30px 30px;
 }
 
+/* Command-center accent glow behind everything in dark mode (ties to the chosen accent). */
+.dark body::before {
+  opacity: 0;
+}
+
 @utility glass {
   background: var(--surface-solid);
   border: 1px solid var(--line);
@@ -201,7 +206,8 @@ body::before {
 
 @utility font-display {
   font-family: var(--font-display);
-  font-weight: 800;
+  font-weight: 600;
+  font-optical-sizing: auto;
   letter-spacing: -0.01em;
 }
 
@@ -227,6 +233,8 @@ body::before {
 }
 .card-hover:hover { transform: translateY(-2px); }
 .card-hover:active { transform: translateY(0); }
+
+@keyframes draw-line { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 
 * {
   scrollbar-width: thin;

@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Option 12 — Bento Motion (aurora + animated charts)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --brand:#34D399; --brand2:#22D3EE; --veg:#FB923C; --house:#A78BFA; --snack:#F472B6; --amber:#FBBF24; --rose:#FB7185;
+    --canvas:#080B14; --surface:#111725; --surface2:#171F30; --line:#233047;
+    --content:#EAF0FA; --muted:#9AA6BE; --subtle:#67728C;
+  }
+  *{scrollbar-width:thin;scrollbar-color:#2b3958 transparent}
+  body{font-family:'Inter',sans-serif;background:var(--canvas);color:var(--content);}
+  .display{font-family:'Space Grotesk',sans-serif;letter-spacing:-0.01em}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:18px;position:relative;overflow:hidden}
+  .card::after{content:"";position:absolute;inset:0 0 auto 0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.12),transparent)}
+  .pill{border:1px solid var(--line);border-radius:9px;background:var(--surface2)}
+  .navitem{border-radius:11px;font-size:13px}
+  .navitem.active{background:linear-gradient(120deg,rgba(52,211,153,.18),rgba(34,211,238,.16));color:#B8F5E4;border:1px solid rgba(52,211,153,.35)}
+  .bar{height:7px;border-radius:999px;background:#0a0f1c;overflow:hidden}
+  .bar>span{display:block;height:100%;border-radius:999px}
+  /* animated aurora backdrop */
+  .aurora{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
+  .aurora b{position:absolute;border-radius:50%;filter:blur(70px);opacity:.5;animation:float 16s ease-in-out infinite}
+  .aurora b:nth-child(1){width:520px;height:520px;background:#0e5c4a;left:-120px;top:-140px}
+  .aurora b:nth-child(2){width:460px;height:460px;background:#3b2f7a;right:-100px;top:-120px;animation-delay:-5s}
+  .aurora b:nth-child(3){width:420px;height:420px;background:#0b4a63;left:40%;bottom:-160px;animation-delay:-9s}
+  @keyframes float{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(30px,26px) scale(1.08)}}
+  @keyframes draw{to{stroke-dashoffset:0}}
+  .spark path.line{stroke-dasharray:1000;stroke-dashoffset:1000;animation:draw 1.6s ease-out forwards}
+  .rise{animation:rise .6s cubic-bezier(.2,.7,.2,1) both}
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body class="min-h-screen">
+  <div class="aurora"><b></b><b></b><b></b></div>
+  <div class="mx-auto max-w-[1360px] grid grid-cols-[210px_1fr] min-h-screen gap-5 px-5 py-5">
+    <!-- Sidebar -->
+    <aside class="card p-3 flex flex-col gap-1 h-[calc(100vh-40px)] sticky top-5">
+      <div class="flex items-center gap-2 px-2 py-2 mb-2">
+        <div class="w-9 h-9 rounded-xl grid place-items-center text-lg" style="background:linear-gradient(135deg,var(--brand),var(--brand2));color:#04231b">🛒</div>
+        <div><div class="display font-bold text-[14px] leading-none">Pantry Pilot</div><div class="text-[11px] text-[var(--subtle)] mt-1">Smart pantry</div></div>
+      </div>
+      <a class="navitem active px-3 py-2.5 font-semibold cursor-pointer">📊 Overview</a>
+      <a class="navitem px-3 py-2.5 text-[var(--muted)] hover:bg-[var(--surface2)] cursor-pointer flex">🧺 Groceries <span class="ml-auto text-[var(--subtle)]">2</span></a>
+      <a class="navitem px-3 py-2.5 text-[var(--muted)] hover:bg-[var(--surface2)] cursor-pointer flex">🥕 Vegetables <span class="ml-auto text-[var(--subtle)]">2</span></a>
+      <a class="navitem px-3 py-2.5 text-[var(--muted)] hover:bg-[var(--surface2)] cursor-pointer flex">🧴 Household <span class="ml-auto text-[var(--subtle)]">1</span></a>
+      <a class="navitem px-3 py-2.5 text-[var(--muted)] hover:bg-[var(--surface2)] cursor-pointer flex">🍿 Snacks <span class="ml-auto text-[var(--subtle)]">0</span></a>
+      <div class="h-px bg-[var(--line)] my-2"></div>
+      <a class="navitem px-3 py-2.5 text-[var(--muted)] hover:bg-[var(--surface2)] cursor-pointer">➕ Add Items</a>
+      <a class="navitem px-3 py-2.5 text-[var(--muted)] hover:bg-[var(--surface2)] cursor-pointer flex">🛍️ Shopping <span class="ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full" style="background:rgba(167,139,250,.2);color:var(--house)">2</span></a>
+      <a class="navitem px-3 py-2.5 text-[var(--muted)] hover:bg-[var(--surface2)] cursor-pointer">📅 Meal Planner</a>
+      <a class="navitem px-3 py-2.5 text-[var(--muted)] hover:bg-[var(--surface2)] cursor-pointer">📈 Charts</a>
+      <div class="mt-auto pill px-3 py-2 text-[12px] text-[var(--muted)] flex items-center gap-2"><span>⌘K</span><span class="text-[var(--subtle)]">Quick actions</span></div>
+    </aside>
+
+    <!-- Main bento -->
+    <main class="min-w-0">
+      <div class="flex items-center gap-3 mb-4">
+        <h1 class="display font-bold text-lg">Good evening 👋</h1>
+        <span class="text-[13px] text-[var(--subtle)]">Here's your pantry at a glance</span>
+        <button class="ml-auto rounded-xl h-9 px-4 text-sm font-semibold" style="background:linear-gradient(120deg,var(--brand),var(--brand2));color:#04231b">+ Add item</button>
+      </div>
+
+      <div class="grid grid-cols-4 gap-4">
+        <!-- Hero spend (2x2) -->
+        <section class="card p-5 col-span-2 row-span-2 rise">
+          <div class="flex items-baseline justify-between">
+            <p class="text-[11px] font-bold uppercase tracking-wider text-[var(--subtle)]">Spend · last 6 months</p>
+            <p class="display font-bold text-2xl">₹2,480 <span class="text-xs font-semibold" style="color:var(--brand)">▲ 12%</span></p>
+          </div>
+          <svg class="spark w-full mt-3" viewBox="0 0 320 130" preserveAspectRatio="none" style="height:150px">
+            <defs>
+              <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#34D399" stop-opacity=".35"/>
+                <stop offset="100%" stop-color="#34D399" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path d="M0,96 L64,70 L128,104 L192,44 L256,60 L320,26 L320,130 L0,130 Z" fill="url(#g1)"/>
+            <path class="line" d="M0,96 L64,70 L128,104 L192,44 L256,60 L320,26" fill="none" stroke="#34D399" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <div class="flex justify-between text-[10px] text-[var(--subtle)] mt-1"><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span></div>
+        </section>
+
+        <!-- KPI: total -->
+        <section class="card p-4 rise">
+          <div class="flex items-center justify-between"><p class="text-[11px] font-semibold uppercase text-[var(--subtle)]">Total items</p><span>📦</span></div>
+          <p class="display font-bold text-3xl mt-1 count" data-to="5">0</p>
+          <div class="bar mt-3"><span style="width:100%;background:linear-gradient(90deg,#34D399,#22D3EE,#A78BFA)"></span></div>
+        </section>
+
+        <!-- KPI: low -->
+        <section class="card p-4 rise">
+          <div class="flex items-center justify-between"><p class="text-[11px] font-semibold uppercase text-[var(--subtle)]">Low stock</p><span>⚠️</span></div>
+          <p class="display font-bold text-3xl mt-1 count" data-to="1" style="color:var(--veg)">0</p>
+          <div class="bar mt-3"><span style="width:20%;background:var(--veg)"></span></div>
+        </section>
+
+        <!-- Stock health radial gauge -->
+        <section class="card p-4 flex items-center gap-4 rise">
+          <div class="relative w-[92px] h-[92px] shrink-0">
+            <svg viewBox="0 0 100 100" class="w-full h-full -rotate-90">
+              <circle cx="50" cy="50" r="42" fill="none" stroke="#0a0f1c" stroke-width="12"/>
+              <circle cx="50" cy="50" r="42" fill="none" stroke="#34D399" stroke-width="12" stroke-linecap="round"
+                      stroke-dasharray="264" stroke-dashoffset="53"/>
+            </svg>
+            <div class="absolute inset-0 grid place-items-center"><div class="display font-bold text-lg">80%</div></div>
+          </div>
+          <div>
+            <p class="text-[11px] font-bold uppercase text-[var(--subtle)] mb-1">Stock health</p>
+            <p class="text-[13px]"><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:#34D399"></span>4 well stocked</p>
+            <p class="text-[13px]"><span class="inline-block w-2 h-2 rounded-full mr-1" style="background:var(--veg)"></span>1 running low</p>
+          </div>
+        </section>
+
+        <!-- KPI: expiring -->
+        <section class="card p-4 rise">
+          <div class="flex items-center justify-between"><p class="text-[11px] font-semibold uppercase text-[var(--subtle)]">Expiring ≤3d</p><span>⏰</span></div>
+          <p class="display font-bold text-3xl mt-1 count" data-to="0" style="color:var(--rose)">0</p>
+          <div class="bar mt-3"><span style="width:4%;background:var(--rose)"></span></div>
+        </section>
+
+        <!-- Predictions -->
+        <section class="card p-4 col-span-2 rise">
+          <p class="text-[11px] font-bold uppercase text-[var(--subtle)] mb-2">✨ Smart predictions</p>
+          <div class="space-y-2">
+            <div class="pill p-2.5 flex items-center gap-2.5"><span class="w-1 h-9 rounded-full" style="background:#22D3EE"></span><div class="flex-1"><p class="text-[13px] font-semibold">Semiya runs out in ~5 days</p><p class="text-[11px] text-[var(--subtle)]">~1.2/day used · add to list</p></div><span class="text-[var(--subtle)]">→</span></div>
+            <div class="pill p-2.5 flex items-center gap-2.5"><span class="w-1 h-9 rounded-full" style="background:var(--veg)"></span><div class="flex-1"><p class="text-[13px] font-semibold">Toothpaste is low</p><p class="text-[11px] text-[var(--subtle)]">1 left · restock soon</p></div><span class="text-[var(--subtle)]">→</span></div>
+          </div>
+        </section>
+
+        <!-- Category treemap -->
+        <section class="card p-4 col-span-2 rise">
+          <p class="text-[11px] font-bold uppercase text-[var(--subtle)] mb-2">Items by category</p>
+          <div class="flex gap-1.5 h-[92px]">
+            <div class="rounded-xl grid place-items-center text-[13px] font-semibold" style="flex:2;background:linear-gradient(135deg,#1b7a4d,#0f5c39)">🧺 Groceries · 2</div>
+            <div class="rounded-xl grid place-items-center text-[13px] font-semibold" style="flex:2;background:linear-gradient(135deg,#b45309,#7c3d06)">🥕 Veg · 2</div>
+            <div class="rounded-xl grid place-items-center text-[11px] font-semibold" style="flex:1;background:linear-gradient(135deg,#6d28d9,#4c1d95)">🧴 · 1</div>
+          </div>
+        </section>
+
+        <!-- Inventory -->
+        <section class="card col-span-2 rise overflow-hidden">
+          <div class="flex items-center gap-2 px-4 py-3 border-b border-[var(--line)]">
+            <h2 class="display font-bold text-sm">Inventory</h2><span class="text-xs text-[var(--subtle)]">5 items</span>
+            <a class="ml-auto text-xs font-semibold" style="color:var(--brand)">View all →</a>
+          </div>
+          <ul>
+            <li class="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--line)]"><span class="w-8 h-8 rounded-lg grid place-items-center" style="background:#1b7a4d33">🧺</span><div class="flex-1"><p class="text-sm font-semibold">Atta</p><p class="text-[11px] text-[var(--subtle)]">Groceries</p></div><div class="bar w-24"><span style="width:60%;background:linear-gradient(90deg,#1b7a4d,#34d399)"></span></div><span class="text-sm font-semibold w-8 text-right">3</span></li>
+            <li class="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--line)]"><span class="w-8 h-8 rounded-lg grid place-items-center" style="background:#1b7a4d33">🧺</span><div class="flex-1"><p class="text-sm font-semibold">Semiya</p><p class="text-[11px] text-[var(--subtle)]">Groceries</p></div><div class="bar w-24"><span style="width:85%;background:linear-gradient(90deg,#1b7a4d,#34d399)"></span></div><span class="text-sm font-semibold w-8 text-right">6</span></li>
+            <li class="flex items-center gap-3 px-4 py-2.5"><span class="w-8 h-8 rounded-lg grid place-items-center" style="background:#b4530933">🧴</span><div class="flex-1"><p class="text-sm font-semibold">Toothpaste <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full ml-1" style="background:var(--veg);color:#04231b">LOW</span></p><p class="text-[11px] text-[var(--subtle)]">Household</p></div><div class="bar w-24"><span style="width:16%;background:linear-gradient(90deg,#b45309,#fb923c)"></span></div><span class="text-sm font-semibold w-8 text-right">1</span></li>
+          </ul>
+        </section>
+      </div>
+      <p class="text-xs text-[var(--subtle)] mt-5">Mockup 12 — Bento Motion: asymmetric bento grid, animated aurora backdrop, self-drawing area chart, count-up KPIs, radial stock gauge, category treemap. ₹ currency.</p>
+    </main>
+  </div>
+  <script>
+    document.querySelectorAll('.count').forEach(el=>{
+      const to=+el.dataset.to; let cur=0; const step=Math.max(1,Math.ceil(to/30));
+      const t=setInterval(()=>{cur+=step; if(cur>=to){cur=to;clearInterval(t)} el.textContent=cur;}, 28);
+    });
+  </script>
+</body>
+</html>

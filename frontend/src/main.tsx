@@ -16,6 +16,16 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   });
 }
 
+// In development (launch.sh / `npm run dev`) proactively remove any leftover service
+// worker + caches. The dev SW used to be enabled and could keep serving a stale copy of
+// the app, so edits appeared to "do nothing". This self-heals that on the next load.
+if (import.meta.env.DEV && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister()));
+  if (window.caches) {
+    caches.keys().then((keys) => keys.forEach((k) => caches.delete(k)));
+  }
+}
+
 applyTheme(getStoredTheme())
 applyColorTheme(getStoredColorTheme())
 
