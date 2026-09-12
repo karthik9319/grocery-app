@@ -2,7 +2,15 @@ from fastapi import APIRouter, Form
 from fastapi.responses import JSONResponse
 
 import inventory
-from api_common import CATEGORIES, CATEGORY_ICONS, CATEGORY_UNITS, PALETTE, logger
+from api_common import (
+    CATEGORIES,
+    CATEGORY_ICONS,
+    CATEGORY_UNITS,
+    PALETTE,
+    STORAGE_LOCATION_ICONS,
+    STORAGE_LOCATIONS,
+    logger,
+)
 
 router = APIRouter()
 
@@ -27,6 +35,8 @@ def get_meta():
         "icons": CATEGORY_ICONS,
         "units": CATEGORY_UNITS,
         "palette": PALETTE,
+        "storage_locations": STORAGE_LOCATIONS,
+        "storage_location_icons": STORAGE_LOCATION_ICONS,
     }
 
 

@@ -53,6 +53,7 @@ def add_item_photo(item_id: int, image: UploadFile = File(...)):
             image_path,
             item.get("custom_threshold"),
             item.get("expiration_date"),
+            item.get("storage_location"),
         )
     return photo
 
@@ -77,6 +78,7 @@ def set_cover_photo(item_id: int, photo_id: int):
         photo["image_path"],
         item.get("custom_threshold"),
         item.get("expiration_date"),
+        item.get("storage_location"),
     )
     return {"status": "ok"}
 

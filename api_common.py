@@ -43,6 +43,9 @@ CATEGORIES = list(CATEGORY_ICONS.keys())
 PALETTE = {"Groceries": "#1B7A4D", "Vegetables": "#FF8C42", "Household": "#6C63FF", "Snacks": "#C2185B"}
 CATEGORY_UNITS = {"Groceries": "count", "Vegetables": "g", "Household": "count", "Snacks": "count"}
 
+STORAGE_LOCATION_ICONS = {"Fridge": "🧊", "Freezer": "❄️", "Pantry": "🥫", "Cabinet": "🚪"}
+STORAGE_LOCATIONS = list(STORAGE_LOCATION_ICONS.keys())
+
 COMMON_ITEMS = {
     "tomato": ("Vegetables", 5), "potato": ("Vegetables", 21), "onion": ("Vegetables", 30),
     "carrot": ("Vegetables", 21), "broccoli": ("Vegetables", 7), "cucumber": ("Vegetables", 7),

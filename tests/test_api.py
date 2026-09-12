@@ -24,6 +24,32 @@ def test_meta_lists_categories(client):
     assert "Groceries" in resp.json()["categories"]
 
 
+def test_meta_lists_storage_locations(client):
+    resp = client.get("/api/meta")
+    assert resp.status_code == 200
+    assert "Fridge" in resp.json()["storage_locations"]
+
+
+def test_create_and_update_item_storage_location(client):
+    resp = client.post(
+        "/api/items",
+        data={"title": "Yogurt", "category": "Groceries", "quantity": 1, "storage_location": "Fridge"},
+    )
+    assert resp.status_code == 200
+    item = client.get("/api/items").json()[0]
+    assert item["storage_location"] == "Fridge"
+
+    client.put(
+        f"/api/items/{item['id']}",
+        data={
+            "title": "Yogurt", "category": "Groceries", "quantity": 1,
+            "storage_location": "Freezer",
+        },
+    )
+    updated = client.get("/api/items").json()[0]
+    assert updated["storage_location"] == "Freezer"
+
+
 def test_item_create_and_list(client):
     assert _add_item(client, "Milk").json()["status"] == "added"
     items = client.get("/api/items").json()

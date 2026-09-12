@@ -132,6 +132,7 @@ def init_db() -> None:
         _migrate_add_uuid_column(conn)
         _migrate_add_in_use_quantity_column(conn)
         _migrate_add_meal_plan_done_column(conn)
+        _migrate_add_storage_location_column(conn)
 
 
 def _migrate_legacy_category_check(conn: sqlite3.Connection) -> None:
@@ -222,6 +223,15 @@ def _migrate_add_meal_plan_done_column(conn: sqlite3.Connection) -> None:
         conn.commit()
 
 
+def _migrate_add_storage_location_column(conn: sqlite3.Connection) -> None:
+    """Older DBs don't have a storage_location column (Fridge/Freezer/Pantry/Cabinet) -
+    add it if missing. NULL means unspecified."""
+    cols = [row["name"] for row in conn.execute("PRAGMA table_info(items)").fetchall()]
+    if "storage_location" not in cols:
+        conn.execute("ALTER TABLE items ADD COLUMN storage_location TEXT")
+        conn.commit()
+
+
 @contextmanager
 def get_connection():
     conn = sqlite3.connect(DB_PATH, timeout=5.0)
@@ -248,11 +258,13 @@ def add_item(
     expiration_date: Optional[str] = None,
     item_uuid: Optional[str] = None,
     in_use_quantity: float = 0,
+    storage_location: Optional[str] = None,
 ) -> None:
     with get_connection() as conn:
         conn.execute(
             "INSERT INTO items (title, category, quantity, in_use_quantity, image_path, notes, "
-            "custom_threshold, expiration_date, uuid, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "custom_threshold, expiration_date, uuid, storage_location, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 title.strip(),
                 category,
@@ -263,6 +275,7 @@ def add_item(
                 custom_threshold,
                 expiration_date,
                 item_uuid or str(uuid_lib.uuid4()),
+                storage_location,
                 datetime.now().isoformat(),
             ),
         )
@@ -398,13 +411,15 @@ def update_item(
     image_path: Optional[str] = None,
     custom_threshold: Optional[float] = None,
     expiration_date: Optional[str] = None,
+    storage_location: Optional[str] = None,
 ) -> None:
     """Update an item's fields. image_path is only changed when a new one is provided."""
     with get_connection() as conn:
         if image_path is not None:
             conn.execute(
                 "UPDATE items SET title = ?, category = ?, quantity = ?, notes = ?, "
-                "custom_threshold = ?, expiration_date = ?, image_path = ? WHERE id = ?",
+                "custom_threshold = ?, expiration_date = ?, storage_location = ?, image_path = ? "
+                "WHERE id = ?",
                 (
                     title.strip(),
                     category,
@@ -412,6 +427,7 @@ def update_item(
                     notes,
                     custom_threshold,
                     expiration_date,
+                    storage_location,
                     image_path,
                     item_id,
                 ),
@@ -419,8 +435,17 @@ def update_item(
         else:
             conn.execute(
                 "UPDATE items SET title = ?, category = ?, quantity = ?, notes = ?, "
-                "custom_threshold = ?, expiration_date = ? WHERE id = ?",
-                (title.strip(), category, quantity, notes, custom_threshold, expiration_date, item_id),
+                "custom_threshold = ?, expiration_date = ?, storage_location = ? WHERE id = ?",
+                (
+                    title.strip(),
+                    category,
+                    quantity,
+                    notes,
+                    custom_threshold,
+                    expiration_date,
+                    storage_location,
+                    item_id,
+                ),
             )
         conn.commit()
 

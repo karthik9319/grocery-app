@@ -32,6 +32,7 @@ def create_item(
     notes: Optional[str] = Form(None),
     custom_threshold: Optional[float] = Form(None),
     expiration_date: Optional[str] = Form(None),
+    storage_location: Optional[str] = Form(None),
     price: Optional[float] = Form(None),
     image: Optional[UploadFile] = File(None),
 ):
@@ -52,6 +53,7 @@ def create_item(
             None,
             existing.get("custom_threshold"),
             expiration_date or existing.get("expiration_date"),
+            storage_location or existing.get("storage_location"),
         )
         inventory.log_usage_event(
             existing["id"], existing["title"], existing["category"], "restock", quantity, new_total
@@ -59,7 +61,10 @@ def create_item(
         return {"status": "merged", "id": existing["id"], "quantity": new_total}
 
     image_path = save_upload(image) if image is not None else auto_fetch_image(title)
-    inventory.add_item(title, category, quantity, image_path, notes, custom_threshold, expiration_date)
+    inventory.add_item(
+        title, category, quantity, image_path, notes, custom_threshold, expiration_date,
+        storage_location=storage_location,
+    )
     created = inventory.find_item_by_title(title, category)
     if created:
         inventory.log_usage_event(
@@ -106,6 +111,7 @@ def update_item(
     notes: Optional[str] = Form(None),
     custom_threshold: Optional[float] = Form(None),
     expiration_date: Optional[str] = Form(None),
+    storage_location: Optional[str] = Form(None),
     image: Optional[UploadFile] = File(None),
 ):
     new_image_path = None
@@ -121,7 +127,8 @@ def update_item(
                 except OSError:
                     pass
     inventory.update_item(
-        item_id, title, category, quantity, notes, new_image_path, custom_threshold, expiration_date
+        item_id, title, category, quantity, notes, new_image_path, custom_threshold, expiration_date,
+        storage_location,
     )
     return {"status": "updated"}
 
@@ -194,6 +201,7 @@ def restore_item(item: dict):
         item.get("expiration_date"),
         item.get("uuid"),
         in_use_quantity=item.get("in_use_quantity", 0),
+        storage_location=item.get("storage_location"),
     )
     return {"status": "restored"}
 

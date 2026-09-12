@@ -24,6 +24,7 @@ export function EditItemDialog({
   const [title, setTitle] = useState(item.title);
   const [category, setCategory] = useState(item.category);
   const [quantity, setQuantity] = useState(item.quantity);
+  const [storageLocation, setStorageLocation] = useState(item.storage_location ?? "");
   const [notes, setNotes] = useState(item.notes ?? "");
   const [useCustomThreshold, setUseCustomThreshold] = useState(item.custom_threshold != null);
   const [customThreshold, setCustomThreshold] = useState(item.custom_threshold ?? 2);
@@ -97,6 +98,7 @@ export function EditItemDialog({
         notes,
         custom_threshold: useCustomThreshold ? customThreshold : null,
         expiration_date: trackExpiry ? expiryDate : null,
+        storage_location: storageLocation || null,
         image: newImage,
       });
       if (isFavorite) {
@@ -143,6 +145,21 @@ export function EditItemDialog({
                 value: c,
                 label: `${meta.icons[c]} ${c}`,
               }))}
+            />
+          </div>
+
+          <div>
+            <Label>Storage location (optional)</Label>
+            <Select
+              value={storageLocation || "unspecified"}
+              onValueChange={(v) => setStorageLocation(v === "unspecified" ? "" : v)}
+              options={[
+                { value: "unspecified", label: "Unspecified" },
+                ...meta.storage_locations.map((loc) => ({
+                  value: loc,
+                  label: `${meta.storage_location_icons[loc]} ${loc}`,
+                })),
+              ]}
             />
           </div>
 

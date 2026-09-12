@@ -90,6 +90,20 @@ def test_bulk_delete_cascades_aliases_and_photos():
     assert inventory.get_item_photos(item["id"]) == []
 
 
+def test_storage_location_set_and_updated():
+    inventory.add_item("Butter", "Groceries", 1, None, storage_location="Fridge")
+    item = inventory.get_items_by_category("Groceries")[0]
+    assert item["storage_location"] == "Fridge"
+
+    inventory.update_item(
+        item["id"], item["title"], item["category"], item["quantity"],
+        item.get("notes"), None, item.get("custom_threshold"), item.get("expiration_date"),
+        "Freezer",
+    )
+    refreshed = inventory.get_items_by_category("Groceries")[0]
+    assert refreshed["storage_location"] == "Freezer"
+
+
 def test_purchase_history_and_spend():
     inventory.add_purchase("Milk", "Groceries", 2, 4.50, source="test")
     inventory.add_purchase("Rice", "Groceries", 1, 5.50, source="test")

@@ -178,6 +178,11 @@ export function ItemCard({
           {item.custom_threshold != null && (
             <Badge color="neutral">Alert at {formatQuantity(item.custom_threshold, unit)}</Badge>
           )}
+          {item.storage_location && (
+            <Badge color="neutral">
+              {meta.storage_location_icons[item.storage_location]} {item.storage_location}
+            </Badge>
+          )}
         </div>
       </div>
 

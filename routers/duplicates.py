@@ -121,5 +121,6 @@ def merge_duplicates(payload: dict):
         None,
         keep.get("custom_threshold"),
         keep.get("expiration_date"),
+        keep.get("storage_location"),
     )
     return {"status": "merged", "kept_id": keep_id, "quantity": total_quantity}

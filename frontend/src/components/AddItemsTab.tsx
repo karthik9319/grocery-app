@@ -28,6 +28,7 @@ type DraftEntry = {
   threshold: number;
   trackExpiry: boolean;
   expiryDate: string;
+  storageLocation: string;
 };
 
 function todayPlus(days: number): string {
@@ -52,6 +53,7 @@ function makeDraft(file: File | null, meta: Meta): DraftEntry {
     threshold: 2,
     trackExpiry: false,
     expiryDate: todayPlus(14),
+    storageLocation: "",
   };
 }
 
@@ -159,6 +161,7 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
           notes: draft.notes || undefined,
           custom_threshold: draft.useThreshold ? draft.threshold : null,
           expiration_date: draft.trackExpiry ? draft.expiryDate : null,
+          storage_location: draft.storageLocation || null,
           image: draft.file,
         });
         if (result.status === "merged") merged++;
@@ -331,6 +334,19 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
                 onChange={(e) => updateDraft(draft.id, { expiryDate: e.target.value })}
               />
             )}
+            <Select
+              value={draft.storageLocation || "unspecified"}
+              onValueChange={(v) =>
+                updateDraft(draft.id, { storageLocation: v === "unspecified" ? "" : v })
+              }
+              options={[
+                { value: "unspecified", label: "Storage location (optional)" },
+                ...meta.storage_locations.map((loc) => ({
+                  value: loc,
+                  label: `${meta.storage_location_icons[loc]} ${loc}`,
+                })),
+              ]}
+            />
           </div>
           <button
             onClick={() => setDrafts((prev) => prev.filter((d) => d.id !== draft.id))}

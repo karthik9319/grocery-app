@@ -13,6 +13,7 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
   const [sort, setSort] = useState("newest");
   const [lowOnly, setLowOnly] = useState(false);
   const [inUseOnly, setInUseOnly] = useState(false);
+  const [locationFilter, setLocationFilter] = useState("all");
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkTargetCategory, setBulkTargetCategory] = useState(category);
@@ -39,15 +40,18 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
     if (inUseOnly) {
       result = result.filter((i) => i.in_use_quantity > 0);
     }
+    if (locationFilter !== "all") {
+      result = result.filter((i) => i.storage_location === locationFilter);
+    }
     return sortItems(result, sort);
-  }, [items, search, lowOnly, inUseOnly, sort, threshold]);
+  }, [items, search, lowOnly, inUseOnly, locationFilter, sort, threshold]);
 
   // Lazy-render in pages so a large category doesn't mount hundreds of cards at once.
   const PAGE_SIZE = 24;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [search, sort, lowOnly, inUseOnly, category]);
+  }, [search, sort, lowOnly, inUseOnly, locationFilter, category]);
   const visible = filtered.slice(0, visibleCount);
 
   function toggleId(id: number) {
@@ -129,6 +133,18 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
           />
         </div>
         <Select value={sort} onValueChange={setSort} options={SORT_OPTIONS} className="sm:max-w-[200px]" />
+        <Select
+          value={locationFilter}
+          onValueChange={setLocationFilter}
+          options={[
+            { value: "all", label: "All locations" },
+            ...meta.storage_locations.map((loc) => ({
+              value: loc,
+              label: `${meta.storage_location_icons[loc]} ${loc}`,
+            })),
+          ]}
+          className="sm:max-w-[200px]"
+        />
         <label className="flex items-center gap-2 text-sm font-medium text-muted">
           <Switch checked={lowOnly} onCheckedChange={(v) => setLowOnly(v === true)} />
           Low stock only

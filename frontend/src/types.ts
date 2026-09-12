@@ -9,6 +9,7 @@ export interface Item {
   notes: string | null;
   custom_threshold: number | null;
   expiration_date: string | null;
+  storage_location: string | null;
   created_at: string;
 }
 
@@ -17,6 +18,8 @@ export interface Meta {
   icons: Record<string, string>;
   units: Record<string, "count" | "g">;
   palette: Record<string, string>;
+  storage_locations: string[];
+  storage_location_icons: Record<string, string>;
 }
 
 export interface Settings {

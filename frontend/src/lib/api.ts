@@ -141,6 +141,7 @@ export const api = {
     notes?: string;
     custom_threshold?: number | null;
     expiration_date?: string | null;
+    storage_location?: string | null;
     price?: number | null;
     image?: File | null;
   }) => {
@@ -152,6 +153,7 @@ export const api = {
     if (data.custom_threshold != null)
       form.append("custom_threshold", String(data.custom_threshold));
     if (data.expiration_date) form.append("expiration_date", data.expiration_date);
+    if (data.storage_location) form.append("storage_location", data.storage_location);
     if (data.price != null) form.append("price", String(data.price));
     if (data.image) form.append("image", data.image);
     return client.post("/items", form, { timeout: 90000 }).then((r) => r.data);
@@ -166,6 +168,7 @@ export const api = {
       notes?: string;
       custom_threshold?: number | null;
       expiration_date?: string | null;
+      storage_location?: string | null;
       image?: File | null;
     }
   ) => {
@@ -177,6 +180,7 @@ export const api = {
     if (data.custom_threshold != null)
       form.append("custom_threshold", String(data.custom_threshold));
     if (data.expiration_date) form.append("expiration_date", data.expiration_date);
+    if (data.storage_location) form.append("storage_location", data.storage_location);
     if (data.image) form.append("image", data.image);
     return client.put(`/items/${id}`, form, { timeout: 90000 }).then((r) => r.data);
   },
