@@ -24,23 +24,19 @@ photos are normalized to JPEG and stored in `data/images/<uuid>.jpg` (gitignored
 
 ---
 
-## 2. Two parallel UIs, one shared backend core
+## 2. One UI (React/FastAPI), backed by a shared business-logic core
 
-This is the most important architectural fact about the repo: **there are TWO
-complete user interfaces that both read/write the same SQLite database**, built at
-different points in the project's history:
+There used to be two parallel UIs here — the original Streamlit app (`app.py`) and
+the React+FastAPI rewrite (`frontend/` + `api.py`) — but the Streamlit UI has been
+**removed entirely** (see History below). The **only UI now** is:
 
-1. **`app.py`** — the original, full-featured **Streamlit** UI (~1000+ lines, pure
-   Python, single process). This was the primary UI for most of the project's life
-   and is **fully functional and left completely untouched** during the React
-   rewrite described below. Still runs fine and can be used interchangeably with the
-   new UI (same data).
-2. **`frontend/` + `api.py`** — a **React + FastAPI rewrite** of the UI, added later
-   at the user's request for "a rich, cutting-edge, modern web UI." This is now the
-   primary/recommended way to run the app, launched via `./launch.sh`.
+- **`frontend/` + `api.py`** — a **React + FastAPI** app, launched via `./launch.sh`.
+  `frontend/` is the React SPA; `api.py` (together with the `routers/` package it
+  wires together — see §3) is the FastAPI backend it talks to over HTTP.
 
-Both UIs share two Python modules that contain **all the actual business logic and
-data access** — neither UI reimplements this logic independently:
+This UI is built on top of two Python modules that contain **all the actual business
+logic and data access** — the UI layer (`api.py`/`routers/`) never reimplements this
+logic itself:
 
 - **`inventory.py`** — the single source of truth for all SQLite CRUD. Owns:
   - `init_db()` — creates tables (`items`, `favorites`, `shopping_list`, `settings`)
@@ -68,40 +64,52 @@ data access** — neither UI reimplements this logic independently:
   explicitly documented as **best-effort** — the mandatory human-review step in the
   UI before items are actually added is the real safety net, not the regex.
 
-Because both UIs import these same two modules and operate on the same
-`data/inventory.db`, **items added via one UI are immediately visible in the other.**
+Because the UI imports these same two modules and operates on the same
+`data/inventory.db`, this has held true across the project's history regardless of
+which UI happened to be primary at the time: **the backend's data is independent of
+whatever sits on top of it.**
 
-### Why `api.py` duplicates a few constants instead of importing `app.py`
+### Shared constants/helpers live in `api_common.py`, not in `api.py` itself
 
-`api.py` (FastAPI) does **not** `import app`, because `app.py` has Streamlit-specific
-top-level code (`st.set_page_config(...)` etc.) that would execute and error/misbehave
-outside a Streamlit runtime. Instead, `api.py` duplicates the small set of *pure* data
-constants and helper functions that both UIs need:
-`CATEGORY_ICONS`, `CATEGORIES`, `PALETTE` (hex colors per category), `CATEGORY_UNITS`
-(count vs. grams per category), `COMMON_ITEMS` (keyword → (category, shelf-life-days)
-used for category guessing and expiration estimation), plus helpers
+The backend is split into `api.py` (app setup) + a `routers/` package (one module per
+endpoint group — see §3). All of them need a small set of *pure* data constants and
+helper functions: `CATEGORY_ICONS`, `CATEGORIES`, `PALETTE` (hex colors per category),
+`CATEGORY_UNITS` (count vs. grams per category), `COMMON_ITEMS` (keyword → (category,
+shelf-life-days) used for category guessing and expiration estimation), plus helpers
 `guess_category()`, `estimate_shelf_life_days()`, `threshold_for()`,
-`effective_threshold()`, `days_until_expiration()`. These values are kept in sync by
-hand across `app.py` and `api.py` — if you change the category list, icons, palette,
-or units, **update both files.**
+`effective_threshold()`, `days_until_expiration()`, and a handful of other shared
+helpers/paths (see §3's "Why `api_common.py` exists" note). These all live in
+`api_common.py`, which every router imports from — routers must never import from
+`api.py` itself, since `api.py` imports the routers (importing back from `api.py`
+would create a circular import).
 
 ---
 
-## 3. Current architecture (v2.0 — React/FastAPI, the recommended way to run this app)
+## 3. Current architecture (React/FastAPI — the one and only UI)
 
 ```
 grocery-app/
 ├── launch.sh              # Runs BOTH servers together (see §5)
-├── requirements.txt       # Python deps for the FastAPI backend (+ legacy Streamlit)
+├── requirements.txt       # Python deps for the FastAPI backend
 ├── inventory.py           # Shared SQLite CRUD (see §2)
 ├── receipt.py             # Shared OCR + parsing (see §2)
-├── api.py                 # FastAPI backend — NEW, powers the React UI
-├── app.py                 # Streamlit UI — LEGACY, still fully functional, untouched
-├── .streamlit/config.toml # Streamlit theme config (legacy UI only)
+├── api.py                 # FastAPI app setup: app creation, middleware, CORS,
+│                           #   /images mount, inventory.init_db(), include_router(...)
+│                           #   calls for every module in routers/ (see below)
+├── api_common.py           # Shared constants/paths/helpers used by api.py AND every
+│                           #   routers/*.py module (CATEGORIES, CATEGORY_UNITS,
+│                           #   guess_category(), BASE_DIR/IMAGES_DIR/BACKUPS_DIR, the
+│                           #   `logger`, CSV (de)serialization helpers, etc.)
+├── routers/                # One module per endpoint group, each with `router =
+│                           #   APIRouter()` and `@router.get/post/...` handlers —
+│                           #   meta, lookup, items, insights, item_media, summary,
+│                           #   favorites, shopping_list, meal_plan, receipt_scan,
+│                           #   charts, purchases, export_import, backups,
+│                           #   duplicates, tunnel
 ├── data/
 │   ├── inventory.db       # SQLite database (gitignored)
 │   └── images/*.jpg       # Normalized item photos (gitignored)
-└── frontend/               # NEW React app
+└── frontend/               # React app
     ├── vite.config.ts      # react() + tailwindcss() plugins, @ alias, dev proxy
     ├── tsconfig.app.json    # paths alias, strict flags (see gotchas)
     └── src/
@@ -127,10 +135,14 @@ grocery-app/
             └── SettingsSidebar.tsx # count/weight threshold inputs + CSV export link
 ```
 
-### Backend: `api.py` (FastAPI)
+### Backend: `api.py` + `routers/` (FastAPI)
 Runs via `uvicorn api:app --host 0.0.0.0 --port 8000 --reload`. CORS allows
 `http://localhost:5173`. Mounts `/images` as a StaticFiles directory pointing at
-`data/images/`. Key endpoint groups (all under `/api`):
+`data/images/`. `api.py` itself is intentionally small — app creation, the request-
+logging middleware, the unhandled-exception handler, CORS setup, the `/images` mount,
+`inventory.init_db()`, and one `app.include_router(...)` call per module in `routers/`
+— all the actual route handlers live in `routers/*.py`. Key endpoint groups (all
+under `/api`):
 - `GET /api/meta` — categories, icons, units, palette (drives nearly all frontend
   rendering decisions, so the frontend always fetches this first)
 - `GET/PUT /api/settings` — thresholds
@@ -172,17 +184,13 @@ Runs via `uvicorn api:app --host 0.0.0.0 --port 8000 --reload`. CORS allows
 
 ## 4. Key decisions & trade-offs (so you don't "fix" intentional choices)
 
-- **Two live UIs on purpose.** `app.py` was NOT deleted or deprecated in code — it was
-  deliberately preserved as a working fallback / legacy UI. Don't delete it unless the
-  user explicitly asks.
-- **Business logic lives in `inventory.py`/`receipt.py`, not in either UI layer.**
+- **Business logic lives in `inventory.py`/`receipt.py`, not in the UI layer.**
   If you add a new feature, prefer adding the DB/logic function there and then wiring
-  it into *both* `app.py` and `api.py` if the user wants feature parity — otherwise the
-  two UIs will drift.
-- **Constants are intentionally duplicated between `app.py` and `api.py`** (categories,
-  icons, palette, units, COMMON_ITEMS) rather than shared via import, to avoid
-  Streamlit's top-level side effects leaking into the FastAPI process. Keep them in
-  sync manually.
+  it into `api.py`/`routers/` — keep the route handlers themselves thin.
+- **Shared backend constants/helpers live in `api_common.py`, imported by every
+  router** (categories, icons, palette, units, COMMON_ITEMS, `guess_category()`, etc.)
+  — see §2. Routers must import from `api_common.py`, never from `api.py`, to avoid a
+  circular import (since `api.py` imports the routers).
 - **Quantity units are derived purely from category, not stored per-item.** Vegetables
   are tracked in grams, Groceries/Household as plain counts. This means quantity is a
   loosely-typed SQLite column (float for grams, int-ish for counts) — no unit column.
@@ -195,8 +203,7 @@ Runs via `uvicorn api:app --host 0.0.0.0 --port 8000 --reload`. CORS allows
   (`find_item_by_title`). Applies in both UIs.
 - **Delete is soft/undoable at the UI level**: `DELETE /api/items/{id}` returns the
   deleted row so the frontend can show an "Undo" toast that calls
-  `POST /api/items/restore`. The Streamlit UI has its own analogous undo-via-
-  session_state mechanism. Note: restoring after undo does NOT currently preserve
+  `POST /api/items/restore`. Note: restoring after undo does NOT currently preserve
   `custom_threshold` (a known small gap, low priority).
 - **Receipt OCR is explicitly best-effort.** Don't try to make the regex parser
   perfect — the UI's mandatory human-review-before-add step is the real safety net.
@@ -219,15 +226,6 @@ This script (repo root, executable):
 5. Traps EXIT/INT/TERM to kill both background processes together on Ctrl+C.
 6. Prints both URLs: backend docs at `http://localhost:8000/docs`, UI at
    `http://localhost:5173`.
-
-### Legacy Streamlit UI (still works, standalone)
-```bash
-cd /Users/pvullam/Documents/Github/grocery-app
-source .venv/bin/activate
-streamlit run app.py
-```
-Runs on `http://localhost:8501` (port may shift if already in use — check terminal
-output / `lsof -i :8501`).
 
 ### Manual / component-by-component (useful for debugging)
 ```bash
@@ -269,26 +267,27 @@ cd frontend && npm run dev
   match its exact boilerplate text with a string-replace tool.
 - **Python tool/editor interpreter mismatch (cosmetic only)**: VS Code's Python
   tooling sometimes resolves to an unrelated global Python instead of this project's
-  `.venv`, causing a false "Import could not be resolved" warning for
-  streamlit/fastapi/etc. in the editor. Not a real bug — `.venv` has everything and
-  the app runs fine from the terminal. Fix for the user: Command Palette → "Python:
-  Select Interpreter" → choose `./.venv/bin/python`. Prefer `python -m py_compile
-  <file>` or running the actual server over trusting the editor's error squiggles when
-  in doubt.
+  `.venv`, causing a false "Import could not be resolved" warning for fastapi/etc. in
+  the editor. Not a real bug — `.venv` has everything and the app runs fine from the
+  terminal. Fix for the user: Command Palette → "Python: Select Interpreter" → choose
+  `./.venv/bin/python`. Prefer `python -m py_compile <file>` or running the actual
+  server over trusting the editor's error squiggles when in doubt.
 - **Browser-tool checkbox clicks can be flaky** in this environment — sometimes need
   two clicks on the same element ref to actually toggle (first click only reaches
   "focused" state). When browser-based UI verification is ambiguous, prefer a direct
   `curl` against the FastAPI endpoints or a `sqlite3`/Python one-liner against
   `inventory.py` functions as more reliable ground truth than fighting UI timing.
-- **Streamlit `config.toml` changes require a full server restart** (unlike `app.py`
-  itself, which hot-reloads) — `pkill -f "streamlit run app.py"` then relaunch.
+- **Routers must import from `api_common.py`, never from `api.py`.** `api.py` imports
+  every module in `routers/` to call `app.include_router(...)` on it — a router that
+  tried to `import api` back would create a circular import at module-load time.
 
 ---
 
 ## 7. Verification status as of this writing
 
-- Backend (`api.py`): all endpoint groups verified via `curl` against live data
-  (`/api/meta`, `/api/summary`, `/api/items?category=...` confirmed correct).
+- Backend (`api.py` + `routers/`): all endpoint groups verified via `curl` against
+  live data (`/api/meta`, `/api/summary`, `/api/items?category=...` confirmed
+  correct); `pytest tests/` passes against the split-into-routers layout.
 - Frontend: `npx tsc --noEmit -p tsconfig.app.json` passes with zero errors across all
   components. All tabs (Add Items photo/receipt sub-tabs, all category tabs with
   search/sort/low-stock filter/quantity steppers, Shopping List, Charts, Settings
@@ -297,9 +296,6 @@ cd frontend && npm run dev
 - `launch.sh`: run standalone end-to-end — both servers started correctly, printed
   URLs, served live data to an already-open browser tab, and the CSS/Node fixes above
   were validated by this run.
-- Legacy Streamlit UI (`app.py`): last verified fully functional with its complete
-  6-tab structure, custom theming, dark-mode-aware CSS, and all v1.x-era features
-  (favorites, expiration tracking, custom thresholds, receipt scan, CSV export).
 
 ---
 
@@ -307,12 +303,34 @@ cd frontend && npm run dev
 
 These are **not yet done** and would be reasonable next asks from the user:
 - Fix the "custom_threshold not preserved through undo-restore" gap in
-  `inventory.py`'s restore path (either UI).
+  `inventory.py`'s restore path.
 - Consider a production build/deploy path (`vite build` + serve static, or Docker) —
   everything so far has been dev-server-oriented (`npm run dev`, `uvicorn --reload`).
 - Consider removing the now-fully-redundant `get_low_stock_items()` legacy function
-  from `inventory.py` if confirmed unused by both UIs.
-- No automated tests exist for either UI or `inventory.py`/`receipt.py` — all
-  verification so far has been manual (curl, browser tools, direct SQL/Python
-  one-liners). Adding a pytest suite around `inventory.py`'s CRUD functions would be
-  low-risk, high-value if the user wants more confidence for future changes.
+  from `inventory.py` if confirmed unused.
+- Expand the existing `tests/` suite (currently covers `inventory.py`'s CRUD, the
+  parsers, and the API layer via `TestClient`) as new features are added.
+
+---
+
+## 9. History
+
+- **An earlier AI-image-classification approach** (torch/transformers-based) was tried
+  and deliberately removed — categorization is manual/keyword+lightweight-classifier
+  based instead (see §1, §2).
+- **The project originally had two parallel UIs**: the original Streamlit app
+  (`app.py`, plus `.streamlit/config.toml`) and the React+FastAPI rewrite
+  (`frontend/` + `api.py`). The Streamlit UI has since been **removed entirely**
+  (`app.py` and `.streamlit/` deleted, `streamlit` dropped from `requirements.txt`) —
+  `frontend/` + `api.py` is now the one and only UI. Nothing else changed: both UIs
+  always shared the same `inventory.py`/`receipt.py` business logic and the same
+  `data/inventory.db`, so removing the Streamlit UI did not touch data or the backend
+  logic, only the now-dead `app.py` entry point and its Streamlit-only config/deps.
+- **`api.py` was subsequently split into a `routers/` package.** What used to be a
+  single ~1600-line `api.py` with every route handler defined inline is now: a small
+  `api.py` (app setup + `include_router(...)` calls), `api_common.py` (shared
+  constants/paths/helpers — see §2/§3), and `routers/*.py` (one module per endpoint
+  group). This was a pure reorganization — same URL paths, methods, request/response
+  shapes, and behavior throughout; nothing about how the API behaves changed, only
+  where the code that implements it lives. §2, §3, §4, and §6 above describe the
+  *current* (post-split) layout, not the historical monolithic one.

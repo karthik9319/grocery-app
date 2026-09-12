@@ -3,7 +3,8 @@
 # Grocery & Vegetable Tracker Launcher
 #
 # Features:
-#   - Prefers Python 3.11 (best compatibility with AI/ML libraries)
+#   - Prefers the newest Python that still has paddlepaddle wheels (3.13 as of this
+#     writing; 3.14+ has no paddlepaddle wheel yet, see the version check below)
 #   - Automatically recreates .venv if using unsupported Python (>=3.14)
 #   - Installs backend/frontend dependencies
 #   - Starts FastAPI backend
@@ -29,13 +30,14 @@ echo ""
 # Select Python
 ###############################################################################
 
-if command -v python3.11 >/dev/null 2>&1; then
-    PYTHON_BIN="$(command -v python3.11)"
-elif command -v python3.12 >/dev/null 2>&1; then
-    PYTHON_BIN="$(command -v python3.12)"
-elif command -v python3 >/dev/null 2>&1; then
-    PYTHON_BIN="$(command -v python3)"
-else
+for candidate in python3.13 python3.12 python3.11 python3; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+        PYTHON_BIN="$(command -v "$candidate")"
+        break
+    fi
+done
+
+if [ -z "${PYTHON_BIN:-}" ]; then
     echo "ERROR: Python is not installed."
     exit 1
 fi
@@ -134,7 +136,11 @@ echo "==> Starting FastAPI..."
 uvicorn api:app \
     --host 0.0.0.0 \
     --port "$BACKEND_PORT" \
-    --reload &
+    --reload \
+    --reload-exclude "$ROOT_DIR/.venv" \
+    --reload-exclude "$ROOT_DIR/data" \
+    --reload-exclude "$ROOT_DIR/frontend" \
+    --reload-exclude "$ROOT_DIR/tests" &
 BACKEND_PID=$!
 
 ###############################################################################
