@@ -104,6 +104,22 @@ def test_storage_location_set_and_updated():
     assert refreshed["storage_location"] == "Freezer"
 
 
+def test_meal_history_groups_by_slot_with_counts():
+    inventory.add_meal_plan_entry("2026-01-01", "breakfast", "Idli")
+    inventory.add_meal_plan_entry("2026-01-08", "breakfast", "Idli")
+    inventory.add_meal_plan_entry("2026-01-01", "dinner", "Pasta")
+
+    all_history = inventory.get_meal_history()
+    idli = next(h for h in all_history if h["title"] == "Idli")
+    assert idli["meal_slot"] == "breakfast"
+    assert idli["times_used"] == 2
+    assert idli["last_used"] == "2026-01-08"
+
+    breakfast_only = inventory.get_meal_history("breakfast")
+    assert all(h["meal_slot"] == "breakfast" for h in breakfast_only)
+    assert not any(h["title"] == "Pasta" for h in breakfast_only)
+
+
 def test_purchase_history_and_spend():
     inventory.add_purchase("Milk", "Groceries", 2, 4.50, source="test")
     inventory.add_purchase("Rice", "Groceries", 1, 5.50, source="test")

@@ -25,6 +25,7 @@ import type {
   Item,
   ItemAlias,
   ItemPhoto,
+  MealHistoryEntry,
   MealPlanEntry,
   MealSlot,
   Meta,
@@ -284,6 +285,10 @@ export const api = {
     return client.put(`/meal-plan/${id}`, form).then((r) => r.data);
   },
   deleteMealPlanEntry: (id: number) => client.delete(`/meal-plan/${id}`).then((r) => r.data),
+  mealPlanHistory: (slot?: MealSlot) =>
+    client
+      .get<MealHistoryEntry[]>("/meal-plan/history", { params: slot ? { slot } : {} })
+      .then((r) => r.data),
 
   patchMealPlanDone: (id: number, done: boolean) => {
     const form = new FormData();

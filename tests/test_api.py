@@ -128,6 +128,28 @@ def test_quick_add_parse_endpoint(client):
     assert "Toothpaste" in titles
 
 
+def test_meal_plan_history_endpoint(client):
+    client.post(
+        "/api/meal-plan",
+        data={"date": "2026-01-01", "meal_slot": "dinner", "title": "Tacos"},
+    )
+    client.post(
+        "/api/meal-plan",
+        data={"date": "2026-01-08", "meal_slot": "dinner", "title": "Tacos"},
+    )
+    resp = client.get("/api/meal-plan/history")
+    assert resp.status_code == 200
+    tacos = next(h for h in resp.json() if h["title"] == "Tacos")
+    assert tacos["times_used"] == 2
+
+    resp = client.get("/api/meal-plan/history", params={"slot": "breakfast"})
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+    resp = client.get("/api/meal-plan/history", params={"slot": "not-a-slot"})
+    assert resp.status_code == 400
+
+
 def test_price_capture_records_purchase(client):
     _add_item(client, "Cheese", price=4.50)
     summary = client.get("/api/purchases/summary").json()

@@ -837,6 +837,24 @@ def get_all_meal_plan_entries():
         return [{**dict(row), "done": bool(row["done"])} for row in rows]
 
 
+def get_meal_history(meal_slot: Optional[str] = None) -> list:
+    """Distinct meal titles ever planned, with how many times and when each was last used -
+    powers both the meal-plan autocomplete and the History reference view. Lightweight:
+    matches on exact title text (no fuzzy/case-insensitive grouping)."""
+    with get_connection() as conn:
+        query = (
+            "SELECT meal_slot, title, COUNT(*) as times_used, MAX(date) as last_used "
+            "FROM meal_plan"
+        )
+        params: tuple = ()
+        if meal_slot:
+            query += " WHERE meal_slot = ?"
+            params = (meal_slot,)
+        query += " GROUP BY meal_slot, title ORDER BY times_used DESC, last_used DESC"
+        rows = conn.execute(query, params).fetchall()
+        return [dict(row) for row in rows]
+
+
 def get_meal_plan_entry(entry_id: int):
     """Return a single meal plan entry by id, or None if it doesn't exist."""
     with get_connection() as conn:

@@ -14,6 +14,15 @@ def get_meal_plan(start: str, end: str):
     return inventory.get_meal_plan_range(start, end)
 
 
+@router.get("/api/meal-plan/history")
+def meal_plan_history(slot: Optional[str] = None):
+    """Distinct past meal titles per slot, with usage count and last-used date - backs both
+    the 'what's cooking' autocomplete and the History reference view."""
+    if slot and slot not in MEAL_SLOTS:
+        raise HTTPException(400, f"meal_slot must be one of {MEAL_SLOTS}")
+    return inventory.get_meal_history(slot)
+
+
 @router.post("/api/meal-plan")
 def add_meal_plan_entry(
     date: str = Form(...),

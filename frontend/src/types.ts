@@ -145,6 +145,13 @@ export interface MealPlanEntry {
   created_at: string;
 }
 
+export interface MealHistoryEntry {
+  meal_slot: MealSlot;
+  title: string;
+  times_used: number;
+  last_used: string;
+}
+
 export interface SearchResults {
   items: Item[];
   shopping_list: ShoppingListItem[];

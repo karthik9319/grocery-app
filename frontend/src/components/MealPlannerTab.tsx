@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, startOfWeek } from "date-fns";
 import { ChevronLeft, ChevronRight, CopyPlus, Plus, Printer, ShoppingBag, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import type { MealPlanEntry, MealSlot } from "@/types";
+import type { MealHistoryEntry, MealPlanEntry, MealSlot } from "@/types";
 import { Button, Card, Checkbox, Input, Label, Select, Textarea } from "@/components/ui";
 import { Dialog, DialogContent } from "@/components/Dialog";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,7 @@ export function MealPlannerTab() {
   const queryClient = useQueryClient();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [editing, setEditing] = useState<EditingState | null>(null);
+  const [view, setView] = useState<"calendar" | "history">("calendar");
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const startStr = format(weekStart, DATE_FMT);
@@ -52,7 +53,10 @@ export function MealPlannerTab() {
     return map;
   }, [entries]);
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["meal-plan"] });
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["meal-plan"] });
+    queryClient.invalidateQueries({ queryKey: ["meal-history"] });
+  };
 
   const addMutation = useMutation({
     mutationFn: (data: { date: string; slot: MealSlot; title: string; notes?: string; done?: boolean }) =>
@@ -124,44 +128,74 @@ export function MealPlannerTab() {
   return (
     <div className="space-y-4">
       <div className="glass flex flex-wrap items-center gap-3 rounded-2xl p-3 shadow-md print:hidden">
-        <button
-          onClick={() => setWeekStart((d) => addDays(d, -7))}
-          aria-label="Previous week"
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-line hover:bg-theme-200 cursor-pointer"
-        >
-          <ChevronLeft className="h-4 w-4" aria-hidden />
-        </button>
-        <p className="flex-1 text-center font-display text-sm text-content">
-          {format(weekStart, "MMM d")} – {format(days[6], "MMM d, yyyy")}
-        </p>
-        <button
-          onClick={() => setWeekStart((d) => addDays(d, 7))}
-          aria-label="Next week"
-          className="flex h-8 w-8 items-center justify-center rounded-lg border border-line hover:bg-theme-200 cursor-pointer"
-        >
-          <ChevronRight className="h-4 w-4" aria-hidden />
-        </button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
-        >
-          Today
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={copyToNextWeekMutation.isPending}
-          onClick={() => copyToNextWeekMutation.mutate()}
-          title="Copy this week's meals to next week"
-        >
-          <CopyPlus className="h-4 w-4" /> Copy to next week
-        </Button>
-        <Button variant="outline" size="sm" onClick={() => window.print()}>
-          <Printer className="h-4 w-4" /> Print
-        </Button>
+        <div className="flex gap-1 rounded-lg border border-line p-0.5">
+          <Button
+            variant={view === "calendar" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setView("calendar")}
+          >
+            Calendar
+          </Button>
+          <Button
+            variant={view === "history" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setView("history")}
+          >
+            History
+          </Button>
+        </div>
+        {view === "calendar" && (
+          <>
+            <button
+              onClick={() => setWeekStart((d) => addDays(d, -7))}
+              aria-label="Previous week"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-line hover:bg-theme-200 cursor-pointer"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden />
+            </button>
+            <p className="flex-1 text-center font-display text-sm text-content">
+              {format(weekStart, "MMM d")} – {format(days[6], "MMM d, yyyy")}
+            </p>
+            <button
+              onClick={() => setWeekStart((d) => addDays(d, 7))}
+              aria-label="Next week"
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-line hover:bg-theme-200 cursor-pointer"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            </button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
+            >
+              Today
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={copyToNextWeekMutation.isPending}
+              onClick={() => copyToNextWeekMutation.mutate()}
+              title="Copy this week's meals to next week"
+            >
+              <CopyPlus className="h-4 w-4" /> Copy to next week
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Printer className="h-4 w-4" /> Print
+            </Button>
+          </>
+        )}
       </div>
 
+      {view === "history" && (
+        <MealHistoryView
+          onQuickAdd={(slot, title) =>
+            addMutation.mutate({ date: todayStr, slot, title })
+          }
+        />
+      )}
+
+      {view === "calendar" && (
+      <>
       <p className="hidden text-center font-display text-lg text-content print:block">
         Weekly Meal Plan &middot; {format(weekStart, "MMM d")} – {format(days[6], "MMM d, yyyy")}
       </p>
@@ -234,6 +268,8 @@ export function MealPlannerTab() {
           );
         })}
       </div>
+      </>
+      )}
 
       <MealEntryDialog
         editing={editing}
@@ -249,6 +285,120 @@ export function MealPlannerTab() {
         onAddToShoppingList={(title) => addToShoppingListMutation.mutate(title)}
         saving={addMutation.isPending || updateMutation.isPending}
       />
+    </div>
+  );
+}
+
+function MealHistoryView({
+  onQuickAdd,
+}: {
+  onQuickAdd: (slot: MealSlot, title: string) => void;
+}) {
+  const { data: history } = useQuery({
+    queryKey: ["meal-history"],
+    queryFn: () => api.mealPlanHistory(),
+  });
+
+  const bySlot = useMemo(() => {
+    const map = new Map<MealSlot, MealHistoryEntry[]>();
+    for (const h of history ?? []) {
+      if (!map.has(h.meal_slot)) map.set(h.meal_slot, []);
+      map.get(h.meal_slot)!.push(h);
+    }
+    return map;
+  }, [history]);
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {MEAL_SLOTS.map((slot) => {
+        const entries = bySlot.get(slot.value) ?? [];
+        return (
+          <Card key={slot.value} className="p-3">
+            <p className="font-display text-sm text-content">
+              {slot.icon} {slot.label}
+            </p>
+            <p className="mb-2 text-xs text-subtle">
+              {entries.length ? `${entries.length} item(s) tracked` : "Nothing tracked yet"}
+            </p>
+            <div className="max-h-72 space-y-1 overflow-y-auto">
+              {entries.map((e) => (
+                <button
+                  key={e.title}
+                  type="button"
+                  onClick={() => onQuickAdd(slot.value, e.title)}
+                  title={`Add "${e.title}" to today's ${slot.label}`}
+                  className="flex w-full items-center justify-between gap-2 rounded-lg border border-line bg-surface-solid px-2 py-1.5 text-left text-xs font-semibold text-content hover:bg-theme-200 cursor-pointer"
+                >
+                  <span className="truncate">{e.title}</span>
+                  <span className="shrink-0 text-[10px] font-medium text-subtle">
+                    {e.times_used}x &middot; {format(new Date(e.last_used), "MMM d")}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+function MealTitleAutocomplete({
+  slot,
+  value,
+  onChange,
+}: {
+  slot: MealSlot;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { data: history } = useQuery({
+    queryKey: ["meal-history", slot],
+    queryFn: () => api.mealPlanHistory(slot),
+  });
+
+  const q = value.trim().toLowerCase();
+  const matches = q.length >= 1 ? (history ?? []).filter((h) => h.title.toLowerCase().includes(q)).slice(0, 6) : [];
+  const showList = open && matches.length > 0;
+
+  return (
+    <div className="relative">
+      <Input
+        placeholder="e.g. Spaghetti Bolognese"
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => {
+          // Delay so a click on a suggestion registers before the list unmounts.
+          blurTimeout.current = setTimeout(() => setOpen(false), 150);
+        }}
+      />
+      {showList && (
+        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-56 overflow-y-auto rounded-xl border border-line bg-surface-solid shadow-md">
+          {matches.map((h) => (
+            <button
+              key={h.title}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                if (blurTimeout.current) clearTimeout(blurTimeout.current);
+                onChange(h.title);
+                setOpen(false);
+              }}
+              className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-semibold text-content hover:bg-surface cursor-pointer"
+            >
+              <span>{h.title}</span>
+              <span className="text-xs font-medium text-subtle">{h.times_used}x</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -306,11 +456,7 @@ function MealEntryDialog({
           </div>
           <div>
             <Label>What's cooking?</Label>
-            <Input
-              placeholder="e.g. Spaghetti Bolognese"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
+            <MealTitleAutocomplete slot={slot} value={title} onChange={setTitle} />
           </div>
           <div>
             <Label>Notes (optional)</Label>
