@@ -91,23 +91,30 @@ would create a circular import).
 grocery-app/
 ├── launch.sh              # Runs BOTH servers together (see §5)
 ├── requirements.txt       # Python deps for the FastAPI backend
-├── inventory.py           # Shared SQLite CRUD (see §2)
-├── receipt.py             # Shared OCR + parsing (see §2)
-├── api.py                 # FastAPI app setup: app creation, middleware, CORS,
-│                           #   /images mount, inventory.init_db(), include_router(...)
-│                           #   calls for every module in routers/ (see below)
-├── api_common.py           # Shared constants/paths/helpers used by api.py AND every
-│                           #   routers/*.py module (CATEGORIES, CATEGORY_UNITS,
-│                           #   guess_category(), BASE_DIR/IMAGES_DIR/BACKUPS_DIR, the
-│                           #   `logger`, CSV (de)serialization helpers, etc.)
-├── routers/                # One module per endpoint group, each with `router =
-│                           #   APIRouter()` and `@router.get/post/...` handlers —
-│                           #   meta, lookup, items, insights, item_media, summary,
-│                           #   favorites, shopping_list, meal_plan, receipt_scan,
-│                           #   charts, purchases, export_import, backups,
-│                           #   duplicates, tunnel
+├── backend/               # All Python backend source (see "backend/ package" note below)
+│   ├── inventory.py           # Shared SQLite CRUD (see §2)
+│   ├── receipt.py             # Shared OCR + parsing (see §2)
+│   ├── classifier.py / image_search.py / barcode.py
+│   ├── api.py                 # FastAPI app setup: app creation, middleware, CORS,
+│   │                           #   /images mount, inventory.init_db(), include_router(...)
+│   │                           #   calls for every module in routers/ (see below)
+│   ├── api_common.py           # Shared constants/paths/helpers used by api.py AND every
+│   │                           #   routers/*.py module (CATEGORIES, CATEGORY_UNITS,
+│   │                           #   guess_category(), BASE_DIR/IMAGES_DIR/BACKUPS_DIR, the
+│   │                           #   `logger`, CSV (de)serialization helpers, etc.)
+│   └── routers/                # One module per endpoint group, each with `router =
+│                               #   APIRouter()` and `@router.get/post/...` handlers —
+│                               #   meta, lookup, items, insights, item_media, summary,
+│                               #   favorites, shopping_list, meal_plan, receipt_scan,
+│                               #   charts, purchases, export_import, backups,
+│                               #   duplicates, storage_locations, tunnel
+├── tests/                 # Pytest suite - pytest.ini sets `pythonpath = . backend` so
+│                           #   `import inventory` / `import api` resolve unchanged
 ├── data/
-│   ├── inventory.db       # SQLite database (gitignored)
+│   ├── inventory.db       # SQLite database (gitignored) - stays at repo root; BASE_DIR
+│   │                       #   in api_common.py resolves two levels up from
+│   │                       #   backend/api_common.py to find it, same physical path as
+│   │                       #   before the backend/ package existed
 │   └── images/*.jpg       # Normalized item photos (gitignored)
 └── frontend/               # React app
     ├── vite.config.ts      # react() + tailwindcss() plugins, @ alias, dev proxy
@@ -214,12 +221,14 @@ under `/api`):
 
 ### Recommended: both servers together
 ```bash
-cd /Users/pvullam/Documents/Github/grocery-app
+cd /Users/vullamkarthik/Library/CloudStorage/OneDrive-TheBostonConsultingGroup,Inc/Documents/GitHub/grocery-app
 ./launch.sh
 ```
 This script (repo root, executable):
 1. Creates/activates `.venv`, installs `requirements.txt` if `fastapi` isn't importable.
-2. Starts `uvicorn api:app --host 0.0.0.0 --port 8000 --reload` in the background.
+2. Starts `uvicorn api:app --app-dir backend --host 0.0.0.0 --port 8000 --reload` in the
+   background (`--app-dir backend` is required now that the backend source lives in
+   `backend/` rather than the repo root - see §9 History).
 3. Sources `~/.nvm/nvm.sh` and does `nvm use 22` if available (see Node gotcha below).
 4. `npm install`s frontend deps if `frontend/node_modules` is missing, then starts
    `npm run dev -- --port 5173` in the background.
@@ -230,7 +239,7 @@ This script (repo root, executable):
 ### Manual / component-by-component (useful for debugging)
 ```bash
 # Backend only
-source .venv/bin/activate && uvicorn api:app --reload --port 8000
+source .venv/bin/activate && uvicorn api:app --app-dir backend --reload --port 8000
 
 # Frontend only (in a second terminal)
 cd frontend && npm run dev
@@ -334,3 +343,28 @@ These are **not yet done** and would be reasonable next asks from the user:
   shapes, and behavior throughout; nothing about how the API behaves changed, only
   where the code that implements it lives. §2, §3, §4, and §6 above describe the
   *current* (post-split) layout, not the historical monolithic one.
+- **All backend Python modules were subsequently moved into a `backend/` package.**
+  `api.py`, `api_common.py`, `inventory.py`, `receipt.py`, `classifier.py`,
+  `image_search.py`, `barcode.py`, and `routers/` used to sit directly at the repo
+  root alongside `frontend/`, `tests/`, and the project tooling; they now live under
+  `backend/` (git history preserved via `git mv`). Also removed as part of this
+  cleanup: `api_meal_plan.py` (a completely unimported, dead early prototype of the
+  meal-plan `PATCH` endpoint - superseded long ago by `routers/meal_plan.py`) and the
+  empty legacy `grocery_app.db` tracked at the repo root (data has lived in the
+  gitignored `data/inventory.db` for a long time; this stray 0-byte file predated that
+  convention and had been accidentally committed before `*.db` was added to
+  `.gitignore`).
+  - **Nothing about where data physically lives changed.** `api_common.py`'s
+    `BASE_DIR` and `inventory.py`'s `DB_PATH` were updated to resolve one directory
+    level further up (`.parent.parent` instead of `.parent`) so `data/inventory.db`,
+    `data/images/`, `data/backups/`, and `frontend/dist/` all still resolve to the
+    exact same physical paths at the repo root as before the move - verified by
+    booting the relocated backend against the real (non-test) database and confirming
+    pre-existing data was still visible, not orphaned.
+  - `launch.sh` and `launch-tunnel.sh` now pass `uvicorn ... --app-dir backend` so
+    `api:app` resolves inside the new location.
+  - `pytest.ini`'s `pythonpath` is now `. backend` (was just `.`) so `tests/*.py`'s
+    existing `import inventory` / `import api` / `import receipt` statements keep
+    working completely unchanged - no test file needed to change.
+  - This was, again, a pure reorganization (plus dead-code/cruft removal) - no
+    behavior, endpoint, or schema changes.

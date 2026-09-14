@@ -1,31 +1,15 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, startOfWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, CopyPlus, Plus, Printer, ShoppingBag, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, CopyPlus, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import type { MealHistoryEntry, MealPlanEntry, MealSlot } from "@/types";
-import { Button, Card, Checkbox, Input, Label, Select, Textarea } from "@/components/ui";
-import { Dialog, DialogContent } from "@/components/Dialog";
-import { cn } from "@/lib/utils";
-
-const MEAL_SLOTS: { value: MealSlot; label: string; icon: string }[] = [
-  // Order of slots displayed in the planner
-  { value: "breakfast", label: "Breakfast", icon: "🍳" },
-  { value: "lunch", label: "Lunch", icon: "🥪" },
-  { value: "snack", label: "Snack", icon: "🍎" },
-  { value: "dinner", label: "Dinner", icon: "🍝" },
-  // Extra slot for dessert or any other optional meal
-  { value: "extra", label: "Extra", icon: "🍰" },
-];
-
-const DATE_FMT = "yyyy-MM-dd";
-
-type EditingState = {
-  date: string;
-  slot: MealSlot;
-  entry?: MealPlanEntry;
-};
+import type { MealPlanEntry, MealSlot } from "@/types";
+import { Button } from "@/components/ui";
+import { MealCalendarView } from "@/components/MealCalendarView";
+import { MealHistoryView } from "@/components/MealHistoryView";
+import { MealEntryDialog } from "@/components/MealEntryDialog";
+import { DATE_FMT, type EditingState } from "@/components/mealPlanner.constants";
 
 export function MealPlannerTab() {
   const queryClient = useQueryClient();
@@ -125,6 +109,35 @@ export function MealPlannerTab() {
     },
   });
 
+  const clearWeekMutation = useMutation({
+    mutationFn: async () => {
+      const current = entries ?? [];
+      await Promise.all(current.map((e) => api.deleteMealPlanEntry(e.id)));
+      return current;
+    },
+    onSuccess: (deleted) => {
+      invalidate();
+      if (deleted.length === 0) {
+        toast("Nothing this week to clear");
+        return;
+      }
+      toast(`Cleared ${deleted.length} meal(s) this week`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            await Promise.all(
+              deleted.map((e) =>
+                api.addMealPlanEntry(e.date, e.meal_slot, e.title, e.notes ?? undefined, e.done)
+              )
+            );
+            invalidate();
+            toast.success("Restored");
+          },
+        },
+      });
+    },
+  });
+
   return (
     <div className="space-y-4">
       <div className="glass flex flex-wrap items-center gap-3 rounded-2xl p-3 shadow-md print:hidden">
@@ -182,6 +195,15 @@ export function MealPlannerTab() {
             <Button variant="outline" size="sm" onClick={() => window.print()}>
               <Printer className="h-4 w-4" /> Print
             </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={clearWeekMutation.isPending}
+              onClick={() => clearWeekMutation.mutate()}
+              title="Clear this week's meal plan"
+            >
+              <Trash2 className="h-4 w-4" /> Clear week
+            </Button>
           </>
         )}
       </div>
@@ -195,80 +217,14 @@ export function MealPlannerTab() {
       )}
 
       {view === "calendar" && (
-      <>
-      <p className="hidden text-center font-display text-lg text-content print:block">
-        Weekly Meal Plan &middot; {format(weekStart, "MMM d")} – {format(days[6], "MMM d, yyyy")}
-      </p>
-
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 print:grid-cols-7 print:gap-2">
-        {days.map((day) => {
-          const dateStr = format(day, DATE_FMT);
-          const isToday = dateStr === todayStr;
-          return (
-            <Card
-              key={dateStr}
-              className={cn("p-3", isToday && "border-theme-500 shadow-md")}
-            >
-              <p className="font-display text-sm text-content">{format(day, "EEEE")}</p>
-              <p className="mb-2 text-xs text-subtle">{format(day, "MMM d")}</p>
-              <div className="space-y-2.5">
-                {MEAL_SLOTS.map((slot) => {
-                  const key = `${dateStr}|${slot.value}`;
-                  const slotEntries = byDaySlot.get(key) ?? [];
-                  return (
-                    <div key={slot.value}>
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-subtle">
-                        {slot.icon} {slot.label}
-                      </p>
-                      <div className="mt-1 space-y-1">
-                        {slotEntries.map((e) => (
-                          <div
-                            key={e.id}
-                            role="button"
-                            tabIndex={0}
-                            aria-label={`Edit ${e.title} (${slot.label} ${dateStr})`}
-                            onClick={() => setEditing({ date: dateStr, slot: slot.value, entry: e })}
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter" || event.key === " ") {
-                                event.preventDefault();
-                                setEditing({ date: dateStr, slot: slot.value, entry: e });
-                              }
-                            }}
-                            className={cn(
-                              "group flex w-full items-center justify-between gap-2 rounded-lg border border-line bg-surface-solid px-2 py-1 text-left text-xs font-semibold text-content hover:bg-theme-200 cursor-pointer",
-                              e.done && "opacity-70"
-                            )}
-                          >
-                            <span className={cn("truncate", e.done && "line-through text-subtle")}>{e.title}</span>
-                            <label
-                              className="flex shrink-0 items-center gap-1"
-                              onClick={(event) => event.stopPropagation()}
-                            >
-                              <Checkbox
-                                checked={e.done}
-                                onCheckedChange={(checked) =>
-                                  toggleDoneMutation.mutate({ id: e.id, done: checked === true })
-                                }
-                              />
-                            </label>
-                          </div>
-                        ))}
-                        <button
-                          onClick={() => setEditing({ date: dateStr, slot: slot.value })}
-                          className="flex w-full items-center justify-center gap-1 rounded-lg border-2 border-dashed border-line/40 py-1 text-[10px] font-semibold text-subtle hover:border-line hover:text-content cursor-pointer print:hidden"
-                        >
-                          <Plus className="h-3 w-3" /> Add
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-          );
-        })}
-      </div>
-      </>
+        <MealCalendarView
+          days={days}
+          byDaySlot={byDaySlot}
+          todayStr={todayStr}
+          weekStart={weekStart}
+          setEditing={setEditing}
+          onToggleDone={(data) => toggleDoneMutation.mutate(data)}
+        />
       )}
 
       <MealEntryDialog
@@ -286,223 +242,5 @@ export function MealPlannerTab() {
         saving={addMutation.isPending || updateMutation.isPending}
       />
     </div>
-  );
-}
-
-function MealHistoryView({
-  onQuickAdd,
-}: {
-  onQuickAdd: (slot: MealSlot, title: string) => void;
-}) {
-  const { data: history } = useQuery({
-    queryKey: ["meal-history"],
-    queryFn: () => api.mealPlanHistory(),
-  });
-
-  const bySlot = useMemo(() => {
-    const map = new Map<MealSlot, MealHistoryEntry[]>();
-    for (const h of history ?? []) {
-      if (!map.has(h.meal_slot)) map.set(h.meal_slot, []);
-      map.get(h.meal_slot)!.push(h);
-    }
-    return map;
-  }, [history]);
-
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {MEAL_SLOTS.map((slot) => {
-        const entries = bySlot.get(slot.value) ?? [];
-        return (
-          <Card key={slot.value} className="p-3">
-            <p className="font-display text-sm text-content">
-              {slot.icon} {slot.label}
-            </p>
-            <p className="mb-2 text-xs text-subtle">
-              {entries.length ? `${entries.length} item(s) tracked` : "Nothing tracked yet"}
-            </p>
-            <div className="max-h-72 space-y-1 overflow-y-auto">
-              {entries.map((e) => (
-                <button
-                  key={e.title}
-                  type="button"
-                  onClick={() => onQuickAdd(slot.value, e.title)}
-                  title={`Add "${e.title}" to today's ${slot.label}`}
-                  className="flex w-full items-center justify-between gap-2 rounded-lg border border-line bg-surface-solid px-2 py-1.5 text-left text-xs font-semibold text-content hover:bg-theme-200 cursor-pointer"
-                >
-                  <span className="truncate">{e.title}</span>
-                  <span className="shrink-0 text-[10px] font-medium text-subtle">
-                    {e.times_used}x &middot; {format(new Date(e.last_used), "MMM d")}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </Card>
-        );
-      })}
-    </div>
-  );
-}
-
-function MealTitleAutocomplete({
-  slot,
-  value,
-  onChange,
-}: {
-  slot: MealSlot;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const blurTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const { data: history } = useQuery({
-    queryKey: ["meal-history", slot],
-    queryFn: () => api.mealPlanHistory(slot),
-  });
-
-  const q = value.trim().toLowerCase();
-  const matches = q.length >= 1 ? (history ?? []).filter((h) => h.title.toLowerCase().includes(q)).slice(0, 6) : [];
-  const showList = open && matches.length > 0;
-
-  return (
-    <div className="relative">
-      <Input
-        placeholder="e.g. Spaghetti Bolognese"
-        value={value}
-        onChange={(e) => {
-          onChange(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => {
-          // Delay so a click on a suggestion registers before the list unmounts.
-          blurTimeout.current = setTimeout(() => setOpen(false), 150);
-        }}
-      />
-      {showList && (
-        <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-56 overflow-y-auto rounded-xl border border-line bg-surface-solid shadow-md">
-          {matches.map((h) => (
-            <button
-              key={h.title}
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                if (blurTimeout.current) clearTimeout(blurTimeout.current);
-                onChange(h.title);
-                setOpen(false);
-              }}
-              className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-semibold text-content hover:bg-surface cursor-pointer"
-            >
-              <span>{h.title}</span>
-              <span className="text-xs font-medium text-subtle">{h.times_used}x</span>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MealEntryDialog({
-  editing,
-  onClose,
-  onSave,
-  onDelete,
-  onAddToShoppingList,
-  saving,
-}: {
-  editing: EditingState | null;
-  onClose: () => void;
-  onSave: (data: { date: string; slot: MealSlot; title: string; notes?: string; done?: boolean }) => void;
-  onDelete?: () => void;
-  onAddToShoppingList: (title: string) => void;
-  saving: boolean;
-}) {
-  const [title, setTitle] = useState("");
-  const [notes, setNotes] = useState("");
-  const [date, setDate] = useState("");
-  const [slot, setSlot] = useState<MealSlot>("dinner");
-  const [done, setDone] = useState(false);
-
-  // Re-seed local state whenever a new entry/slot is opened for editing.
-  const openKey = editing ? `${editing.date}|${editing.slot}|${editing.entry?.id ?? "new"}` : null;
-  const [seededFor, setSeededFor] = useState<string | null>(null);
-  if (editing && openKey !== seededFor) {
-    setSeededFor(openKey);
-    setTitle(editing.entry?.title ?? "");
-    setNotes(editing.entry?.notes ?? "");
-    setDate(editing.date);
-    setSlot(editing.slot);
-    setDone(editing.entry?.done ?? false);
-  }
-
-  return (
-    <Dialog open={!!editing} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent title={editing?.entry ? "Edit meal" : "Add meal"}>
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Date</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            </div>
-            <div>
-              <Label>Meal</Label>
-              <Select
-                value={slot}
-                onValueChange={(v) => setSlot(v as MealSlot)}
-                options={MEAL_SLOTS.map((s) => ({ value: s.value, label: `${s.icon} ${s.label}` }))}
-              />
-            </div>
-          </div>
-          <div>
-            <Label>What's cooking?</Label>
-            <MealTitleAutocomplete slot={slot} value={title} onChange={setTitle} />
-          </div>
-          <div>
-            <Label>Notes (optional)</Label>
-            <Textarea
-              placeholder="Ingredients, prep notes, who's cooking..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-            />
-          </div>
-          {editing?.entry && (
-            <label className="flex items-center gap-2 text-sm text-content">
-              <Checkbox checked={done} onCheckedChange={(v) => setDone(v === true)} />
-              Mark as done
-            </label>
-          )}
-          <div className="flex gap-2 pt-2">
-            <Button
-              className="flex-1"
-              disabled={!title.trim() || saving}
-              onClick={() =>
-                onSave({ date, slot, title: title.trim(), notes: notes.trim() || undefined, done })
-              }
-            >
-              {editing?.entry ? "Save changes" : "Add to plan"}
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              disabled={!title.trim()}
-              onClick={() => onAddToShoppingList(title.trim())}
-              title="Add to shopping list"
-            >
-              <ShoppingBag className="h-4 w-4" />
-            </Button>
-            {onDelete && (
-              <Button variant="danger" size="icon" onClick={onDelete} title="Remove">
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
-            <Button variant="outline" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
   );
 }

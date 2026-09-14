@@ -50,6 +50,30 @@ def test_create_and_update_item_storage_location(client):
     assert updated["storage_location"] == "Freezer"
 
 
+def test_storage_locations_crud(client):
+    resp = client.post("/api/storage-locations", data={"name": "Garage", "icon": "🧰"})
+    assert resp.status_code == 200
+    loc_id = resp.json()["id"]
+
+    resp = client.get("/api/storage-locations")
+    assert any(loc["name"] == "Garage" for loc in resp.json())
+
+    resp = client.post("/api/storage-locations", data={"name": "garage", "icon": "🧰"})
+    assert resp.status_code == 409
+
+    resp = client.put(
+        f"/api/storage-locations/{loc_id}", data={"name": "Garage Shelf", "icon": "🧰"}
+    )
+    assert resp.status_code == 200
+    assert any(loc["name"] == "Garage Shelf" for loc in client.get("/api/storage-locations").json())
+
+    resp = client.delete(f"/api/storage-locations/{loc_id}")
+    assert resp.status_code == 200
+    assert not any(
+        loc["id"] == loc_id for loc in client.get("/api/storage-locations").json()
+    )
+
+
 def test_item_create_and_list(client):
     assert _add_item(client, "Milk").json()["status"] == "added"
     items = client.get("/api/items").json()

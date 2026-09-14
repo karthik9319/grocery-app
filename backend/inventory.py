@@ -8,13 +8,26 @@ from pathlib import Path
 from typing import Optional
 
 # Overridable via GROCERY_DB_PATH so tests (and alternate deployments) can point at a
-# throwaway database instead of the real one.
-DB_PATH = Path(os.environ.get("GROCERY_DB_PATH", Path(__file__).parent / "data" / "inventory.db"))
+# throwaway database instead of the real one. The default resolves to <repo root>/data/
+# inventory.db - this module lives one level down in backend/, so .parent.parent gets
+# back to the true repo root (same physical location as before the backend/ move).
+DB_PATH = Path(
+    os.environ.get("GROCERY_DB_PATH", Path(__file__).resolve().parent.parent / "data" / "inventory.db")
+)
 
 
 def init_db() -> None:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with get_connection() as conn:
+        # Checked before creating the table below, so defaults are seeded exactly once
+        # ever (fresh install) - not re-seeded just because the user later deletes all
+        # of them.
+        storage_locations_table_is_new = (
+            conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='storage_locations'"
+            ).fetchone()
+            is None
+        )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS items (
@@ -121,6 +134,16 @@ def init_db() -> None:
             """
         )
         conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS storage_locations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                icon TEXT NOT NULL DEFAULT '📦',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
             "INSERT OR IGNORE INTO settings (id, count_threshold, weight_threshold) "
             "VALUES (1, 2, 200)"
         )
@@ -133,6 +156,8 @@ def init_db() -> None:
         _migrate_add_in_use_quantity_column(conn)
         _migrate_add_meal_plan_done_column(conn)
         _migrate_add_storage_location_column(conn)
+        if storage_locations_table_is_new:
+            _seed_default_storage_locations(conn)
 
 
 def _migrate_legacy_category_check(conn: sqlite3.Connection) -> None:
@@ -224,11 +249,74 @@ def _migrate_add_meal_plan_done_column(conn: sqlite3.Connection) -> None:
 
 
 def _migrate_add_storage_location_column(conn: sqlite3.Connection) -> None:
-    """Older DBs don't have a storage_location column (Fridge/Freezer/Pantry/Cabinet) -
-    add it if missing. NULL means unspecified."""
+    """Older DBs don't have a storage_location column (free text, e.g. Fridge/Freezer/
+    Pantry/Cabinet by default, but user-editable via the storage_locations table) - add
+    it if missing. NULL means unspecified."""
     cols = [row["name"] for row in conn.execute("PRAGMA table_info(items)").fetchall()]
     if "storage_location" not in cols:
         conn.execute("ALTER TABLE items ADD COLUMN storage_location TEXT")
+        conn.commit()
+
+
+def _seed_default_storage_locations(conn: sqlite3.Connection) -> None:
+    """Populate the storage_locations table with sensible defaults. Only called once,
+    right after the table is first created (see init_db) - so deleting a default
+    location later (e.g. "Cabinet") sticks instead of coming back on next launch."""
+    defaults = [("Fridge", "🧊"), ("Freezer", "❄️"), ("Pantry", "🥫"), ("Cabinet", "🚪")]
+    now = datetime.now().isoformat()
+    conn.executemany(
+        "INSERT INTO storage_locations (name, icon, created_at) VALUES (?, ?, ?)",
+        [(name, icon, now) for name, icon in defaults],
+    )
+    conn.commit()
+
+
+def get_storage_locations() -> list:
+    with get_connection() as conn:
+        rows = conn.execute("SELECT * FROM storage_locations ORDER BY name ASC").fetchall()
+        return [dict(row) for row in rows]
+
+
+def add_storage_location(name: str, icon: str) -> dict:
+    """Add a new storage location. Names are unique (case-insensitive, enforced by the
+    column's COLLATE NOCASE) - raises ValueError if one with this name already exists."""
+    name = name.strip()
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT * FROM storage_locations WHERE name = ? COLLATE NOCASE", (name,)
+        ).fetchone()
+        if existing:
+            raise ValueError(f'Storage location "{name}" already exists')
+        cur = conn.execute(
+            "INSERT INTO storage_locations (name, icon, created_at) VALUES (?, ?, ?)",
+            (name, icon.strip(), datetime.now().isoformat()),
+        )
+        conn.commit()
+        return {"id": cur.lastrowid, "name": name, "icon": icon.strip()}
+
+
+def update_storage_location(location_id: int, name: str, icon: str) -> None:
+    """Rename/re-icon a storage location. Raises ValueError if the new name collides
+    with a DIFFERENT existing location."""
+    name = name.strip()
+    with get_connection() as conn:
+        existing = conn.execute(
+            "SELECT * FROM storage_locations WHERE name = ? COLLATE NOCASE", (name,)
+        ).fetchone()
+        if existing and existing["id"] != location_id:
+            raise ValueError(f'Storage location "{name}" already exists')
+        conn.execute(
+            "UPDATE storage_locations SET name = ?, icon = ? WHERE id = ?",
+            (name, icon.strip(), location_id),
+        )
+        conn.commit()
+
+
+def delete_storage_location(location_id: int) -> None:
+    """Remove a storage location from the pickable list. Items already tagged with its
+    name keep that text - this only affects what's offered going forward."""
+    with get_connection() as conn:
+        conn.execute("DELETE FROM storage_locations WHERE id = ?", (location_id,))
         conn.commit()
 
 

@@ -104,6 +104,32 @@ def test_storage_location_set_and_updated():
     assert refreshed["storage_location"] == "Freezer"
 
 
+def test_storage_locations_seeded_and_editable():
+    seeded = inventory.get_storage_locations()
+    names = {loc["name"] for loc in seeded}
+    assert {"Fridge", "Freezer", "Pantry", "Cabinet"} <= names
+
+    added = inventory.add_storage_location("Garage", "🧰")
+    assert any(loc["name"] == "Garage" for loc in inventory.get_storage_locations())
+
+    inventory.update_storage_location(added["id"], "Garage Shelf", "🧰")
+    updated = next(
+        loc for loc in inventory.get_storage_locations() if loc["id"] == added["id"]
+    )
+    assert updated["name"] == "Garage Shelf"
+
+    inventory.delete_storage_location(added["id"])
+    assert not any(loc["id"] == added["id"] for loc in inventory.get_storage_locations())
+
+
+def test_add_storage_location_rejects_duplicate_name():
+    import pytest
+
+    inventory.add_storage_location("Wine Rack", "🍷")
+    with pytest.raises(ValueError):
+        inventory.add_storage_location("wine rack", "🍾")  # case-insensitive collision
+
+
 def test_meal_history_groups_by_slot_with_counts():
     inventory.add_meal_plan_entry("2026-01-01", "breakfast", "Idli")
     inventory.add_meal_plan_entry("2026-01-08", "breakfast", "Idli")

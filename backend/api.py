@@ -32,6 +32,7 @@ from routers import (
     purchases,
     receipt_scan,
     shopping_list,
+    storage_locations,
     summary,
     tunnel,
 )
@@ -97,6 +98,7 @@ app.include_router(purchases.router)
 app.include_router(export_import.router)
 app.include_router(backups.router)
 app.include_router(duplicates.router)
+app.include_router(storage_locations.router)
 app.include_router(tunnel.router)
 
 

@@ -29,8 +29,9 @@ your machine.
 
 ## Tech stack
 
-- **Backend**: FastAPI (`api.py` + `routers/`), SQLite via a shared data-access layer
-  (`inventory.py`), OCR via `pytesseract`/`paddleocr` (`receipt.py`)
+- **Backend**: FastAPI (`backend/api.py` + `backend/routers/`), SQLite via a shared
+  data-access layer (`backend/inventory.py`), OCR via `pytesseract`/`paddleocr`
+  (`backend/receipt.py`)
 - **Frontend**: React 19 + TypeScript + Vite, Tailwind v4, Radix UI primitives, TanStack
   Query, Recharts
 
@@ -54,7 +55,7 @@ Press `Ctrl+C` to stop both.
 
 ```bash
 # Backend only
-source .venv/bin/activate && uvicorn api:app --reload --port 8000
+source .venv/bin/activate && uvicorn api:app --app-dir backend --reload --port 8000
 
 # Frontend only (in a second terminal)
 cd frontend && npm run dev
@@ -71,18 +72,22 @@ pytest
 
 ```
 grocery-app/
-├── launch.sh              # Starts both servers together
-├── inventory.py           # SQLite data-access layer (single source of truth)
-├── receipt.py              # Receipt OCR text extraction + parsing
-├── api.py                 # FastAPI app setup + router registration
-├── api_common.py           # Shared constants/helpers used by every router
-├── routers/                 # FastAPI routers, one module per feature area
-├── classifier.py / image_search.py / barcode.py
-└── frontend/                # React + Vite app
+├── launch.sh                 # Starts both servers together
+├── backend/
+│   ├── inventory.py           # SQLite data-access layer (single source of truth)
+│   ├── receipt.py               # Receipt OCR text extraction + parsing
+│   ├── classifier.py / image_search.py / barcode.py
+│   ├── api.py                  # FastAPI app setup + router registration
+│   ├── api_common.py            # Shared constants/helpers used by every router
+│   └── routers/                  # FastAPI routers, one module per feature area
+├── tests/                     # Pytest suite (pytest.ini adds backend/ to pythonpath)
+├── data/                      # SQLite db, images, backups (gitignored, untouched by
+│                                 the backend/ move - still lives at repo root)
+└── frontend/                  # React + Vite app
     └── src/
-        ├── components/       # Tab views, dialogs, item cards, etc.
-        ├── lib/               # API client, formatting/util helpers
-        └── types.ts            # TypeScript types mirroring the API's JSON shapes
+        ├── components/          # Tab views, dialogs, item cards, etc.
+        ├── lib/                   # API client, formatting/util helpers
+        └── types.ts                # TypeScript types mirroring the API's JSON shapes
 ```
 
 See [`prompt.md`](prompt.md) for a deeper architectural write-up (design decisions,

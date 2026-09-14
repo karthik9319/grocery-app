@@ -134,6 +134,7 @@ echo ""
 echo "==> Starting FastAPI..."
 
 uvicorn api:app \
+    --app-dir backend \
     --host 0.0.0.0 \
     --port "$BACKEND_PORT" \
     --reload \

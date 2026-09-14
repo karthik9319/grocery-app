@@ -29,7 +29,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger("grocery")
 
-BASE_DIR = Path(__file__).parent
+# Repo root (this module now lives one level down, in backend/) - data/, frontend/dist,
+# etc. all stay physically where they've always been, at the true project root.
+BASE_DIR = Path(__file__).resolve().parent.parent
 IMAGES_DIR = BASE_DIR / "data" / "images"
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 BACKUPS_DIR = BASE_DIR / "data" / "backups"
@@ -43,8 +45,6 @@ CATEGORIES = list(CATEGORY_ICONS.keys())
 PALETTE = {"Groceries": "#1B7A4D", "Vegetables": "#FF8C42", "Household": "#6C63FF", "Snacks": "#C2185B"}
 CATEGORY_UNITS = {"Groceries": "count", "Vegetables": "g", "Household": "count", "Snacks": "count"}
 
-STORAGE_LOCATION_ICONS = {"Fridge": "🧊", "Freezer": "❄️", "Pantry": "🥫", "Cabinet": "🚪"}
-STORAGE_LOCATIONS = list(STORAGE_LOCATION_ICONS.keys())
 
 COMMON_ITEMS = {
     "tomato": ("Vegetables", 5), "potato": ("Vegetables", 21), "onion": ("Vegetables", 30),

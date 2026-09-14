@@ -28,6 +28,7 @@ import type {
   MealHistoryEntry,
   MealPlanEntry,
   MealSlot,
+  StorageLocation,
   Meta,
   Prediction,
   Purchase,
@@ -289,6 +290,22 @@ export const api = {
     client
       .get<MealHistoryEntry[]>("/meal-plan/history", { params: slot ? { slot } : {} })
       .then((r) => r.data),
+
+  storageLocations: () => client.get<StorageLocation[]>("/storage-locations").then((r) => r.data),
+  addStorageLocation: (name: string, icon: string) => {
+    const form = new FormData();
+    form.append("name", name);
+    form.append("icon", icon);
+    return client.post<StorageLocation>("/storage-locations", form).then((r) => r.data);
+  },
+  updateStorageLocation: (id: number, name: string, icon: string) => {
+    const form = new FormData();
+    form.append("name", name);
+    form.append("icon", icon);
+    return client.put(`/storage-locations/${id}`, form).then((r) => r.data);
+  },
+  deleteStorageLocation: (id: number) =>
+    client.delete(`/storage-locations/${id}`).then((r) => r.data),
 
   patchMealPlanDone: (id: number, done: boolean) => {
     const form = new FormData();

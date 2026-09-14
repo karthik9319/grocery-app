@@ -2,15 +2,7 @@ from fastapi import APIRouter, Form
 from fastapi.responses import JSONResponse
 
 import inventory
-from api_common import (
-    CATEGORIES,
-    CATEGORY_ICONS,
-    CATEGORY_UNITS,
-    PALETTE,
-    STORAGE_LOCATION_ICONS,
-    STORAGE_LOCATIONS,
-    logger,
-)
+from api_common import CATEGORIES, CATEGORY_ICONS, CATEGORY_UNITS, PALETTE, logger
 
 router = APIRouter()
 
@@ -30,13 +22,14 @@ def health_check():
 
 @router.get("/api/meta")
 def get_meta():
+    locations = inventory.get_storage_locations()
     return {
         "categories": CATEGORIES,
         "icons": CATEGORY_ICONS,
         "units": CATEGORY_UNITS,
         "palette": PALETTE,
-        "storage_locations": STORAGE_LOCATIONS,
-        "storage_location_icons": STORAGE_LOCATION_ICONS,
+        "storage_locations": [loc["name"] for loc in locations],
+        "storage_location_icons": {loc["name"]: loc["icon"] for loc in locations},
     }
 
 

@@ -68,7 +68,7 @@ cd "$ROOT_DIR"
 ###############################################################################
 
 echo "==> Starting FastAPI on port $BACKEND_PORT (serving API + built frontend)..."
-uvicorn api:app --host 127.0.0.1 --port "$BACKEND_PORT" &
+uvicorn api:app --app-dir backend --host 127.0.0.1 --port "$BACKEND_PORT" &
 BACKEND_PID=$!
 
 cleanup() {

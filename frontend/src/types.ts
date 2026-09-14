@@ -145,6 +145,13 @@ export interface MealPlanEntry {
   created_at: string;
 }
 
+export interface StorageLocation {
+  id: number;
+  name: string;
+  icon: string;
+  created_at: string;
+}
+
 export interface MealHistoryEntry {
   meal_slot: MealSlot;
   title: string;

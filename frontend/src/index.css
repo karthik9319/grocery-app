@@ -241,4 +241,31 @@ body::before {
   scrollbar-color: var(--color-brand-300) transparent;
 }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
+
+/* Meal Planner's weekly grid prints in landscape - a 7-column week is too wide for
+   portrait paper at any readable font size. */
+@media print {
+  @page {
+    size: landscape;
+  }
+
+  /* Force light, ink-safe colors for print regardless of the active on-screen theme.
+     Dark mode's near-white text on a near-black background renders as invisible
+     white-on-white once printed, because browsers don't print background colors by
+     default (no "background graphics" option) while the text color still applies. */
+  :root, .dark {
+    --canvas: #ffffff;
+    --surface: #ffffff;
+    --surface-solid: #ffffff;
+    --line: #d4d4d4;
+    --content: #000000;
+    --muted: #333333;
+    --subtle: #666666;
+  }
+
+  /* Decorative fixed-position dot-grid backdrop - not meaningful on paper. */
+  body::before {
+    display: none;
+  }
+}
 ::-webkit-scrollbar-thumb { background: var(--color-brand-300); border-radius: 999px; }
