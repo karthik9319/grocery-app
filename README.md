@@ -23,6 +23,8 @@ your machine.
 - **Spending**: purchase price history, last-price-paid lookups, and spending charts
 - **Favorites**, duplicate-item detection/merging, bulk delete/move, automatic local
   backups, and full CSV import/export
+- **Off-machine backup**: once-per-day snapshot (database + photos) copied into iCloud
+  Drive automatically, if it's available on your Mac
 - **PWA support** with an offline write queue, plus an optional Cloudflare tunnel for
   remote access
 - Command palette and global search across items, shopping list, and meal plan

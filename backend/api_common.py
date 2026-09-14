@@ -8,8 +8,11 @@ importing back from api.py would create a circular import.
 """
 import io
 import logging
+import os
+import shutil
+import sqlite3
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -38,6 +41,16 @@ BACKUPS_DIR = BASE_DIR / "data" / "backups"
 BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
 MAX_BACKUPS = 30
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
+
+# Off-machine safety net, same pattern as this user's other local-first apps (e.g. the
+# habit tracker): once-per-day dated snapshot copied into iCloud Drive if it's mounted
+# on this Mac, so a lost/wiped laptop doesn't lose everything. Unlike that app (a flat
+# JSON file, safe to live directly inside a synced folder via atomic rename), this
+# app's live SQLite db stays local - WAL-mode SQLite doesn't tolerate being directly
+# inside a continuously-cloud-synced directory. Only a point-in-time snapshot is copied.
+ICLOUD_ROOT = Path.home() / "Library" / "Mobile Documents" / "com~apple~CloudDocs"
+ICLOUD_BACKUP_DIR = ICLOUD_ROOT / "GroceryAppBackups"
+ICLOUD_BACKUP_RETENTION_DAYS = 30
 
 # --- Static reference data (mirrors the old app.py's constants) ---
 CATEGORY_ICONS = {"Groceries": "🧺", "Vegetables": "🥕", "Household": "🧴", "Snacks": "🍿"}
@@ -262,6 +275,58 @@ def write_backup(items: list, reason: str) -> Optional[str]:
         except OSError:
             pass
     return filename
+
+
+def write_icloud_snapshot() -> Optional[str]:
+    """Write a once-per-day full snapshot (database + item photos) into iCloud Drive, if
+    it's available on this Mac - a no-op (not an error) otherwise. Skips if today's
+    snapshot already exists (called on every server startup, not on a timer), and prunes
+    anything older than ICLOUD_BACKUP_RETENTION_DAYS. Uses SQLite's online backup API
+    (Connection.backup), not a raw file copy, so the snapshot is transactionally
+    consistent even if the live db is currently open/being written to. Skips entirely
+    (never touches the real iCloud Drive) whenever GROCERY_DB_PATH is set - tests and
+    any alternate deployment pointed at a non-default database have no business writing
+    into this machine's personal iCloud account as a side effect of importing this
+    module."""
+    if os.environ.get("GROCERY_DB_PATH") or not ICLOUD_ROOT.is_dir():
+        return None
+    try:
+        snapshot_dir = ICLOUD_BACKUP_DIR / f"grocery-app-{date.today().isoformat()}"
+        if snapshot_dir.exists():
+            return None
+        snapshot_dir.mkdir(parents=True)
+
+        db_path = BASE_DIR / "data" / "inventory.db"
+        if db_path.exists():
+            src = sqlite3.connect(str(db_path))
+            try:
+                dst = sqlite3.connect(str(snapshot_dir / "inventory.db"))
+                try:
+                    src.backup(dst)
+                finally:
+                    dst.close()
+            finally:
+                src.close()
+
+        if IMAGES_DIR.is_dir():
+            shutil.copytree(IMAGES_DIR, snapshot_dir / "images")
+
+        _prune_old_icloud_snapshots()
+        return str(snapshot_dir)
+    except OSError:
+        logger.exception("iCloud backup snapshot failed")
+        return None
+
+
+def _prune_old_icloud_snapshots() -> None:
+    cutoff = datetime.now() - timedelta(days=ICLOUD_BACKUP_RETENTION_DAYS)
+    for entry in ICLOUD_BACKUP_DIR.glob("grocery-app-*"):
+        try:
+            entry_date = datetime.strptime(entry.name.removeprefix("grocery-app-"), "%Y-%m-%d")
+        except ValueError:
+            continue
+        if entry_date < cutoff:
+            shutil.rmtree(entry, ignore_errors=True)
 
 
 def detect_import_kind(fieldnames: Optional[list[str]]) -> str:

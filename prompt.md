@@ -214,6 +214,19 @@ under `/api`):
   `custom_threshold` (a known small gap, low priority).
 - **Receipt OCR is explicitly best-effort.** Don't try to make the regex parser
   perfect — the UI's mandatory human-review-before-add step is the real safety net.
+- **Off-machine backup: a once-per-day snapshot into iCloud Drive, if mounted.**
+  `write_icloud_snapshot()` (`api_common.py`, called once at server startup in
+  `api.py`) writes a dated `~/Library/Mobile Documents/com~apple~CloudDocs/
+  GroceryAppBackups/grocery-app-YYYY-MM-DD/` folder containing a consistent copy of
+  `inventory.db` (via SQLite's online backup API, not a raw file copy - safe even if
+  the live db is open) plus `data/images/`. No-ops silently if iCloud Drive isn't
+  mounted, or if `GROCERY_DB_PATH` is set (tests/alternate deployments never touch the
+  real iCloud account). Mirrors the same local-backup pattern used in this user's other
+  local-first apps (e.g. the habit tracker), adapted for SQLite: that app's flat JSON
+  data file lives directly inside iCloud (safe there because of atomic-rename writes),
+  but this app's live SQLite db stays local — WAL-mode SQLite doesn't tolerate sitting
+  directly inside a continuously-cloud-synced folder, so only point-in-time snapshots
+  go to iCloud, not the live file. 30-day retention, pruned on each run.
 
 ---
 

@@ -16,7 +16,14 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 import inventory
-from api_common import FRONTEND_DIST, IMAGES_DIR, detect_import_kind, logger, retrain_classifier
+from api_common import (
+    FRONTEND_DIST,
+    IMAGES_DIR,
+    detect_import_kind,
+    logger,
+    retrain_classifier,
+    write_icloud_snapshot,
+)
 from routers import (
     backups,
     charts,
@@ -44,6 +51,7 @@ __all__ = ["app", "parse_quick_add", "detect_import_kind"]
 
 inventory.init_db()
 retrain_classifier()
+write_icloud_snapshot()
 
 app = FastAPI(title="Grocery & Vegetable Tracker API")
 
