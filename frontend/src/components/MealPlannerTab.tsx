@@ -1,7 +1,15 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, startOfWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, CopyPlus, MessageCircle, Printer, Trash2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  CopyPlus,
+  MessageCircle,
+  Printer,
+  ShoppingBag,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { MealPlanEntry, MealSlot } from "@/types";
@@ -9,12 +17,8 @@ import { Button } from "@/components/ui";
 import { MealCalendarView } from "@/components/MealCalendarView";
 import { MealHistoryView } from "@/components/MealHistoryView";
 import { MealEntryDialog } from "@/components/MealEntryDialog";
-import {
-  DATE_FMT,
-  formatMealPlanForShare,
-  shareText,
-  type EditingState,
-} from "@/components/mealPlanner.constants";
+import { DATE_FMT, formatMealPlanForShare, type EditingState } from "@/components/mealPlanner.constants";
+import { shareText } from "@/lib/utils";
 
 export function MealPlannerTab() {
   const queryClient = useQueryClient();
@@ -114,6 +118,21 @@ export function MealPlannerTab() {
     },
   });
 
+  const addWeekToShoppingListMutation = useMutation({
+    mutationFn: async () => {
+      const titles = Array.from(new Set((entries ?? []).map((e) => e.title)));
+      await Promise.all(titles.map((title) => api.addShoppingItem(title)));
+      return titles.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ["shopping-list"] });
+      toast.success(
+        count > 0 ? `Added ${count} meal(s) to the shopping list` : "Nothing this week to add",
+        { icon: "🛍️" }
+      );
+    },
+  });
+
   const clearWeekMutation = useMutation({
     mutationFn: async () => {
       const current = entries ?? [];
@@ -207,6 +226,15 @@ export function MealPlannerTab() {
               title="Share this week's meal plan to WhatsApp"
             >
               <MessageCircle className="h-4 w-4" /> Share
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={addWeekToShoppingListMutation.isPending}
+              onClick={() => addWeekToShoppingListMutation.mutate()}
+              title="Add this week's meals to the shopping list"
+            >
+              <ShoppingBag className="h-4 w-4" /> Add to shopping list
             </Button>
             <Button
               variant="danger"

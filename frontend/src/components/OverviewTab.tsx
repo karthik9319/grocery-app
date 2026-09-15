@@ -11,6 +11,7 @@ import { api } from "@/lib/api";
 import type { Item, Meta } from "@/types";
 import { cn, formatMoney, formatQuantity, imageUrl } from "@/lib/utils";
 import { Spinner } from "@/components/ui";
+import { TodayMealsCard } from "@/components/TodayMealsCard";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -248,6 +249,8 @@ export function OverviewTab({
 
         {/* Right rail */}
         <div className="space-y-5">
+          <TodayMealsCard onNavigate={onNavigate} />
+
           <div className={cn(card, "p-6")}>
             <p className={cn(label, "mb-4")}>Needs attention</p>
             {insights.length === 0 ? (

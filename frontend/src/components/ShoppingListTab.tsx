@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Printer, RefreshCw, X } from "lucide-react";
+import { MessageCircle, Printer, RefreshCw, X } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Meta, ShoppingListItem } from "@/types";
-import { titleCase } from "@/lib/utils";
+import { formatShoppingListForShare, shareText, titleCase } from "@/lib/utils";
 import { Button, Card, Checkbox, EmptyState, Select } from "@/components/ui";
 import { TitleAutocomplete } from "@/components/TitleAutocomplete";
 
@@ -83,6 +83,13 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
         </Button>
         <Button variant="outline" onClick={() => window.print()}>
           <Printer className="h-4 w-4" /> Print
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() => shareText(formatShoppingListForShare(items ?? [], meta))}
+          title="Share the shopping list to WhatsApp"
+        >
+          <MessageCircle className="h-4 w-4" /> Share
         </Button>
         <form
           className="flex flex-1 gap-2"

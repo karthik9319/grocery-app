@@ -47,19 +47,3 @@ export function formatMealPlanForShare(
   lines.push("Sent from Grocery Tracker");
   return lines.join("\n");
 }
-
-/** Share text via the Web Share API where available (lets the user pick WhatsApp among
- * other apps, mainly on mobile), falling back to a wa.me link that opens WhatsApp
- * directly with the text pre-filled. Silently does nothing if the user cancels a native
- * share sheet - that's not a failure to recover from. */
-export async function shareText(text: string): Promise<void> {
-  if (navigator.share) {
-    try {
-      await navigator.share({ text });
-      return;
-    } catch (err) {
-      if ((err as Error)?.name === "AbortError") return;
-    }
-  }
-  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
-}

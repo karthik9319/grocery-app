@@ -33,6 +33,15 @@ export function ItemCard({
   const dotColor = meta.palette[item.category] ?? "#999";
   const isLow = item.quantity <= threshold;
   const expDays = daysUntil(item.expiration_date);
+  // Fast-scan freshness indicator (only meaningful for items with a tracked expiration).
+  const freshness =
+    expDays == null
+      ? null
+      : expDays < 0
+        ? { color: "#ef4444", label: "Expired" }
+        : expDays <= 3
+          ? { color: "#f59e0b", label: "Expiring soon" }
+          : { color: "#22c55e", label: "Fresh" };
   const useStep = unit === "g" ? 50 : 1;
 
   const qtyMutation = useMutation({
@@ -112,8 +121,8 @@ export function ItemCard({
       <div
         className={
           img && !selectable
-            ? "h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-line cursor-zoom-in"
-            : "h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-line"
+            ? "relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-line cursor-zoom-in"
+            : "relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-line"
         }
         onClick={
           img && !selectable
@@ -148,6 +157,13 @@ export function ItemCard({
           >
             {meta.icons[item.category]}
           </div>
+        )}
+        {freshness && (
+          <span
+            className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full ring-2 ring-surface-solid"
+            style={{ backgroundColor: freshness.color }}
+            title={freshness.label}
+          />
         )}
       </div>
 

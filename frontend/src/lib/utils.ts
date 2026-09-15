@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { Item } from "@/types";
+import type { Item, Meta, ShoppingListItem } from "@/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -101,6 +101,43 @@ export const SORT_OPTIONS = [
   { value: "qty-asc", label: "Quantity (low to high)" },
   { value: "expiring", label: "Expiring soonest" },
 ];
+
+/** Share text via the Web Share API where available (lets the user pick WhatsApp among
+ * other apps, mainly on mobile), falling back to a wa.me link that opens WhatsApp
+ * directly with the text pre-filled. Silently does nothing if the user cancels a native
+ * share sheet - that's not a failure to recover from. */
+export async function shareText(text: string): Promise<void> {
+  if (navigator.share) {
+    try {
+      await navigator.share({ text });
+      return;
+    } catch (err) {
+      if ((err as Error)?.name === "AbortError") return;
+    }
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+}
+
+/** Format the still-to-buy shopping list items as a plain-text message, e.g. for
+ * sharing to WhatsApp before a store trip. Already-checked items are left out - they're
+ * already bought, so there's nothing left to ask someone else to pick up. */
+export function formatShoppingListForShare(items: ShoppingListItem[], meta: Meta): string {
+  const unchecked = items.filter((i) => !i.checked);
+  const lines: string[] = [
+    `🛍️ Shopping List (${unchecked.length} item${unchecked.length === 1 ? "" : "s"})`,
+    "",
+  ];
+  if (unchecked.length === 0) {
+    lines.push("Nothing left on the list right now.");
+  } else {
+    for (const item of unchecked) {
+      const icon = item.category ? meta.icons[item.category] ?? "•" : "•";
+      lines.push(`${icon} ${item.title}`);
+    }
+  }
+  lines.push("", "Sent from Grocery Tracker");
+  return lines.join("\n");
+}
 
 export function sortItems(items: Item[], sort: string): Item[] {
   const copy = [...items];
