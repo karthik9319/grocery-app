@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { BarChart3, CalendarDays, CloudOff, LayoutDashboard, PlusCircle, Search, ShoppingBag } from "lucide-react";
 import { api } from "@/lib/api";
 import { QUEUE_CHANGED_EVENT, queueSize } from "@/lib/offlineQueue";
+import { checkAndShowDailyReminder } from "@/lib/dailyReminder";
 import { Header } from "@/components/Header";
 import { OverviewTab } from "@/components/OverviewTab";
 import { AddItemsTab } from "@/components/AddItemsTab";
@@ -68,6 +69,12 @@ function App() {
       toast.success(`Added ${res.added} low-stock item(s) to the shopping list`, { icon: "🛍️" });
     },
   });
+
+  useEffect(() => {
+    checkAndShowDailyReminder();
+    const id = setInterval(checkAndShowDailyReminder, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   if (isError) {
     return (
