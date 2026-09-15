@@ -38,7 +38,7 @@ export function formatMealPlanForShare(
       const entries = byDaySlot.get(`${dateStr}|${slot.value}`) ?? [];
       if (entries.length) {
         any = true;
-        lines.push(`${slot.icon} ${entries.map((e) => e.title).join(", ")}`);
+        lines.push(`${slot.icon} ${slot.label}: ${entries.map((e) => e.title).join(", ")}`);
       }
     }
     if (!any) lines.push("— nothing planned yet —");
