@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { addDays, format, startOfWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, CopyPlus, Printer, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, CopyPlus, MessageCircle, Printer, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { MealPlanEntry, MealSlot } from "@/types";
@@ -9,7 +9,12 @@ import { Button } from "@/components/ui";
 import { MealCalendarView } from "@/components/MealCalendarView";
 import { MealHistoryView } from "@/components/MealHistoryView";
 import { MealEntryDialog } from "@/components/MealEntryDialog";
-import { DATE_FMT, type EditingState } from "@/components/mealPlanner.constants";
+import {
+  DATE_FMT,
+  formatMealPlanForShare,
+  shareText,
+  type EditingState,
+} from "@/components/mealPlanner.constants";
 
 export function MealPlannerTab() {
   const queryClient = useQueryClient();
@@ -194,6 +199,14 @@ export function MealPlannerTab() {
             </Button>
             <Button variant="outline" size="sm" onClick={() => window.print()}>
               <Printer className="h-4 w-4" /> Print
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => shareText(formatMealPlanForShare(days, byDaySlot, weekStart))}
+              title="Share this week's meal plan to WhatsApp"
+            >
+              <MessageCircle className="h-4 w-4" /> Share
             </Button>
             <Button
               variant="danger"
