@@ -1,15 +1,16 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { addDays, format, startOfWeek } from "date-fns";
 import {
-  ChevronLeft,
-  ChevronRight,
-  CopyPlus,
-  MessageCircle,
-  Printer,
-  ShoppingBag,
-  Trash2,
-} from "lucide-react";
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import { addDays, format, startOfWeek } from "date-fns";
+import { ChevronLeft, ChevronRight, CopyPlus, MessageCircle, Printer, ShoppingBag, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { MealPlanEntry, MealSlot } from "@/types";
@@ -20,11 +21,15 @@ import { MealEntryDialog } from "@/components/MealEntryDialog";
 import { DATE_FMT, formatMealPlanForShare, type EditingState } from "@/components/mealPlanner.constants";
 import { shareText } from "@/lib/utils";
 
+type DropData = { type: "entry"; entry: MealPlanEntry } | { type: "slot"; date: string; slot: MealSlot };
+
 export function MealPlannerTab() {
   const queryClient = useQueryClient();
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [view, setView] = useState<"calendar" | "history">("calendar");
+  const [draggingEntry, setDraggingEntry] = useState<MealPlanEntry | null>(null);
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const startStr = format(weekStart, DATE_FMT);
@@ -162,6 +167,80 @@ export function MealPlannerTab() {
     },
   });
 
+  const swapMutation = useMutation({
+    mutationFn: async ({ a, b }: { a: MealPlanEntry; b: MealPlanEntry }) => {
+      await Promise.all([
+        api.updateMealPlanEntry(a.id, b.date, b.meal_slot, a.title, a.notes ?? undefined, a.done),
+        api.updateMealPlanEntry(b.id, a.date, a.meal_slot, b.title, b.notes ?? undefined, b.done),
+      ]);
+      return { a, b };
+    },
+    onSuccess: ({ a, b }) => {
+      invalidate();
+      toast.success(`Swapped "${a.title}" and "${b.title}"`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            await Promise.all([
+              api.updateMealPlanEntry(a.id, a.date, a.meal_slot, a.title, a.notes ?? undefined, a.done),
+              api.updateMealPlanEntry(b.id, b.date, b.meal_slot, b.title, b.notes ?? undefined, b.done),
+            ]);
+            invalidate();
+            toast.success("Swap undone");
+          },
+        },
+      });
+    },
+  });
+
+  const moveMutation = useMutation({
+    mutationFn: async ({ entry, date, slot }: { entry: MealPlanEntry; date: string; slot: MealSlot }) => {
+      await api.updateMealPlanEntry(entry.id, date, slot, entry.title, entry.notes ?? undefined, entry.done);
+      return { entry, from: { date: entry.date, slot: entry.meal_slot } };
+    },
+    onSuccess: ({ entry, from }) => {
+      invalidate();
+      toast.success(`Moved "${entry.title}"`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            await api.updateMealPlanEntry(
+              entry.id,
+              from.date,
+              from.slot,
+              entry.title,
+              entry.notes ?? undefined,
+              entry.done
+            );
+            invalidate();
+            toast.success("Move undone");
+          },
+        },
+      });
+    },
+  });
+
+  function handleDragStart(event: DragStartEvent) {
+    setDraggingEntry((event.active.data.current as { entry: MealPlanEntry } | undefined)?.entry ?? null);
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    setDraggingEntry(null);
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const dragged = (active.data.current as { entry: MealPlanEntry } | undefined)?.entry;
+    const target = over.data.current as DropData | undefined;
+    if (!dragged || !target) return;
+
+    if (target.type === "entry") {
+      if (target.entry.date === dragged.date && target.entry.meal_slot === dragged.meal_slot) return;
+      swapMutation.mutate({ a: dragged, b: target.entry });
+    } else {
+      if (target.date === dragged.date && target.slot === dragged.meal_slot) return;
+      moveMutation.mutate({ entry: dragged, date: target.date, slot: target.slot });
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="glass flex flex-wrap items-center gap-3 rounded-2xl p-3 shadow-md print:hidden">
@@ -258,14 +337,23 @@ export function MealPlannerTab() {
       )}
 
       {view === "calendar" && (
-        <MealCalendarView
-          days={days}
-          byDaySlot={byDaySlot}
-          todayStr={todayStr}
-          weekStart={weekStart}
-          setEditing={setEditing}
-          onToggleDone={(data) => toggleDoneMutation.mutate(data)}
-        />
+        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <MealCalendarView
+            days={days}
+            byDaySlot={byDaySlot}
+            todayStr={todayStr}
+            weekStart={weekStart}
+            setEditing={setEditing}
+            onToggleDone={(data) => toggleDoneMutation.mutate(data)}
+          />
+          <DragOverlay>
+            {draggingEntry && (
+              <div className="rounded-lg border border-theme-500 bg-surface-solid px-2 py-1 text-xs font-semibold text-content shadow-lg">
+                {draggingEntry.title}
+              </div>
+            )}
+          </DragOverlay>
+        </DndContext>
       )}
 
       <MealEntryDialog
