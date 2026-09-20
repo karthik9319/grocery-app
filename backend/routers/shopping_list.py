@@ -15,14 +15,24 @@ def list_shopping_items():
 
 
 @router.post("/api/shopping-list")
-def add_shopping_item(title: str = Form(...), category: Optional[str] = Form(None)):
-    inventory.add_shopping_list_item(title, category)
+def add_shopping_item(
+    title: str = Form(...),
+    category: Optional[str] = Form(None),
+    quantity: float = Form(1),
+):
+    inventory.add_shopping_list_item(title, category, quantity)
     return {"status": "ok"}
 
 
 @router.patch("/api/shopping-list/{item_id}")
 def patch_shopping_item(item_id: int, checked: bool = Form(...)):
     inventory.set_shopping_item_checked(item_id, checked)
+    return {"status": "ok"}
+
+
+@router.patch("/api/shopping-list/{item_id}/quantity")
+def patch_shopping_item_quantity(item_id: int, quantity: float = Form(...)):
+    inventory.update_shopping_item_quantity(item_id, quantity)
     return {"status": "ok"}
 
 

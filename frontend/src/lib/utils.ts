@@ -132,7 +132,8 @@ export function formatShoppingListForShare(items: ShoppingListItem[], meta: Meta
   } else {
     for (const item of unchecked) {
       const icon = item.category ? meta.icons[item.category] ?? "•" : "•";
-      lines.push(`${icon} ${item.title}`);
+      const qty = item.quantity > 1 ? ` ×${item.quantity}` : "";
+      lines.push(`${icon} ${item.title}${qty}`);
     }
   }
   lines.push("", "Sent from Grocery Tracker");

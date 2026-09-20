@@ -50,6 +50,25 @@ def test_create_and_update_item_storage_location(client):
     assert updated["storage_location"] == "Freezer"
 
 
+def test_shopping_list_quantity(client):
+    resp = client.post("/api/shopping-list", data={"title": "Eggs", "category": "Groceries"})
+    assert resp.status_code == 200
+    item = client.get("/api/shopping-list").json()[0]
+    assert item["quantity"] == 1
+
+    resp = client.post(
+        "/api/shopping-list", data={"title": "Eggs", "category": "Groceries", "quantity": 2}
+    )
+    assert resp.status_code == 200
+    items = client.get("/api/shopping-list").json()
+    assert len(items) == 1
+    assert items[0]["quantity"] == 3
+
+    resp = client.patch(f"/api/shopping-list/{items[0]['id']}/quantity", data={"quantity": 6})
+    assert resp.status_code == 200
+    assert client.get("/api/shopping-list").json()[0]["quantity"] == 6
+
+
 def test_storage_locations_crud(client):
     resp = client.post("/api/storage-locations", data={"name": "Garage", "icon": "🧰"})
     assert resp.status_code == 200

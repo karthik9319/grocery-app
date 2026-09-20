@@ -5,13 +5,14 @@ import { MessageCircle, Printer, RefreshCw, X } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Meta, ShoppingListItem } from "@/types";
 import { formatShoppingListForShare, shareText, titleCase } from "@/lib/utils";
-import { Button, Card, Checkbox, EmptyState, Select } from "@/components/ui";
+import { Button, Card, Checkbox, EmptyState, Input, Select } from "@/components/ui";
 import { TitleAutocomplete } from "@/components/TitleAutocomplete";
 
 export function ShoppingListTab({ meta }: { meta: Meta }) {
   const queryClient = useQueryClient();
   const [newTitle, setNewTitle] = useState("");
   const [newCategory, setNewCategory] = useState(meta.categories[0]);
+  const [newQuantity, setNewQuantity] = useState(1);
 
   const { data: items } = useQuery({ queryKey: ["shopping-list"], queryFn: api.shoppingList });
 
@@ -26,16 +27,23 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
   });
 
   const addItem = useMutation({
-    mutationFn: () => api.addShoppingItem(titleCase(newTitle), newCategory),
+    mutationFn: () => api.addShoppingItem(titleCase(newTitle), newCategory, newQuantity),
     onSuccess: () => {
       invalidate();
       setNewTitle("");
+      setNewQuantity(1);
     },
   });
 
   const toggleChecked = useMutation({
     mutationFn: ({ id, checked }: { id: number; checked: boolean }) =>
       api.patchShoppingItem(id, checked),
+    onSuccess: invalidate,
+  });
+
+  const changeQuantity = useMutation({
+    mutationFn: ({ id, quantity }: { id: number; quantity: number }) =>
+      api.patchShoppingItemQuantity(id, quantity),
     onSuccess: invalidate,
   });
 
@@ -47,7 +55,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
         action: {
           label: "Undo",
           onClick: async () => {
-            await api.addShoppingItem(item.title, item.category ?? undefined);
+            await api.addShoppingItem(item.title, item.category ?? undefined, item.quantity);
             invalidate();
           },
         },
@@ -115,6 +123,14 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
             options={meta.categories.map((c) => ({ value: c, label: `${meta.icons[c]} ${c}` }))}
             className="w-40"
           />
+          <Input
+            type="number"
+            min={1}
+            value={newQuantity}
+            onChange={(e) => setNewQuantity(parseFloat(e.target.value) || 1)}
+            aria-label="Quantity"
+            className="w-20"
+          />
           <Button type="submit">Add</Button>
         </form>
       </div>
@@ -139,6 +155,38 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
                 {item.category ? meta.icons[item.category] : ""} {item.title}
               </span>
             </label>
+            <div className="flex shrink-0 items-center gap-1 print:hidden">
+              <button
+                onClick={() =>
+                  changeQuantity.mutate({ id: item.id, quantity: Math.max(1, item.quantity - 1) })
+                }
+                aria-label={`Decrease ${item.title} quantity`}
+                className="h-7 w-7 rounded-lg border border-line font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
+              >
+                −
+              </button>
+              <input
+                type="number"
+                min={1}
+                value={item.quantity}
+                aria-label={`${item.title} quantity`}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!Number.isNaN(v) && v >= 1) changeQuantity.mutate({ id: item.id, quantity: v });
+                }}
+                className="h-7 w-14 rounded-lg border border-line bg-surface-solid text-center text-sm font-bold text-content outline-none"
+              />
+              <button
+                onClick={() => changeQuantity.mutate({ id: item.id, quantity: item.quantity + 1 })}
+                aria-label={`Increase ${item.title} quantity`}
+                className="h-7 w-7 rounded-lg border border-line font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
+              >
+                +
+              </button>
+            </div>
+            <span className="hidden shrink-0 text-sm text-subtle print:inline">
+              &times;{item.quantity}
+            </span>
             <button
               onClick={() => deleteItem.mutate(item)}
               aria-label={`Remove ${item.title} from shopping list`}
@@ -165,6 +213,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
                   />
                   <span className="text-sm text-subtle line-through">
                     {item.category ? meta.icons[item.category] : ""} {item.title}
+                    {item.quantity > 1 ? ` ×${item.quantity}` : ""}
                   </span>
                 </label>
               </div>

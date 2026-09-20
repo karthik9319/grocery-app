@@ -238,10 +238,11 @@ def favorites_to_csv_text(favorites: list) -> str:
 
 
 def shopping_list_to_csv_text(rows: list) -> str:
-    lines = ["title,category,checked,created_at"]
+    lines = ["title,category,quantity,checked,created_at"]
     for row in rows:
         lines.append(
-            f"{row['title']},{row.get('category') or ''},{bool(row['checked'])},{row['created_at']}"
+            f"{row['title']},{row.get('category') or ''},{row.get('quantity', 1)},"
+            f"{bool(row['checked'])},{row['created_at']}"
         )
     return "\n".join(lines)
 
@@ -439,7 +440,11 @@ def import_shopping_list_rows(rows) -> dict:
         if not title:
             continue
         category = (row.get("category") or "").strip() or None
-        inventory.add_shopping_list_item(title, category)
+        try:
+            quantity = float(row.get("quantity") or 1)
+        except ValueError:
+            quantity = 1
+        inventory.add_shopping_list_item(title, category, quantity)
         processed += 1
     return {"added": processed, "merged": 0, "skipped": 0}
 

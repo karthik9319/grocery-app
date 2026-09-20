@@ -104,6 +104,21 @@ def test_storage_location_set_and_updated():
     assert refreshed["storage_location"] == "Freezer"
 
 
+def test_shopping_list_quantity_defaults_and_merges():
+    inventory.add_shopping_list_item("Milk", "Groceries")
+    item = inventory.get_shopping_list()[0]
+    assert item["quantity"] == 1
+
+    # Re-adding the same unchecked title+category adds to quantity instead of duplicating.
+    inventory.add_shopping_list_item("milk", "Groceries", 2)
+    items = inventory.get_shopping_list()
+    assert len(items) == 1
+    assert items[0]["quantity"] == 3
+
+    inventory.update_shopping_item_quantity(items[0]["id"], 5)
+    assert inventory.get_shopping_list()[0]["quantity"] == 5
+
+
 def test_storage_locations_seeded_and_editable():
     seeded = inventory.get_storage_locations()
     names = {loc["name"] for loc in seeded}

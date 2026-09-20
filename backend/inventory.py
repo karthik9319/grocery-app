@@ -158,6 +158,7 @@ def init_db() -> None:
         _migrate_add_storage_location_column(conn)
         if storage_locations_table_is_new:
             _seed_default_storage_locations(conn)
+        _migrate_add_shopping_list_quantity_column(conn)
 
 
 def _migrate_legacy_category_check(conn: sqlite3.Connection) -> None:
@@ -245,6 +246,15 @@ def _migrate_add_meal_plan_done_column(conn: sqlite3.Connection) -> None:
     cols = [row["name"] for row in conn.execute("PRAGMA table_info(meal_plan)").fetchall()]
     if "done" not in cols:
         conn.execute("ALTER TABLE meal_plan ADD COLUMN done INTEGER NOT NULL DEFAULT 0")
+        conn.commit()
+
+
+def _migrate_add_shopping_list_quantity_column(conn: sqlite3.Connection) -> None:
+    """Older DBs don't have a quantity column for shopping-list rows - add it, defaulting
+    existing rows to 1 (the previous implicit assumption)."""
+    cols = [row["name"] for row in conn.execute("PRAGMA table_info(shopping_list)").fetchall()]
+    if "quantity" not in cols:
+        conn.execute("ALTER TABLE shopping_list ADD COLUMN quantity REAL NOT NULL DEFAULT 1")
         conn.commit()
 
 
@@ -840,20 +850,34 @@ def is_favorited(title: str, category: str) -> bool:
 # --- Shopping list ---
 
 
-def add_shopping_list_item(title: str, category: Optional[str] = None) -> None:
+def add_shopping_list_item(title: str, category: Optional[str] = None, quantity: float = 1) -> None:
+    """Add an item to the shopping list. Re-adding a title+category that's already on
+    the list (and still unchecked) adds to its quantity instead of creating a duplicate
+    row - same merge-on-add philosophy as regular inventory items."""
     with get_connection() as conn:
         existing = conn.execute(
-            "SELECT id FROM shopping_list WHERE lower(title) = lower(?) AND category IS ? "
+            "SELECT id, quantity FROM shopping_list WHERE lower(title) = lower(?) AND category IS ? "
             "AND checked = 0",
             (title.strip(), category),
         ).fetchone()
         if existing:
+            conn.execute(
+                "UPDATE shopping_list SET quantity = ? WHERE id = ?",
+                (existing["quantity"] + quantity, existing["id"]),
+            )
+            conn.commit()
             return
         conn.execute(
-            "INSERT INTO shopping_list (title, category, checked, created_at) "
-            "VALUES (?, ?, 0, ?)",
-            (title.strip(), category, datetime.now().isoformat()),
+            "INSERT INTO shopping_list (title, category, quantity, checked, created_at) "
+            "VALUES (?, ?, ?, 0, ?)",
+            (title.strip(), category, quantity, datetime.now().isoformat()),
         )
+        conn.commit()
+
+
+def update_shopping_item_quantity(item_id: int, quantity: float) -> None:
+    with get_connection() as conn:
+        conn.execute("UPDATE shopping_list SET quantity = ? WHERE id = ?", (quantity, item_id))
         conn.commit()
 
 

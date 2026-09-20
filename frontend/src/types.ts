@@ -57,6 +57,7 @@ export interface ShoppingListItem {
   id: number;
   title: string;
   category: string | null;
+  quantity: number;
   checked: boolean;
   created_at: string;
 }

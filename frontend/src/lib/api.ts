@@ -237,10 +237,11 @@ export const api = {
     client.post(`/favorites/${id}/quick-add`).then((r) => r.data),
 
   shoppingList: () => client.get<ShoppingListItem[]>("/shopping-list").then((r) => r.data),
-  addShoppingItem: (title: string, category?: string) => {
+  addShoppingItem: (title: string, category?: string, quantity?: number) => {
     const form = new FormData();
     form.append("title", title);
     if (category) form.append("category", category);
+    if (quantity != null) form.append("quantity", String(quantity));
     return client.post("/shopping-list", form).then((r) => r.data);
   },
   bulkDeleteItems: (ids: number[]) => client.post<{ deleted: number }>('/items/bulk-delete', ids),
@@ -253,6 +254,11 @@ export const api = {
   },
   deleteShoppingItem: (id: number) =>
     client.delete(`/shopping-list/${id}`).then((r) => r.data),
+  patchShoppingItemQuantity: (id: number, quantity: number) => {
+    const form = new FormData();
+    form.append("quantity", String(quantity));
+    return client.patch(`/shopping-list/${id}/quantity`, form).then((r) => r.data);
+  },
   addLowStockToShoppingList: () =>
     client.post<{ added: number }>("/shopping-list/add-low-stock").then((r) => r.data),
   clearCheckedShoppingItems: () =>
