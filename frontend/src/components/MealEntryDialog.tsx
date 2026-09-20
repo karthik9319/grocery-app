@@ -27,11 +27,14 @@ export function MealEntryDialog({
   const [slot, setSlot] = useState<MealSlot>("dinner");
   const [done, setDone] = useState(false);
 
-  // Re-seed local state whenever a new entry/slot is opened for editing.
-  const openKey = editing ? `${editing.date}|${editing.slot}|${editing.entry?.id ?? "new"}` : null;
-  const [seededFor, setSeededFor] = useState<string | null>(null);
-  if (editing && openKey !== seededFor) {
-    setSeededFor(openKey);
+  // Re-seed local state every time a *new* open request comes in - compared by object
+  // identity, not content, since two separate "+ Add" clicks for the same day/slot
+  // produce content-identical {date, slot} objects (no entry, no id to distinguish
+  // them). A content-based key would treat those as "the same" open request and skip
+  // re-seeding, leaving whatever was typed for the previous add still sitting there.
+  const [seededFor, setSeededFor] = useState<EditingState | null>(null);
+  if (editing && editing !== seededFor) {
+    setSeededFor(editing);
     setTitle(editing.entry?.title ?? "");
     setNotes(editing.entry?.notes ?? "");
     setDate(editing.date);

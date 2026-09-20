@@ -10,7 +10,16 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { addDays, format, startOfWeek } from "date-fns";
-import { ChevronLeft, ChevronRight, CopyPlus, MessageCircle, Printer, ShoppingBag, Trash2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  CopyPlus,
+  MessageCircle,
+  MoreHorizontal,
+  Printer,
+  ShoppingBag,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { MealPlanEntry, MealSlot } from "@/types";
@@ -18,6 +27,12 @@ import { Button } from "@/components/ui";
 import { MealCalendarView } from "@/components/MealCalendarView";
 import { MealHistoryView } from "@/components/MealHistoryView";
 import { MealEntryDialog } from "@/components/MealEntryDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/DropdownMenu";
 import { DATE_FMT, formatMealPlanForShare, type EditingState } from "@/components/mealPlanner.constants";
 import { shareText } from "@/lib/utils";
 
@@ -260,12 +275,13 @@ export function MealPlannerTab() {
             History
           </Button>
         </div>
+
         {view === "calendar" && (
           <>
             <button
               onClick={() => setWeekStart((d) => addDays(d, -7))}
               aria-label="Previous week"
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-line hover:bg-theme-200 cursor-pointer"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line hover:bg-theme-200 cursor-pointer"
             >
               <ChevronLeft className="h-4 w-4" aria-hidden />
             </button>
@@ -275,7 +291,7 @@ export function MealPlannerTab() {
             <button
               onClick={() => setWeekStart((d) => addDays(d, 7))}
               aria-label="Next week"
-              className="flex h-8 w-8 items-center justify-center rounded-lg border border-line hover:bg-theme-200 cursor-pointer"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line hover:bg-theme-200 cursor-pointer"
             >
               <ChevronRight className="h-4 w-4" aria-hidden />
             </button>
@@ -289,41 +305,46 @@ export function MealPlannerTab() {
             <Button
               variant="outline"
               size="sm"
-              disabled={copyToNextWeekMutation.isPending}
-              onClick={() => copyToNextWeekMutation.mutate()}
-              title="Copy this week's meals to next week"
-            >
-              <CopyPlus className="h-4 w-4" /> Copy to next week
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => window.print()}>
-              <Printer className="h-4 w-4" /> Print
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
               onClick={() => shareText(formatMealPlanForShare(days, byDaySlot, weekStart))}
               title="Share this week's meal plan to WhatsApp"
             >
               <MessageCircle className="h-4 w-4" /> Share
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={addWeekToShoppingListMutation.isPending}
-              onClick={() => addWeekToShoppingListMutation.mutate()}
-              title="Add this week's meals to the shopping list"
-            >
-              <ShoppingBag className="h-4 w-4" /> Add to shopping list
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={clearWeekMutation.isPending}
-              onClick={() => clearWeekMutation.mutate()}
-              title="Clear this week's meal plan"
-            >
-              <Trash2 className="h-4 w-4" /> Clear week
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  aria-label="More actions"
+                  title="More actions"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-line hover:bg-theme-200 cursor-pointer"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  disabled={copyToNextWeekMutation.isPending}
+                  onSelect={() => copyToNextWeekMutation.mutate()}
+                >
+                  <CopyPlus className="h-4 w-4" /> Copy to next week
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => window.print()}>
+                  <Printer className="h-4 w-4" /> Print
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={addWeekToShoppingListMutation.isPending}
+                  onSelect={() => addWeekToShoppingListMutation.mutate()}
+                >
+                  <ShoppingBag className="h-4 w-4" /> Add to shopping list
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  danger
+                  disabled={clearWeekMutation.isPending}
+                  onSelect={() => clearWeekMutation.mutate()}
+                >
+                  <Trash2 className="h-4 w-4" /> Clear week
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         )}
       </div>
