@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, Form
+from fastapi import APIRouter, Form, HTTPException
 
 import inventory
 from api_common import (
@@ -122,6 +122,7 @@ def complete_shopping_trip(payload: dict):
         ]
 
     completed_ids = []
+    completed_rows = []
     total_spend = 0.0
     added_new_inventory_item = False
     for row in checked:
@@ -185,7 +186,10 @@ def complete_shopping_trip(payload: dict):
                 source=f"shopping:{row.get('store') or 'unspecified'}",
             )
         completed_ids.append(row["id"])
+        completed_rows.append(row)
 
+    trip_store = requested_store if requested_store not in {"", "__unassigned__"} else None
+    trip_id = inventory.record_shopping_trip(completed_rows, total_spend, trip_store)
     inventory.delete_shopping_items(completed_ids)
     if added_new_inventory_item:
         retrain_classifier()
@@ -193,4 +197,29 @@ def complete_shopping_trip(payload: dict):
         "completed": len(completed_ids),
         "total_spend": round(total_spend, 2),
         "store": requested_store or None,
+        "trip_id": trip_id or None,
     }
+
+
+@router.get("/api/shopping-trips")
+def list_shopping_trips(limit: int = 20):
+    return inventory.get_shopping_trips(max(1, min(limit, 100)))
+
+
+@router.post("/api/shopping-trips/{trip_id}/repeat")
+def repeat_shopping_trip(trip_id: int):
+    trip = inventory.get_shopping_trip(trip_id)
+    if not trip:
+        raise HTTPException(404, "Shopping trip not found")
+    for row in trip["items"]:
+        inventory.add_shopping_list_item(
+            row["title"],
+            row.get("category"),
+            float(row.get("quantity") or 1),
+            row.get("unit") or "count",
+            row.get("store"),
+            row.get("aisle"),
+            row.get("unit_price"),
+            row.get("substitution"),
+        )
+    return {"added": len(trip["items"]), "trip_id": trip_id}

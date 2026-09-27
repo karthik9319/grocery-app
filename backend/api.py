@@ -23,6 +23,7 @@ from api_common import (
     logger,
     retrain_classifier,
     write_icloud_snapshot,
+    write_local_snapshot,
 )
 from routers import (
     backups,
@@ -52,6 +53,7 @@ __all__ = ["app", "parse_quick_add", "detect_import_kind"]
 inventory.init_db()
 retrain_classifier()
 write_icloud_snapshot()
+write_local_snapshot("daily", once_per_day=True)
 
 app = FastAPI(title="Grocery & Vegetable Tracker API")
 

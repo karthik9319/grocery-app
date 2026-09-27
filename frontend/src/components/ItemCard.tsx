@@ -52,19 +52,12 @@ export function ItemCard({
     },
   });
 
-  const useItemMutation = useMutation({
-    mutationFn: (amount: number) => api.useItem(item.id, amount),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["items"] });
-      queryClient.invalidateQueries({ queryKey: ["summary"] });
-    },
-  });
-
   const returnItemMutation = useMutation({
     mutationFn: (amount: number) => api.returnItem(item.id, amount),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["items"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
+      queryClient.invalidateQueries({ queryKey: ["predictions"] });
     },
   });
 
@@ -74,6 +67,7 @@ export function ItemCard({
       queryClient.invalidateQueries({ queryKey: ["items"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
       queryClient.invalidateQueries({ queryKey: ["backups"] });
+      queryClient.invalidateQueries({ queryKey: ["predictions"] });
       onDeleted(deleted);
     },
   });
@@ -90,17 +84,23 @@ export function ItemCard({
     }
   }
 
-  function useOne() {
-    useItemMutation.mutate(useStep);
-    toast(`Marked ${formatQuantity(useStep, unit)} of ${item.title} in use`, {
-      action: { label: "Undo", onClick: () => returnItemMutation.mutate(useStep) },
-    });
-  }
-
   function returnOne() {
     returnItemMutation.mutate(useStep);
     toast(`Returned ${formatQuantity(useStep, unit)} of ${item.title} to stock`, {
-      action: { label: "Undo", onClick: () => useItemMutation.mutate(useStep) },
+      action: { label: "Undo", onClick: () => api.useItem(item.id, useStep) },
+    });
+  }
+
+  function consumeOne() {
+    if (item.quantity <= useStep) {
+      deleteMutation.mutate();
+      return;
+    }
+    const previous = item.quantity;
+    const next = Math.max(0, previous - useStep);
+    qtyMutation.mutate(next);
+    toast(`Used ${formatQuantity(useStep, unit)} of ${item.title}`, {
+      action: { label: "Undo", onClick: () => qtyMutation.mutate(previous) },
     });
   }
 
@@ -206,49 +206,42 @@ export function ItemCard({
         {!selectable && (
           <>
             <button
-              onClick={() => changeQuantity(Math.max(0, item.quantity - useStep))}
-              aria-label={`Decrease ${item.title} quantity`}
-              className="h-8 w-8 rounded-lg border border-line font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
-            >
-              −
-            </button>
-            <input
-              type="number"
-              value={item.quantity}
-              aria-label={`${item.title} quantity`}
-              onChange={(e) => {
-                const v = parseFloat(e.target.value);
-                if (!Number.isNaN(v)) qtyMutation.mutate(v);
-              }}
-              className="h-8 w-16 rounded-lg border border-line bg-surface-solid text-center text-sm font-bold text-content outline-none"
-            />
-            <button
               onClick={() => changeQuantity(item.quantity + useStep)}
-              aria-label={`Increase ${item.title} quantity`}
-              className="h-8 w-8 rounded-lg border border-line font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
+              aria-label={`Add ${formatQuantity(useStep, unit)} to ${item.title}`}
+              title="Add one to stock"
+              className="h-8 rounded-lg border border-line px-2 text-xs font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
             >
-              +
+              + Stock
             </button>
             <Button
               type="button"
               size="sm"
-              variant="outline"
-              className="h-8 px-2 text-xs"
-              disabled={useItemMutation.isPending || item.quantity < useStep}
-              onClick={useOne}
+              className="h-8 px-2.5 text-xs"
+              disabled={qtyMutation.isPending || deleteMutation.isPending || item.quantity <= 0}
+              onClick={consumeOne}
             >
-              Use {useStep}
+              Used one
             </Button>
             <Button
               type="button"
               size="sm"
               variant="outline"
               className="h-8 px-2 text-xs"
-              disabled={returnItemMutation.isPending || item.in_use_quantity < useStep}
-              onClick={returnOne}
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate()}
             >
-              Return {useStep}
+              Finished
             </Button>
+            {item.in_use_quantity >= useStep && (
+              <button
+                type="button"
+                disabled={returnItemMutation.isPending}
+                onClick={returnOne}
+                className="h-8 rounded-lg px-2 text-xs font-bold text-theme-600 hover:bg-theme-200 dark:text-theme-400"
+              >
+                Return opened
+              </button>
+            )}
           </>
         )}
       </div>

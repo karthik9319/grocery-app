@@ -126,6 +126,57 @@ def test_complete_shopping_trip_only_finishes_selected_store(client):
     assert remaining[0]["store"] == "Nature's Basket"
 
 
+def test_completed_trip_history_keeps_unpriced_items_and_can_repeat(client):
+    client.post(
+        "/api/shopping-list",
+        data={"title": "Eggs", "category": "Groceries", "quantity": 2, "store": "DMart"},
+    )
+    client.post(
+        "/api/shopping-list",
+        data={
+            "title": "Milk", "category": "Groceries", "quantity": 1,
+            "store": "DMart", "unit_price": 60,
+        },
+    )
+    for item in client.get("/api/shopping-list").json():
+        client.patch(f"/api/shopping-list/{item['id']}", data={"checked": "true"})
+
+    completed = client.post("/api/shopping-list/complete", json={"store": "DMart"}).json()
+    assert completed["trip_id"] is not None
+    trips = client.get("/api/shopping-trips").json()
+    assert len(trips) == 1
+    assert {item["title"] for item in trips[0]["items"]} == {"Eggs", "Milk"}
+    assert trips[0]["total_spend"] == 60
+
+    repeated = client.post(f"/api/shopping-trips/{trips[0]['id']}/repeat")
+    assert repeated.status_code == 200
+    assert repeated.json()["added"] == 2
+    assert {item["title"] for item in client.get("/api/shopping-list").json()} == {"Eggs", "Milk"}
+
+
+def test_full_snapshot_preview_and_restore(client):
+    _add_item(client, "Milk", quantity=2)
+    created = client.post("/api/snapshots")
+    assert created.status_code == 200
+    snapshot = created.json()
+    assert snapshot["counts"]["items"] == 1
+
+    _add_item(client, "Eggs", quantity=12)
+    preview = client.get(f"/api/snapshots/{snapshot['filename']}/preview")
+    assert preview.status_code == 200
+    assert preview.json()["current_counts"]["items"] == 2
+    assert preview.json()["snapshot"]["counts"]["items"] == 1
+
+    restored = client.post(f"/api/snapshots/{snapshot['filename']}/restore")
+    assert restored.status_code == 200
+    assert restored.json()["safety_backup"]
+    assert [item["title"] for item in client.get("/api/items").json()] == ["Milk"]
+
+    status = client.get("/api/backup-status")
+    assert status.status_code == 200
+    assert status.json()["last_backup_at"] is not None
+
+
 def test_storage_locations_crud(client):
     resp = client.post("/api/storage-locations", data={"name": "Garage", "icon": "🧰"})
     assert resp.status_code == 200

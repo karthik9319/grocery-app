@@ -130,6 +130,33 @@ def init_db() -> None:
         )
         conn.execute(
             """
+            CREATE TABLE IF NOT EXISTS shopping_trips (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                store TEXT,
+                total_spend REAL NOT NULL DEFAULT 0,
+                completed_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS shopping_trip_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trip_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                category TEXT,
+                quantity REAL NOT NULL DEFAULT 1,
+                unit TEXT NOT NULL DEFAULT 'count',
+                store TEXT,
+                aisle TEXT,
+                unit_price REAL,
+                substitution TEXT,
+                FOREIGN KEY (trip_id) REFERENCES shopping_trips(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS usage_events (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 item_id INTEGER,
@@ -1060,6 +1087,68 @@ def delete_shopping_items(item_ids: list[int]) -> None:
     with get_connection() as conn:
         conn.execute(f"DELETE FROM shopping_list WHERE id IN ({placeholders})", item_ids)
         conn.commit()
+
+
+def record_shopping_trip(rows: list[dict], total_spend: float, store: Optional[str] = None) -> int:
+    """Keep an immutable receipt-like record of every completed line, priced or not."""
+    if not rows:
+        return 0
+    stores = sorted({(row.get("store") or "").strip() for row in rows if (row.get("store") or "").strip()})
+    resolved_store = store or (stores[0] if len(stores) == 1 else "Multiple stores" if stores else None)
+    completed_at = datetime.now().isoformat()
+    with get_connection() as conn:
+        cur = conn.execute(
+            "INSERT INTO shopping_trips (store, total_spend, completed_at) VALUES (?, ?, ?)",
+            (resolved_store, total_spend, completed_at),
+        )
+        trip_id = int(cur.lastrowid)
+        conn.executemany(
+            "INSERT INTO shopping_trip_items "
+            "(trip_id, title, category, quantity, unit, store, aisle, unit_price, substitution) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                (
+                    trip_id,
+                    row["title"],
+                    row.get("category"),
+                    row.get("quantity", 1),
+                    row.get("unit") or "count",
+                    row.get("store"),
+                    row.get("aisle"),
+                    row.get("unit_price"),
+                    row.get("substitution"),
+                )
+                for row in rows
+            ],
+        )
+        conn.commit()
+        return trip_id
+
+
+def get_shopping_trips(limit: int = 20) -> list[dict]:
+    with get_connection() as conn:
+        trips = conn.execute(
+            "SELECT * FROM shopping_trips ORDER BY completed_at DESC LIMIT ?", (limit,)
+        ).fetchall()
+        result = []
+        for trip in trips:
+            items = conn.execute(
+                "SELECT * FROM shopping_trip_items WHERE trip_id = ? ORDER BY id ASC",
+                (trip["id"],),
+            ).fetchall()
+            result.append({**dict(trip), "items": [dict(item) for item in items]})
+        return result
+
+
+def get_shopping_trip(trip_id: int) -> Optional[dict]:
+    with get_connection() as conn:
+        trip = conn.execute("SELECT * FROM shopping_trips WHERE id = ?", (trip_id,)).fetchone()
+        if not trip:
+            return None
+        items = conn.execute(
+            "SELECT * FROM shopping_trip_items WHERE trip_id = ? ORDER BY id ASC", (trip_id,)
+        ).fetchall()
+        return {**dict(trip), "items": [dict(item) for item in items]}
 
 
 # --- Weekly meal planner ---

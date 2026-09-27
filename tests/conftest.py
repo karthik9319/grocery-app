@@ -15,6 +15,8 @@ _TMP_DIR = tempfile.mkdtemp(prefix="grocery-test-")
 os.environ["GROCERY_DB_PATH"] = str(Path(_TMP_DIR) / "test.db")
 
 _DATA_TABLES = [
+    "shopping_trip_items",
+    "shopping_trips",
     "items",
     "favorites",
     "shopping_list",

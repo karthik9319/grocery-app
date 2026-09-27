@@ -21,6 +21,8 @@ const cacheGet = async <T>(url: string, params?: any): Promise<T> => {
 };
 import type {
   Backup,
+  BackupStatus,
+  AppSnapshot,
   Favorite,
   Item,
   ItemAlias,
@@ -36,6 +38,8 @@ import type {
   ReceiptCandidate,
   Settings,
   ShoppingListItem,
+  ShoppingTrip,
+  SnapshotPreview,
   SpendSummary,
   Suggestion,
   Summary,
@@ -226,6 +230,17 @@ export const api = {
       )
       .then((r) => r.data),
   backupDownloadUrl: (filename: string) => `/api/backups/${encodeURIComponent(filename)}/download`,
+  backupStatus: () => client.get<BackupStatus>("/backup-status").then((r) => r.data),
+  listSnapshots: () => client.get<AppSnapshot[]>("/snapshots").then((r) => r.data),
+  createSnapshot: () => client.post<AppSnapshot>("/snapshots").then((r) => r.data),
+  previewSnapshot: (filename: string) =>
+    client
+      .get<SnapshotPreview>(`/snapshots/${encodeURIComponent(filename)}/preview`)
+      .then((r) => r.data),
+  restoreSnapshot: (filename: string) =>
+    client.post(`/snapshots/${encodeURIComponent(filename)}/restore`).then((r) => r.data),
+  snapshotDownloadUrl: (filename: string) =>
+    `/api/snapshots/${encodeURIComponent(filename)}/download`,
 
   restoreItem: (item: Item) => client.post("/items/restore", item).then((r) => r.data),
 
@@ -306,11 +321,15 @@ export const api = {
     client.post("/shopping-list/clear-checked").then((r) => r.data),
   completeShoppingTrip: (store?: string) =>
     client
-      .post<{ completed: number; total_spend: number; store: string | null }>(
+      .post<{ completed: number; total_spend: number; store: string | null; trip_id: number | null }>(
         "/shopping-list/complete",
         store ? { store } : {}
       )
       .then((r) => r.data),
+  shoppingTrips: (limit: number = 20) =>
+    client.get<ShoppingTrip[]>("/shopping-trips", { params: { limit } }).then((r) => r.data),
+  repeatShoppingTrip: (tripId: number) =>
+    client.post<{ added: number; trip_id: number }>(`/shopping-trips/${tripId}/repeat`).then((r) => r.data),
 
   mealPlan: (start: string, end: string) =>
     client.get<MealPlanEntry[]>("/meal-plan", { params: { start, end } }).then((r) => r.data),

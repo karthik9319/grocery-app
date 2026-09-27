@@ -147,6 +147,55 @@ export interface Backup {
   item_count: number;
 }
 
+export interface SnapshotCounts {
+  items: number;
+  shopping_items: number;
+  meals: number;
+  purchases: number;
+  trips: number;
+}
+
+export interface AppSnapshot {
+  filename: string;
+  created_at: string;
+  reason: "daily" | "manual" | "before-restore" | string;
+  counts: SnapshotCounts;
+  size_bytes: number;
+}
+
+export interface BackupStatus {
+  storage: "local";
+  saved_at: string | null;
+  last_backup_at: string | null;
+  snapshot_count: number;
+}
+
+export interface SnapshotPreview {
+  snapshot: AppSnapshot;
+  current_counts: SnapshotCounts;
+}
+
+export interface ShoppingTripItem {
+  id: number;
+  trip_id: number;
+  title: string;
+  category: string | null;
+  quantity: number;
+  unit: ItemUnit;
+  store: string | null;
+  aisle: string | null;
+  unit_price: number | null;
+  substitution: string | null;
+}
+
+export interface ShoppingTrip {
+  id: number;
+  store: string | null;
+  total_spend: number;
+  completed_at: string;
+  items: ShoppingTripItem[];
+}
+
 export type MealSlot = "breakfast" | "lunch" | "dinner" | "snack" | "extra";
 
 export interface MealPlanEntry {

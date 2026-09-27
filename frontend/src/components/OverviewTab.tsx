@@ -16,6 +16,7 @@ import type { Item, Meta } from "@/types";
 import { cn, formatMoney, formatQuantity, imageUrl, thresholdForItem, unitStep } from "@/lib/utils";
 import { Button, Card, Spinner } from "@/components/ui";
 import { TodayMealsCard } from "@/components/TodayMealsCard";
+import { DataConfidenceStatus } from "@/components/DataConfidenceStatus";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -50,11 +51,30 @@ export function OverviewTab({
 
   const thresholdFor = (i: Item) => thresholdForItem(i, settings);
 
-  const useMutation_ = useMutation({
-    mutationFn: ({ id, amount }: { id: number; amount: number }) => api.useItem(id, amount),
-    onSuccess: () => {
+  const consumeMutation = useMutation({
+    mutationFn: async ({ item, amount }: { item: Item; amount: number }) => {
+      if (item.quantity <= amount) {
+        await api.deleteItem(item.id);
+        return { item, removed: true };
+      }
+      await api.patchQuantity(item.id, item.quantity - amount);
+      return { item, removed: false };
+    },
+    onSuccess: ({ item, removed }) => {
       queryClient.invalidateQueries({ queryKey: ["items"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
+      queryClient.invalidateQueries({ queryKey: ["predictions"] });
+      toast(`Used one ${item.title}`, {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            if (removed) await api.restoreItem(item);
+            else await api.patchQuantity(item.id, item.quantity);
+            queryClient.invalidateQueries({ queryKey: ["items"] });
+            queryClient.invalidateQueries({ queryKey: ["summary"] });
+          },
+        },
+      });
     },
   });
 
@@ -155,6 +175,7 @@ export function OverviewTab({
   if (totalItems === 0) {
     return (
       <div className="space-y-5">
+        <DataConfidenceStatus onOpenBackups={() => onNavigate("settings")} />
         {showSetupGuide ? (
         <Card className="relative overflow-hidden p-6 sm:p-8">
           <div className="pointer-events-none absolute -right-12 -top-20 h-56 w-56 rounded-full bg-theme-200/70 blur-2xl" />
@@ -293,6 +314,7 @@ export function OverviewTab({
 
   return (
     <div className="space-y-5">
+      <DataConfidenceStatus onOpenBackups={() => onNavigate("settings")} />
       {/* Hero stats */}
       <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
         <div className={cn(card, "p-7")}>
@@ -390,11 +412,11 @@ export function OverviewTab({
                   </div>
                   <span className="w-12 text-right text-[15px] font-semibold tabular-nums text-content">{formatQuantity(i.quantity, unit)}</span>
                   <button
-                    onClick={() => useMutation_.mutate({ id: i.id, amount: step })}
+                    onClick={() => consumeMutation.mutate({ item: i, amount: step })}
                     disabled={i.quantity < step}
                     className="rounded-lg border border-line px-2.5 py-1 text-xs font-semibold text-content hover:bg-surface disabled:opacity-40"
                   >
-                    Use
+                    Used one
                   </button>
                 </li>
               );

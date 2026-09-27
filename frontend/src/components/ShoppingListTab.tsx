@@ -26,6 +26,8 @@ import {
 } from "@/lib/utils";
 import { Button, Card, Checkbox, EmptyState, Input, Select } from "@/components/ui";
 import { TitleAutocomplete } from "@/components/TitleAutocomplete";
+import { OfflineReadiness } from "@/components/OfflineReadiness";
+import { ShoppingTripHistory } from "@/components/ShoppingTripHistory";
 
 const UNASSIGNED_STORE = "__unassigned__";
 
@@ -47,7 +49,10 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
   const [selectedStore, setSelectedStore] = useState("all");
   const [shoppingMode, setShoppingMode] = useState(false);
 
-  const { data: items } = useQuery({ queryKey: ["shopping-list"], queryFn: api.shoppingList });
+  const { data: items, refetch: refreshShoppingList, isFetching: shoppingListRefreshing } = useQuery({
+    queryKey: ["shopping-list"],
+    queryFn: api.shoppingList,
+  });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["shopping-list"] });
 
@@ -138,6 +143,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
       queryClient.invalidateQueries({ queryKey: ["summary"] });
       queryClient.invalidateQueries({ queryKey: ["purchases"] });
       queryClient.invalidateQueries({ queryKey: ["charts"] });
+      queryClient.invalidateQueries({ queryKey: ["shopping-trips"] });
       const spend = result.total_spend > 0 ? ` · ${formatMoney(result.total_spend)} recorded` : "";
       toast.success(`${result.completed} purchased item(s) added to your pantry${spend}`, {
         icon: "✅",
@@ -217,6 +223,12 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
           ? "Tap an item as it goes into your cart. Finish the trip when you have paid."
           : "Organize by store and aisle, track the expected bill, then finish the trip to move purchased items into your pantry."}
       </p>
+
+      <OfflineReadiness
+        items={items}
+        onRefresh={() => refreshShoppingList()}
+        refreshing={shoppingListRefreshing}
+      />
 
       <p className="hidden text-center font-display text-lg text-content print:block">
         Shopping List &middot; {new Date().toLocaleDateString()}
@@ -457,6 +469,8 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
           </div>}
         </Card>
       )}
+
+      {!shoppingMode && <ShoppingTripHistory meta={meta} />}
 
       {shoppingMode && !!filteredItems.length && (
         <div className="sticky bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 flex items-center gap-3 rounded-2xl border border-line bg-surface-solid/95 p-3 shadow-xl backdrop-blur print:hidden">

@@ -7,11 +7,14 @@ never from api.py itself - api.py imports the routers to register them, so a rou
 importing back from api.py would create a circular import.
 """
 import io
+import json
 import logging
 import os
 import shutil
 import sqlite3
+import tempfile
 import uuid
+import zipfile
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional
@@ -40,6 +43,10 @@ IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 BACKUPS_DIR = BASE_DIR / "data" / "backups"
 BACKUPS_DIR.mkdir(parents=True, exist_ok=True)
 MAX_BACKUPS = 30
+LOCAL_SNAPSHOTS_DIR = inventory.DB_PATH.parent / "backups" / "snapshots"
+LOCAL_SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+LOCAL_SNAPSHOT_IMAGES_DIR = inventory.DB_PATH.parent / "images"
+MAX_LOCAL_SNAPSHOTS = 30
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 
 # Off-machine safety net, same pattern as this user's other local-first apps (e.g. the
@@ -320,6 +327,206 @@ def write_backup(items: list, reason: str) -> Optional[str]:
         except OSError:
             pass
     return filename
+
+
+def _database_counts(db_path: Path) -> dict[str, int]:
+    """Return small, user-facing counts without assuming every historical table exists."""
+    result = {"items": 0, "shopping_items": 0, "meals": 0, "purchases": 0, "trips": 0}
+    table_keys = {
+        "items": "items",
+        "shopping_list": "shopping_items",
+        "meal_plan": "meals",
+        "purchases": "purchases",
+        "shopping_trips": "trips",
+    }
+    if not db_path.exists():
+        return result
+    conn = sqlite3.connect(str(db_path))
+    try:
+        existing = {
+            row[0]
+            for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+        }
+        for table, key in table_keys.items():
+            if table in existing:
+                result[key] = int(conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+    finally:
+        conn.close()
+    return result
+
+
+def _read_snapshot_manifest(path: Path) -> dict:
+    try:
+        with zipfile.ZipFile(path) as archive:
+            return json.loads(archive.read("manifest.json"))
+    except (OSError, KeyError, ValueError, zipfile.BadZipFile) as exc:
+        raise HTTPException(400, "Backup is damaged or unreadable") from exc
+
+
+def _snapshot_path(filename: str) -> Path:
+    path = LOCAL_SNAPSHOTS_DIR / Path(filename).name
+    if path.parent != LOCAL_SNAPSHOTS_DIR or path.suffix != ".zip" or not path.exists():
+        raise HTTPException(404, "Backup not found")
+    return path
+
+
+def snapshot_metadata(path: Path) -> dict:
+    manifest = _read_snapshot_manifest(path)
+    return {
+        "filename": path.name,
+        "created_at": manifest["created_at"],
+        "reason": manifest.get("reason", "manual"),
+        "counts": manifest.get("counts", {}),
+        "size_bytes": path.stat().st_size,
+    }
+
+
+def list_local_snapshots() -> list[dict]:
+    snapshots = sorted(
+        LOCAL_SNAPSHOTS_DIR.glob("*.zip"), key=lambda path: path.stat().st_mtime, reverse=True
+    )
+    result = []
+    for path in snapshots:
+        try:
+            result.append(snapshot_metadata(path))
+        except HTTPException:
+            logger.warning("Ignoring unreadable local snapshot %s", path)
+    return result
+
+
+def write_local_snapshot(reason: str = "manual", once_per_day: bool = False) -> dict:
+    """Create an atomic, full local backup containing SQLite data and item photos."""
+    inventory.init_db()
+    LOCAL_SNAPSHOTS_DIR.mkdir(parents=True, exist_ok=True)
+    today_prefix = date.today().isoformat()
+    if once_per_day:
+        existing = sorted(
+            LOCAL_SNAPSHOTS_DIR.glob(f"{today_prefix}__daily__*.zip"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if existing:
+            return snapshot_metadata(existing[0])
+
+    created_at = datetime.now()
+    safe_reason = "".join(c if c.isalnum() or c in "-_" else "-" for c in reason) or "manual"
+    filename = f"{created_at.date().isoformat()}__{safe_reason}__{created_at.strftime('%H%M%S-%f')}.zip"
+    final_path = LOCAL_SNAPSHOTS_DIR / filename
+    temporary_path = final_path.with_suffix(".tmp")
+
+    with tempfile.TemporaryDirectory(prefix="pantry-snapshot-") as temp_dir_name:
+        temp_dir = Path(temp_dir_name)
+        db_copy = temp_dir / "inventory.db"
+        source = sqlite3.connect(str(inventory.DB_PATH))
+        try:
+            destination = sqlite3.connect(str(db_copy))
+            try:
+                source.backup(destination)
+            finally:
+                destination.close()
+        finally:
+            source.close()
+
+        manifest = {
+            "version": 1,
+            "created_at": created_at.isoformat(),
+            "reason": safe_reason,
+            "counts": _database_counts(db_copy),
+        }
+        with zipfile.ZipFile(temporary_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.write(db_copy, "inventory.db")
+            archive.writestr("manifest.json", json.dumps(manifest, indent=2))
+            if LOCAL_SNAPSHOT_IMAGES_DIR.is_dir():
+                for image_path in LOCAL_SNAPSHOT_IMAGES_DIR.rglob("*"):
+                    if image_path.is_file():
+                        archive.write(
+                            image_path,
+                            f"images/{image_path.relative_to(LOCAL_SNAPSHOT_IMAGES_DIR)}",
+                        )
+        temporary_path.replace(final_path)
+
+    snapshots = sorted(
+        LOCAL_SNAPSHOTS_DIR.glob("*.zip"), key=lambda path: path.stat().st_mtime, reverse=True
+    )
+    for old in snapshots[MAX_LOCAL_SNAPSHOTS:]:
+        try:
+            old.unlink()
+        except OSError:
+            pass
+    return snapshot_metadata(final_path)
+
+
+def preview_local_snapshot(filename: str) -> dict:
+    path = _snapshot_path(filename)
+    return {
+        "snapshot": snapshot_metadata(path),
+        "current_counts": _database_counts(inventory.DB_PATH),
+    }
+
+
+def restore_local_snapshot(filename: str) -> dict:
+    """Replace live app data from a validated snapshot, preserving a pre-restore backup."""
+    path = _snapshot_path(filename)
+    safety_snapshot = write_local_snapshot("before-restore")
+    with tempfile.TemporaryDirectory(prefix="pantry-restore-") as temp_dir_name:
+        temp_dir = Path(temp_dir_name)
+        with zipfile.ZipFile(path) as archive:
+            try:
+                archive.extract("inventory.db", temp_dir)
+            except KeyError as exc:
+                raise HTTPException(400, "Backup does not contain app data") from exc
+            source_path = temp_dir / "inventory.db"
+            source = sqlite3.connect(str(source_path))
+            try:
+                integrity = source.execute("PRAGMA integrity_check").fetchone()[0]
+                tables = {
+                    row[0]
+                    for row in source.execute(
+                        "SELECT name FROM sqlite_master WHERE type = 'table'"
+                    ).fetchall()
+                }
+                if integrity != "ok" or "items" not in tables:
+                    raise HTTPException(400, "Backup database failed validation")
+                destination = sqlite3.connect(str(inventory.DB_PATH))
+                try:
+                    source.backup(destination)
+                finally:
+                    destination.close()
+            finally:
+                source.close()
+
+            for member in archive.infolist():
+                if not member.filename.startswith("images/") or member.is_dir():
+                    continue
+                relative = Path(member.filename).relative_to("images")
+                target = (LOCAL_SNAPSHOT_IMAGES_DIR / relative).resolve()
+                if LOCAL_SNAPSHOT_IMAGES_DIR.resolve() not in target.parents:
+                    continue
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with archive.open(member) as source_file, target.open("wb") as target_file:
+                    shutil.copyfileobj(source_file, target_file)
+
+    inventory.init_db()
+    return {
+        "restored": snapshot_metadata(path),
+        "safety_backup": safety_snapshot["filename"],
+        "counts": _database_counts(inventory.DB_PATH),
+    }
+
+
+def backup_status() -> dict:
+    snapshots = list_local_snapshots()
+    saved_at = None
+    try:
+        saved_at = datetime.fromtimestamp(inventory.DB_PATH.stat().st_mtime).isoformat()
+    except OSError:
+        pass
+    return {
+        "storage": "local",
+        "saved_at": saved_at,
+        "last_backup_at": snapshots[0]["created_at"] if snapshots else None,
+        "snapshot_count": len(snapshots),
+    }
 
 
 def write_icloud_snapshot() -> Optional[str]:
