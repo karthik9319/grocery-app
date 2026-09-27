@@ -575,7 +575,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
   );
 }
 
-function QuickAddPanel({ meta }: { meta: Meta }) {
+export function QuickAddPanel({ meta }: { meta: Meta }) {
   const queryClient = useQueryClient();
   const [text, setText] = useState("");
   const [parsing, setParsing] = useState(false);

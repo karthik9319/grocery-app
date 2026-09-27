@@ -22,15 +22,18 @@ export function DataConfidenceStatus({
   onOpenBackups?: () => void;
   className?: string;
 }) {
-  const { data: status } = useQuery({
+  const { data: status, isLoading } = useQuery({
     queryKey: ["backup-status"],
     queryFn: api.backupStatus,
     staleTime: 30_000,
   });
 
-  if (!status || typeof status !== "object") {
+  if (isLoading) {
     return <div className={cn("h-14 animate-pulse rounded-2xl bg-surface-solid", className)} />;
   }
+
+  const validStatus = status && typeof status === "object" ? status : null;
+  const protectedByBackup = Boolean(validStatus?.last_backup_at && validStatus.snapshot_count > 0);
 
   const body = (
     <>
@@ -38,9 +41,12 @@ export function DataConfidenceStatus({
         <ShieldCheck className="h-5 w-5" />
       </span>
       <span className="min-w-0 flex-1 text-left">
-        <span className="block text-sm font-bold text-content">Your data is saved locally</span>
+        <span className="block text-sm font-bold text-content">
+          {protectedByBackup ? "Protected" : "Saved locally"}
+        </span>
         <span className="block text-xs text-subtle">
-          Last change {relativeTime(status.saved_at)} · Last full backup {relativeTime(status.last_backup_at)}
+          {validStatus ? `Last change ${relativeTime(validStatus.saved_at)} · ` : "Your pantry stays on this device · "}
+          {protectedByBackup ? `Full backup ${relativeTime(validStatus?.last_backup_at)}` : "Create a full backup for recovery"}
         </span>
       </span>
       {onOpenBackups && <span className="text-xs font-bold text-theme-600 dark:text-theme-400">View backups</span>}

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  ArrowDown,
+  ArrowUp,
   CheckCircle2,
   ChevronDown,
   ListChecks,
@@ -23,6 +25,7 @@ import {
   shareText,
   titleCase,
   unitStep,
+  cn,
 } from "@/lib/utils";
 import { Button, Card, Checkbox, EmptyState, Input, Select } from "@/components/ui";
 import { TitleAutocomplete } from "@/components/TitleAutocomplete";
@@ -30,6 +33,7 @@ import { OfflineReadiness } from "@/components/OfflineReadiness";
 import { ShoppingTripHistory } from "@/components/ShoppingTripHistory";
 
 const UNASSIGNED_STORE = "__unassigned__";
+const AISLE_ORDER_KEY = "pantry-aisle-order-by-store";
 
 type DetailPatch = Partial<
   Pick<ShoppingListItem, "unit" | "store" | "aisle" | "unit_price" | "substitution">
@@ -48,6 +52,13 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
   const [showTripDetails, setShowTripDetails] = useState(false);
   const [selectedStore, setSelectedStore] = useState("all");
   const [shoppingMode, setShoppingMode] = useState(false);
+  const [aisleOrderByStore, setAisleOrderByStore] = useState<Record<string, string[]>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(AISLE_ORDER_KEY) ?? "{}");
+    } catch {
+      return {};
+    }
+  });
 
   const { data: items, refetch: refreshShoppingList, isFetching: shoppingListRefreshing } = useQuery({
     queryKey: ["shopping-list"],
@@ -181,16 +192,46 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
   const unchecked = filteredItems.filter((item) => !item.checked);
   const checked = filteredItems.filter((item) => item.checked);
 
-  const groupedUnchecked = useMemo(() => {
+  const groupedItems = useMemo(() => {
     const groups = new Map<string, ShoppingListItem[]>();
-    for (const item of unchecked) {
+    for (const item of filteredItems) {
       const store = item.store?.trim() || "Any store";
       const aisle = item.aisle?.trim() || item.category || "Other";
       const key = `${store}\u0000${aisle}`;
       groups.set(key, [...(groups.get(key) ?? []), item]);
     }
-    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [unchecked]);
+    return Array.from(groups.entries()).sort(([a], [b]) => {
+      const [storeA, aisleA] = a.split("\u0000");
+      const [storeB, aisleB] = b.split("\u0000");
+      const storeOrder = storeA.localeCompare(storeB);
+      if (storeOrder !== 0) return storeOrder;
+      const preferred = aisleOrderByStore[storeA] ?? [];
+      const rankA = preferred.indexOf(aisleA);
+      const rankB = preferred.indexOf(aisleB);
+      if (rankA >= 0 || rankB >= 0) {
+        if (rankA < 0) return 1;
+        if (rankB < 0) return -1;
+        return rankA - rankB;
+      }
+      return aisleA.localeCompare(aisleB);
+    });
+  }, [filteredItems, aisleOrderByStore]);
+
+  function moveAisle(store: string, aisle: string, direction: -1 | 1) {
+    const visibleAisles = groupedItems
+      .map(([key]) => key.split("\u0000"))
+      .filter(([groupStore]) => groupStore === store)
+      .map(([, groupAisle]) => groupAisle);
+    const saved = aisleOrderByStore[store] ?? [];
+    const order = [...saved, ...visibleAisles.filter((name) => !saved.includes(name))];
+    const index = order.indexOf(aisle);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= order.length) return;
+    [order[index], order[target]] = [order[target], order[index]];
+    const next = { ...aisleOrderByStore, [store]: order };
+    setAisleOrderByStore(next);
+    localStorage.setItem(AISLE_ORDER_KEY, JSON.stringify(next));
+  }
 
   const lineTotal = (item: ShoppingListItem) =>
     item.unit_price == null ? 0 : item.quantity * item.unit_price;
@@ -217,18 +258,34 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
   }
 
   return (
-    <div className="space-y-5">
-      <p className="text-sm text-muted print:hidden">
+    <div className={cn(
+      "space-y-5",
+      shoppingMode && "fixed inset-0 z-50 h-[100dvh] overflow-y-auto bg-canvas px-4 pb-28 pt-[max(1rem,env(safe-area-inset-top))] lg:static lg:h-auto lg:overflow-visible lg:bg-transparent lg:p-0"
+    )}>
+      {shoppingMode && (
+        <div className="sticky top-0 z-20 -mx-4 -mt-4 flex items-center gap-3 border-b border-line bg-canvas/95 px-4 py-3 backdrop-blur lg:hidden">
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-lg text-content">Shopping mode</span>
+            <span className="block text-xs text-subtle">{checked.length} in cart · {unchecked.length} remaining</span>
+          </span>
+          <Button variant="outline" size="sm" onClick={() => setShoppingMode(false)}>
+            <X className="h-4 w-4" /> Exit
+          </Button>
+        </div>
+      )}
+      <p className={cn("text-sm text-muted print:hidden", shoppingMode && "hidden lg:block")}>
         {shoppingMode
           ? "Tap an item as it goes into your cart. Finish the trip when you have paid."
           : "Organize by store and aisle, track the expected bill, then finish the trip to move purchased items into your pantry."}
       </p>
 
-      <OfflineReadiness
-        items={items}
-        onRefresh={() => refreshShoppingList()}
-        refreshing={shoppingListRefreshing}
-      />
+      <div className={shoppingMode ? "hidden lg:block" : undefined}>
+        <OfflineReadiness
+          items={items}
+          onRefresh={() => refreshShoppingList()}
+          refreshing={shoppingListRefreshing}
+        />
+      </div>
 
       <p className="hidden text-center font-display text-lg text-content print:block">
         Shopping List &middot; {new Date().toLocaleDateString()}
@@ -237,6 +294,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
       <div className="flex flex-wrap gap-2 print:hidden">
         <Button
           variant={shoppingMode ? "default" : "outline"}
+          className={shoppingMode ? "hidden lg:inline-flex" : undefined}
           onClick={() => setShoppingMode((active) => !active)}
         >
           {shoppingMode ? <Pencil className="h-4 w-4" /> : <ListChecks className="h-4 w-4" />}
@@ -392,18 +450,65 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
       )}
 
       <div className="space-y-5">
-        {groupedUnchecked.map(([key, group]) => {
+        {groupedItems.map(([key, group]) => {
           const [store, aisle] = key.split("\u0000");
+          const remaining = group.filter((item) => !item.checked);
+          const done = group.length - remaining.length;
+          const completed = remaining.length === 0;
+          if (!shoppingMode && completed) return null;
+          if (shoppingMode && completed) {
+            const lastChecked = group[group.length - 1];
+            return (
+              <section key={key} className="animate-pop rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-bold text-content">{aisle}</span>
+                    <span className="block truncate text-xs text-subtle">{store} · aisle complete</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => toggleChecked.mutate({ id: lastChecked.id, checked: false })}
+                    className="text-xs font-bold text-theme-600 hover:underline dark:text-theme-400"
+                  >
+                    Undo last
+                  </button>
+                </div>
+              </section>
+            );
+          }
           return (
             <section key={key} className="space-y-2">
               <div className="flex items-center gap-2 px-1">
                 <h3 className="text-sm font-bold text-content">🏪 {store}</h3>
                 <span className="text-xs text-subtle">· {aisle}</span>
                 <span className="ml-auto text-xs font-semibold text-subtle">
-                  {group.length} {group.length === 1 ? "item" : "items"}
+                  {shoppingMode ? `${done}/${group.length}` : `${remaining.length} ${remaining.length === 1 ? "item" : "items"}`}
                 </span>
+                {!shoppingMode && (
+                  <span className="flex print:hidden">
+                    <button
+                      type="button"
+                      onClick={() => moveAisle(store, aisle, -1)}
+                      className="rounded-lg p-1 text-subtle hover:bg-surface hover:text-content"
+                      title={`Move ${aisle} earlier`}
+                      aria-label={`Move ${aisle} earlier`}
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveAisle(store, aisle, 1)}
+                      className="rounded-lg p-1 text-subtle hover:bg-surface hover:text-content"
+                      title={`Move ${aisle} later`}
+                      aria-label={`Move ${aisle} later`}
+                    >
+                      <ArrowDown className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                )}
               </div>
-              {group.map((item) => (
+              {remaining.map((item) => (
                 <ShoppingItemCard
                   key={item.id}
                   item={item}
@@ -420,7 +525,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
         })}
       </div>
 
-      {checked.length > 0 && (
+      {!shoppingMode && checked.length > 0 && (
         <Card className="overflow-hidden print:hidden">
           <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center">
             <div>

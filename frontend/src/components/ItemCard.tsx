@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import type { Item, Meta } from "@/types";
 import { api } from "@/lib/api";
 import { daysUntil, formatQuantity, imageUrl, unitStep } from "@/lib/utils";
-import { Badge, Button, Card, Checkbox } from "@/components/ui";
+import { Badge, Button, Card, Checkbox, Input } from "@/components/ui";
 import { EditItemDialog } from "@/components/EditItemDialog";
 import { PhotoGalleryDialog } from "@/components/PhotoGalleryDialog";
+import { Dialog, DialogContent } from "@/components/Dialog";
 
 export function ItemCard({
   item,
@@ -29,6 +30,11 @@ export function ItemCard({
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [adjustQuantity, setAdjustQuantity] = useState(String(item.quantity));
+  const [swipeX, setSwipeX] = useState(0);
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  const swipeOffset = useRef(0);
   const unit = item.unit;
   const dotColor = meta.palette[item.category] ?? "#999";
   const isLow = item.quantity <= threshold;
@@ -49,6 +55,7 @@ export function ItemCard({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["items"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
+      queryClient.invalidateQueries({ queryKey: ["predictions"] });
     },
   });
 
@@ -104,12 +111,66 @@ export function ItemCard({
     });
   }
 
+  function beginSwipe(event: React.PointerEvent<HTMLDivElement>) {
+    if (selectable || event.pointerType !== "touch") return;
+    if ((event.target as HTMLElement).closest("button, input, [role='button']")) return;
+    swipeStart.current = { x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveSwipe(event: React.PointerEvent<HTMLDivElement>) {
+    if (!swipeStart.current) return;
+    const dx = event.clientX - swipeStart.current.x;
+    const dy = event.clientY - swipeStart.current.y;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      const next = Math.max(-110, Math.min(110, dx));
+      swipeOffset.current = next;
+      setSwipeX(next);
+    }
+  }
+
+  function endSwipe() {
+    if (swipeOffset.current > 72) consumeOne();
+    if (swipeOffset.current < -72) deleteMutation.mutate();
+    swipeStart.current = null;
+    swipeOffset.current = 0;
+    setSwipeX(0);
+  }
+
+  function openAdjustment() {
+    setAdjustQuantity(String(item.quantity));
+    setAdjustOpen(true);
+  }
+
+  function saveAdjustment() {
+    const next = Number(adjustQuantity);
+    if (!Number.isFinite(next) || next < 0) {
+      toast.error("Enter a valid quantity.");
+      return;
+    }
+    if (next === 0) deleteMutation.mutate();
+    else changeQuantity(next);
+    setAdjustOpen(false);
+  }
+
   return (
-    <Card
-      interactive
-      className="flex flex-wrap items-center gap-4 overflow-hidden p-4 animate-fade-in"
-      onClick={selectable ? () => onToggleSelect?.(item.id) : undefined}
-    >
+    <div className="relative overflow-hidden rounded-2xl animate-pop">
+      {!selectable && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-between rounded-2xl px-5 text-xs font-extrabold text-white">
+          <span className="rounded-full bg-emerald-600 px-3 py-1.5">Used one</span>
+          <span className="rounded-full bg-rose-600 px-3 py-1.5">Finished</span>
+        </div>
+      )}
+      <Card
+        interactive
+        className="relative flex flex-wrap items-center gap-4 overflow-hidden p-4 transition-transform duration-150"
+        style={{ transform: `translateX(${swipeX}px)`, touchAction: "pan-y" }}
+        onPointerDown={beginSwipe}
+        onPointerMove={moveSwipe}
+        onPointerUp={endSwipe}
+        onPointerCancel={endSwipe}
+        onClick={selectable ? () => onToggleSelect?.(item.id) : undefined}
+      >
       {selectable && (
         <Checkbox
           checked={selected}
@@ -205,14 +266,6 @@ export function ItemCard({
       <div className="flex shrink-0 items-center gap-1">
         {!selectable && (
           <>
-            <button
-              onClick={() => changeQuantity(item.quantity + useStep)}
-              aria-label={`Add ${formatQuantity(useStep, unit)} to ${item.title}`}
-              title="Add one to stock"
-              className="h-8 rounded-lg border border-line px-2 text-xs font-bold text-content hover:bg-theme-200 transition-colors cursor-pointer"
-            >
-              + Stock
-            </button>
             <Button
               type="button"
               size="sm"
@@ -249,27 +302,67 @@ export function ItemCard({
       {!selectable && (
         <div className="flex shrink-0 gap-1">
           <button
+            onClick={openAdjustment}
+            aria-label={`Adjust quantity for ${item.title}`}
+            title="Set exact quantity"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-line text-content transition-colors hover:bg-theme-200"
+          >
+            <SlidersHorizontal className="h-4 w-4" aria-hidden />
+          </button>
+          <button
             onClick={() => setEditOpen(true)}
             aria-label={`Edit ${item.title}`}
             className="h-9 w-9 flex items-center justify-center rounded-xl border border-line text-content hover:bg-theme-200 cursor-pointer transition-colors"
           >
             <Pencil className="h-4 w-4" aria-hidden />
           </button>
-          <button
-            onClick={() => {
-              deleteMutation.mutate();
-            }}
-            aria-label={`Delete ${item.title}`}
-            className="h-9 w-9 flex items-center justify-center rounded-xl border border-line text-content hover:bg-red-400 hover:text-white cursor-pointer transition-colors"
-          >
-            <Trash2 className="h-4 w-4" aria-hidden />
-          </button>
         </div>
       )}
 
       <EditItemDialog item={item} meta={meta} open={editOpen} onOpenChange={setEditOpen} />
       <PhotoGalleryDialog item={item} open={galleryOpen} onOpenChange={setGalleryOpen} />
-    </Card>
+      </Card>
+      <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
+        <DialogContent
+          title={`Adjust ${item.title}`}
+          className="bottom-0 top-auto w-full max-w-none -translate-y-0 rounded-b-none sm:bottom-auto sm:top-1/2 sm:w-[92vw] sm:max-w-sm sm:-translate-y-1/2 sm:rounded-2xl"
+        >
+          <p className="mb-3 text-sm text-muted">Set the exact amount you have in {unit}.</p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => setAdjustQuantity(String(Math.max(0, (Number(adjustQuantity) || 0) - useStep)))}
+              aria-label="Decrease quantity"
+            >
+              −
+            </Button>
+            <Input
+              type="number"
+              min="0"
+              step={useStep}
+              value={adjustQuantity}
+              onChange={(event) => setAdjustQuantity(event.target.value)}
+              className="text-center text-base"
+              autoFocus
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => setAdjustQuantity(String((Number(adjustQuantity) || 0) + useStep))}
+              aria-label="Increase quantity"
+            >
+              +
+            </Button>
+          </div>
+          <Button className="mt-4 w-full" onClick={saveAdjustment} disabled={qtyMutation.isPending || deleteMutation.isPending}>
+            Save quantity
+          </Button>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
 

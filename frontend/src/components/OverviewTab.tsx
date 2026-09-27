@@ -1,9 +1,12 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
+  AlertTriangle,
   Camera,
   CalendarDays,
+  CheckCircle2,
+  PackageSearch,
   PackagePlus,
   Receipt,
   ShoppingBag,
@@ -13,20 +16,12 @@ import {
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { Item, Meta } from "@/types";
-import { cn, formatMoney, formatQuantity, imageUrl, thresholdForItem, unitStep } from "@/lib/utils";
+import { cn, formatQuantity, imageUrl, thresholdForItem, unitStep } from "@/lib/utils";
 import { Button, Card, Spinner } from "@/components/ui";
 import { TodayMealsCard } from "@/components/TodayMealsCard";
 import { DataConfidenceStatus } from "@/components/DataConfidenceStatus";
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-function monthLabel(ym: string): string {
-  const m = parseInt(ym.slice(5, 7), 10);
-  return MONTHS[m - 1] ?? ym;
-}
-
-/** Rich analytics-forward dashboard: KPIs, spend + category + stock-health charts, a
- * smart-insights rail, and an inventory preview. Uses only real data already tracked. */
+/** The task-focused home screen: what needs attention today, meals, and inventory. */
 export function OverviewTab({
   meta,
   onNavigate,
@@ -39,7 +34,6 @@ export function OverviewTab({
     () => localStorage.getItem("pantry-setup-guide-dismissed") !== "1"
   );
   const { data: summary } = useQuery({ queryKey: ["summary"], queryFn: api.summary });
-  const { data: spend } = useQuery({ queryKey: ["purchases", "summary"], queryFn: api.purchasesSummary });
   const { data: counts } = useQuery({ queryKey: ["charts", "category-counts"], queryFn: api.chartCategoryCounts });
   const { data: items } = useQuery({ queryKey: ["items"], queryFn: () => api.items() });
   const { data: shopping } = useQuery({
@@ -97,10 +91,7 @@ export function OverviewTab({
   const totalItems = summary.total_rows;
   const lowCount = summary.low_stock_items.length;
   const expiringCount = summary.expiring_items.length;
-  const totalSpend = spend?.total_spend ?? 0;
   const wellStocked = Math.max(0, totalItems - lowCount);
-
-  const spendSeries = (spend?.spend_over_time ?? []).slice(-6);
 
   const inUseItems = items.filter((i) => i.in_use_quantity > 0);
 
@@ -158,9 +149,13 @@ export function OverviewTab({
 
   const card = "rounded-2xl border border-line bg-surface-solid shadow-sm";
   const label = "text-[11px] font-semibold uppercase tracking-[0.12em] text-subtle";
-  const spendPoints = spendSeries.map((s) => s.total);
   const catCount = meta.categories.filter((c) => (counts?.[c] ?? 0) > 0).length;
   const openShopping = (shopping ?? []).filter((item) => !item.checked);
+  const todayLabel = new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(new Date());
 
   function dismissSetupGuide() {
     localStorage.setItem("pantry-setup-guide-dismissed", "1");
@@ -315,27 +310,37 @@ export function OverviewTab({
   return (
     <div className="space-y-5">
       <DataConfidenceStatus onOpenBackups={() => onNavigate("settings")} />
-      {/* Hero stats */}
+      {/* Today first; longer-term trends live in Insights. */}
       <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
-        <div className={cn(card, "p-7")}>
-          <p className={label}>Spent this month</p>
-          <div className="mt-2 flex items-end gap-3">
-            <span className="font-display text-[42px] font-semibold leading-none tabular-nums text-content">
-              <CountUp value={totalSpend} format={formatMoney} />
-            </span>
+        <div className={cn(card, "overflow-hidden")}>
+          <div className="border-b border-line px-6 py-5">
+            <p className={label}>Today</p>
+            <h2 className="mt-1 font-display text-2xl font-semibold text-content">{todayLabel}</h2>
+            <p className="mt-1 text-sm text-muted">A short list of what is worth doing next.</p>
           </div>
-          {spendSeries.length > 0 ? (
-            <>
-              <AreaChart data={spendPoints} color="var(--theme-500)" className="mt-5 h-24 w-full" animate />
-              <div className="mt-2 flex justify-between text-[12px] text-subtle">
-                {spendSeries.map((s) => (
-                  <span key={s.month}>{monthLabel(s.month)}</span>
-                ))}
-              </div>
-            </>
-          ) : (
-            <p className="mt-6 text-sm text-muted">No spend logged yet — add prices when scanning a receipt to see this.</p>
-          )}
+          <div className="divide-y divide-line">
+            <TodayPriority
+              icon={<AlertTriangle className="h-5 w-5" />}
+              tone="amber"
+              title={expiringCount ? `${expiringCount} expiring soon` : "Nothing expiring soon"}
+              detail={expiringCount ? "Use these first to avoid waste" : "Freshness looks good"}
+              onClick={expiringCount ? () => onNavigate(summary.expiring_items[0].item.category) : undefined}
+            />
+            <TodayPriority
+              icon={<PackageSearch className="h-5 w-5" />}
+              tone="orange"
+              title={lowCount ? `${lowCount} low-stock ${lowCount === 1 ? "item" : "items"}` : "Stock levels look good"}
+              detail={lowCount ? "Add everything low to your shopping list" : "No restocking needed"}
+              onClick={lowCount ? () => addLowStock.mutate() : undefined}
+            />
+            <TodayPriority
+              icon={openShopping.length ? <ShoppingBag className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
+              tone="theme"
+              title={openShopping.length ? `${openShopping.length} waiting on your shopping list` : "Shopping list is clear"}
+              detail={openShopping.length ? "Review the list or start shopping mode" : "Add items whenever you need them"}
+              onClick={() => onNavigate("shopping")}
+            />
+          </div>
         </div>
 
         <div className={cn(card, "flex flex-col justify-between p-7")}>
@@ -493,44 +498,40 @@ function StatRow({ dot, label, value }: { dot: string; label: string; value: num
   );
 }
 
-/** Lightweight gradient area/sparkline chart (pure SVG, no chart lib). */
-function AreaChart({ data, color, className, animate }: { data: number[]; color: string; className?: string; animate?: boolean }) {
-  const gradientId = useId();
-  const pts = data.length === 1 ? [data[0], data[0]] : data;
-  if (pts.length < 2) return null;
-  const w = 100;
-  const h = 32;
-  const max = Math.max(...pts);
-  const min = Math.min(...pts, 0);
-  const range = max - min || 1;
-  const coords = pts.map((v, i) => {
-    const x = (i / (pts.length - 1)) * w;
-    const y = h - 3 - ((v - min) / range) * (h - 6);
-    return [x, y] as const;
-  });
-  const line = coords.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
-  const area = `${line} L${w},${h} L0,${h} Z`;
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className={className}>
-      <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.35" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={area} fill={`url(#${gradientId})`} />
-      <path
-        d={line}
-        fill="none"
-        stroke={color}
-        strokeWidth={2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        vectorEffect="non-scaling-stroke"
-        pathLength={animate ? 1 : undefined}
-        style={animate ? { strokeDasharray: 1, strokeDashoffset: 1, animation: "draw-line 1.4s ease-out forwards" } : undefined}
-      />
-    </svg>
+function TodayPriority({
+  icon,
+  tone,
+  title,
+  detail,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  tone: "amber" | "orange" | "theme";
+  title: string;
+  detail: string;
+  onClick?: () => void;
+}) {
+  const tones = {
+    amber: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    orange: "bg-orange-500/10 text-orange-700 dark:text-orange-300",
+    theme: "bg-theme-200 text-theme-700 dark:text-theme-300",
+  };
+  const content = (
+    <>
+      <span className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", tones[tone])}>{icon}</span>
+      <span className="min-w-0 flex-1 text-left">
+        <span className="block text-sm font-bold text-content">{title}</span>
+        <span className="block text-xs text-muted">{detail}</span>
+      </span>
+      {onClick && <ArrowRight className="h-4 w-4 shrink-0 text-subtle" />}
+    </>
+  );
+  return onClick ? (
+    <button type="button" onClick={onClick} className="flex w-full items-center gap-3 px-6 py-4 transition-colors hover:bg-surface">
+      {content}
+    </button>
+  ) : (
+    <div className="flex items-center gap-3 px-6 py-4">{content}</div>
   );
 }
 

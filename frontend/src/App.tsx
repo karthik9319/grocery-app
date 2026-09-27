@@ -1,17 +1,18 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { BarChart3, CalendarDays, ChevronDown, CloudOff, Globe2, LayoutDashboard, MoreHorizontal, PlusCircle, Search, Settings, ShoppingBag } from "lucide-react";
+import { BarChart3, CalendarDays, ChevronDown, CloudOff, Globe2, LayoutDashboard, MoreHorizontal, Plus, PlusCircle, Search, Settings, ShoppingBag, ShoppingBasket } from "lucide-react";
 import { api } from "@/lib/api";
 import { QUEUE_CHANGED_EVENT, queueSize } from "@/lib/offlineQueue";
 import { checkAndShowDailyReminder } from "@/lib/dailyReminder";
 import { OverviewTab } from "@/components/OverviewTab";
-import { AddItemsTab } from "@/components/AddItemsTab";
+import { AddItemsTab, QuickAddPanel } from "@/components/AddItemsTab";
 import { CategoryView } from "@/components/CategoryView";
 import { CommandPalette } from "@/components/CommandPalette";
 import { SettingsSidebar } from "@/components/SettingsSidebar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/DropdownMenu";
 import { Button, Spinner } from "@/components/ui";
+import { Dialog, DialogContent } from "@/components/Dialog";
 import { cn } from "@/lib/utils";
 
 // Lazy-loaded: these pull in heavier dependencies (Recharts, date-fns) that aren't
@@ -73,6 +74,7 @@ function App() {
   });
   const [active, setActive] = useState("overview");
   const [pantryOpen, setPantryOpen] = useState(true);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const queryClient = useQueryClient();
   const addLowStock = useMutation({
     mutationFn: api.addLowStockToShoppingList,
@@ -135,7 +137,7 @@ function App() {
   const nav: NavItem[] = [
     {
       value: "overview",
-      label: "Overview",
+      label: "Today",
       icon: <LayoutDashboard className="h-[18px] w-[18px]" />,
       accent: "var(--theme-500)",
     },
@@ -173,7 +175,7 @@ function App() {
     },
     {
       value: "charts",
-      label: "Charts",
+      label: "Insights",
       icon: <BarChart3 className="h-[18px] w-[18px]" />,
       accent: "#0EA5E9",
     },
@@ -186,29 +188,22 @@ function App() {
   ];
 
   const activeItem = nav.find((n) => n.value === active);
-  const mobilePrimary = ["overview", "add-items", "shopping", "meal-planner"]
-    .map((value) => nav.find((item) => item.value === value)!)
-    .filter(Boolean);
-  const mobileMore = nav.filter((item) => !mobilePrimary.includes(item));
+  const pantryHome = meta.categories[0];
+  const mobilePrimaryValues = new Set(["overview", "shopping", "meal-planner", pantryHome]);
+  const mobileMore = nav.filter(
+    (item) => !mobilePrimaryValues.has(item.value) && item.value !== "add-items"
+  );
   const moreIsActive = mobileMore.some((item) => item.value === active);
   const primaryDesktopValues = new Set(["overview", "add-items", "shopping", "meal-planner", "charts"]);
   const primaryDesktop = nav.filter((item) => primaryDesktopValues.has(item.value));
   const categoryNav = nav.filter((item) => meta.categories.includes(item.value));
   const settingsNav = nav.find((item) => item.value === "settings")!;
-  const mobileLabels: Record<string, string> = {
-    overview: "Home",
-    "add-items": "Add",
-    shopping: "Shop",
-    "meal-planner": "Meals",
-  };
-
   return (
     <div
-      className="mx-auto flex min-h-screen w-full max-w-[1440px] gap-6 px-4 py-6 lg:px-8 2xl:gap-8"
+      className="mx-auto flex min-h-screen w-full max-w-[1440px] gap-6 px-4 pb-28 pt-6 lg:px-8 lg:pb-6 2xl:gap-8"
       style={{
         paddingLeft: "max(1rem, env(safe-area-inset-left))",
         paddingRight: "max(1rem, env(safe-area-inset-right))",
-        paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))",
       }}
     >
       {/* Left nav rail */}
@@ -343,51 +338,6 @@ function App() {
             </Button>
           </div>
         )}
-        {/* Mobile nav: the four everyday destinations stay visible; everything else is in More. */}
-        <div className="grid grid-cols-5 gap-1.5 pb-1 lg:hidden print:hidden">
-          {mobilePrimary.map((item) => {
-            const isActive = item.value === active;
-            return (
-              <button
-                key={item.value}
-                onClick={() => setActive(item.value)}
-                className={cn(
-                  "flex min-w-0 flex-col items-center gap-1 rounded-xl border border-line px-1 py-2 text-[11px] font-bold transition-all cursor-pointer",
-                  isActive ? "text-white shadow-sm" : "bg-surface-solid text-content"
-                )}
-                style={isActive ? { backgroundColor: item.accent } : undefined}
-              >
-                {item.emoji ?? item.icon}
-                {mobileLabels[item.value] ?? item.label}
-              </button>
-            );
-          })}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                className={cn(
-                  "flex min-w-0 flex-col items-center gap-1 rounded-xl border border-line px-1 py-2 text-[11px] font-bold transition-all cursor-pointer",
-                  moreIsActive ? "bg-slate-500 text-white shadow-sm" : "bg-surface-solid text-content"
-                )}
-              >
-                <MoreHorizontal className="h-[18px] w-[18px]" />
-                More
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[210px]">
-              {mobileMore.map((item) => (
-                <DropdownMenuItem key={item.value} onSelect={() => setActive(item.value)}>
-                  <span className="grid h-6 w-6 place-items-center">{item.emoji ?? item.icon}</span>
-                  <span>{item.label}</span>
-                  {item.badge != null && item.badge > 0 && (
-                    <span className="ml-auto text-xs text-subtle">{item.badge}</span>
-                  )}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
         {/* Section header */}
         <div className="flex items-center gap-3 print:hidden">
           <span
@@ -401,7 +351,7 @@ function App() {
               {activeItem?.label}
             </h2>
             <p className="text-xs font-semibold text-subtle">
-              {active === "overview" && "Your pantry at a glance"}
+              {active === "overview" && "What needs your attention now"}
               {active === "add-items" && "Snap a photo or scan a receipt to stock up"}
               {active === "search" && "Find any item across every category"}
               {active === "shopping" && "Plan your next grocery run"}
@@ -437,12 +387,120 @@ function App() {
           {active === "settings" && <SettingsSidebar meta={meta} />}
         </div>
       </main>
+      <nav
+        aria-label="Primary navigation"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface-solid/95 px-2 pt-2 shadow-[0_-8px_28px_rgba(15,23,42,0.12)] backdrop-blur-xl lg:hidden print:hidden"
+        style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
+      >
+        <div className="mx-auto grid max-w-lg grid-cols-6 items-end gap-1">
+          <MobileNavButton
+            label="Home"
+            icon={<LayoutDashboard className="h-5 w-5" />}
+            active={active === "overview"}
+            onClick={() => setActive("overview")}
+          />
+          <MobileNavButton
+            label="Shop"
+            icon={<ShoppingBag className="h-5 w-5" />}
+            active={active === "shopping"}
+            badge={shoppingOpen}
+            onClick={() => setActive("shopping")}
+          />
+          <button
+            type="button"
+            onClick={() => setQuickAddOpen(true)}
+            className="group -mt-6 flex flex-col items-center gap-1 text-[10px] font-bold text-theme-700 dark:text-theme-300"
+            aria-label="Quick add an item"
+          >
+            <span className="grid h-14 w-14 place-items-center rounded-full border-4 border-canvas bg-theme-500 text-white shadow-lg transition-transform duration-150 group-active:scale-95">
+              <Plus className="h-7 w-7" strokeWidth={3} />
+            </span>
+            Add
+          </button>
+          <MobileNavButton
+            label="Pantry"
+            icon={<ShoppingBasket className="h-5 w-5" />}
+            active={Boolean(pantryHome && active === pantryHome)}
+            onClick={() => pantryHome && setActive(pantryHome)}
+          />
+          <MobileNavButton
+            label="Meals"
+            icon={<CalendarDays className="h-5 w-5" />}
+            active={active === "meal-planner"}
+            onClick={() => setActive("meal-planner")}
+          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div>
+                <MobileNavButton
+                  label="More"
+                  icon={<MoreHorizontal className="h-5 w-5" />}
+                  active={moreIsActive}
+                  onClick={() => undefined}
+                />
+              </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side="top" className="mb-2 min-w-[220px]">
+              {mobileMore.map((item) => (
+                <DropdownMenuItem key={item.value} onSelect={() => setActive(item.value)}>
+                  <span className="grid h-6 w-6 place-items-center">{item.emoji ?? item.icon}</span>
+                  <span>{item.label}</span>
+                  {item.badge != null && item.badge > 0 && (
+                    <span className="ml-auto text-xs text-subtle">{item.badge}</span>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </nav>
+      <Dialog open={quickAddOpen} onOpenChange={setQuickAddOpen}>
+        <DialogContent
+          title="Add to pantry"
+          className="bottom-0 top-auto max-h-[88vh] w-full max-w-none -translate-y-0 rounded-b-none px-4 pb-8 sm:bottom-auto sm:top-1/2 sm:w-[92vw] sm:max-w-3xl sm:-translate-y-1/2 sm:rounded-2xl sm:p-6"
+        >
+          <QuickAddPanel meta={meta} />
+        </DialogContent>
+      </Dialog>
       {meta && <CommandPalette meta={meta} onNavigate={setActive} onAddLowStock={() => addLowStock.mutate()} />}
     </div>
   );
 }
 
 export default App;
+
+function MobileNavButton({
+  label,
+  icon,
+  active,
+  badge,
+  onClick,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  active: boolean;
+  badge?: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "relative flex min-w-0 flex-col items-center gap-1 rounded-xl px-1 py-1.5 text-[10px] font-bold transition-colors",
+        active ? "bg-theme-100 text-theme-700 dark:bg-theme-900/40 dark:text-theme-300" : "text-subtle hover:text-content"
+      )}
+    >
+      {icon}
+      <span className="truncate">{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="absolute right-1 top-0 grid min-h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[9px] text-white">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
+    </button>
+  );
+}
 
 /** Shows a banner when the browser is offline or when writes are queued waiting to sync. */
 function OfflineBanner() {

@@ -1,12 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, X } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { Meta } from "@/types";
 import { ItemCard, useUndoableDelete } from "@/components/ItemCard";
 import { EmptyState, Button, Input, Select, Switch } from "@/components/ui";
 import { SORT_OPTIONS, sortItems, thresholdForItem } from "@/lib/utils";
+
+const STARTER_ITEMS: Record<string, string[]> = {
+  Groceries: ["Milk", "Eggs", "Rice", "Bread"],
+  Vegetables: ["Onions", "Tomatoes", "Potatoes", "Carrots"],
+  Household: ["Dish soap", "Laundry detergent", "Tissues", "Trash bags"],
+  Snacks: ["Biscuits", "Nuts", "Chips", "Chocolate"],
+};
 
 export function CategoryView({
   category,
@@ -125,10 +132,40 @@ export function CategoryView({
     },
   });
 
+  const addStarter = useMutation({
+    mutationFn: (title: string) => api.createItem({
+      title,
+      category,
+      quantity: 1,
+      unit: meta.units[category] ?? "count",
+    }),
+    onSuccess: (_result, title) => {
+      queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: ["summary"] });
+      queryClient.invalidateQueries({ queryKey: ["charts"] });
+      toast.success(`${title} added`);
+    },
+    onError: () => toast.error("Could not add that starter item."),
+  });
+
   return (
     <div className="space-y-5">
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:hidden" aria-label="Pantry categories">
+        {meta.categories.map((name) => (
+          <button
+            type="button"
+            key={name}
+            onClick={() => onNavigate(name)}
+            className={name === category
+              ? "shrink-0 rounded-full bg-theme-500 px-3 py-1.5 text-xs font-bold text-white shadow-sm"
+              : "shrink-0 rounded-full border border-line bg-surface-solid px-3 py-1.5 text-xs font-bold text-muted"}
+          >
+            {meta.icons[name]} {name}
+          </button>
+        ))}
+      </div>
       {!!items?.length && (
-      <div className="glass flex flex-col gap-3 rounded-2xl p-4 shadow-md sm:flex-row sm:items-center">
+        <div className="glass flex flex-col gap-3 rounded-2xl p-4 shadow-md sm:flex-row sm:items-center">
         <div className="relative sm:max-w-xs sm:flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
           <Input
@@ -167,7 +204,7 @@ export function CategoryView({
         >
           {selectMode ? "Cancel" : "Select"}
         </Button>
-      </div>
+        </div>
       )}
 
       {selectMode && (
@@ -223,7 +260,20 @@ export function CategoryView({
             Add your first item here and Pantry Pilot will start tracking quantity, location,
             freshness, and low-stock status.
           </p>
-          <Button className="mt-5" onClick={() => onNavigate("add-items")}>Add an item</Button>
+          <div className="mx-auto mt-5 flex max-w-lg flex-wrap justify-center gap-2">
+            {(STARTER_ITEMS[category] ?? ["First item"]).map((title) => (
+              <button
+                type="button"
+                key={title}
+                onClick={() => addStarter.mutate(title)}
+                disabled={addStarter.isPending}
+                className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-2 text-xs font-bold text-content transition-colors hover:bg-theme-200 disabled:opacity-50"
+              >
+                <Plus className="h-3.5 w-3.5" /> {title}
+              </button>
+            ))}
+          </div>
+          <Button className="mt-4" onClick={() => onNavigate("add-items")}>Add something else</Button>
         </div>
       )}
 
@@ -237,7 +287,7 @@ export function CategoryView({
             key={item.id}
             item={item}
             meta={meta}
-                threshold={thresholdForItem(item, settings)}
+            threshold={thresholdForItem(item, settings)}
             selectable={selectMode}
             selected={selectedIds.has(item.id)}
             onToggleSelect={toggleId}
