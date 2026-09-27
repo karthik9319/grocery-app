@@ -1,12 +1,12 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { Item, Meta, ShoppingListItem } from "@/types";
+import type { Item, ItemUnit, Meta, Settings, ShoppingListItem } from "@/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatQuantity(quantity: number, unit: string): string {
+export function formatQuantity(quantity: number, unit: ItemUnit | string): string {
   if (unit === "g") {
     if (quantity >= 1000) {
       const kg = quantity / 1000;
@@ -14,8 +14,50 @@ export function formatQuantity(quantity: number, unit: string): string {
     }
     return `${Number(quantity.toFixed(2))} g`;
   }
+  if (unit === "kg") return `${Number(quantity.toFixed(2))} kg`;
+  if (unit === "ml") {
+    if (quantity >= 1000) return `${Number((quantity / 1000).toFixed(2))} L`;
+    return `${Number(quantity.toFixed(2))} ml`;
+  }
+  if (unit === "l") return `${Number(quantity.toFixed(2))} L`;
   return Number.isInteger(quantity) ? String(quantity) : String(quantity);
 }
+
+export function unitStep(unit: ItemUnit): number {
+  if (unit === "g" || unit === "ml") return 50;
+  if (unit === "kg" || unit === "l") return 0.1;
+  return 1;
+}
+
+export function convertItemQuantity(quantity: number, from: ItemUnit, to: ItemUnit): number {
+  const families: Record<ItemUnit, string> = {
+    count: "count",
+    g: "mass",
+    kg: "mass",
+    ml: "volume",
+    l: "volume",
+  };
+  const factors: Record<ItemUnit, number> = { count: 1, g: 1, kg: 1000, ml: 1, l: 1000 };
+  if (families[from] !== families[to]) return quantity;
+  return Number(((quantity * factors[from]) / factors[to]).toFixed(3));
+}
+
+export function thresholdForItem(item: Item, settings?: Settings): number {
+  if (item.custom_threshold != null) return item.custom_threshold;
+  if (item.unit === "g") return settings?.weight_threshold ?? 200;
+  if (item.unit === "kg") return (settings?.weight_threshold ?? 200) / 1000;
+  if (item.unit === "ml") return settings?.volume_threshold ?? 200;
+  if (item.unit === "l") return (settings?.volume_threshold ?? 200) / 1000;
+  return settings?.count_threshold ?? 2;
+}
+
+export const ITEM_UNIT_OPTIONS: { value: ItemUnit; label: string }[] = [
+  { value: "count", label: "count" },
+  { value: "g", label: "g" },
+  { value: "kg", label: "kg" },
+  { value: "ml", label: "ml" },
+  { value: "l", label: "L" },
+];
 
 const moneyFormatter = new Intl.NumberFormat("en-IN", {
   style: "currency",
@@ -130,10 +172,26 @@ export function formatShoppingListForShare(items: ShoppingListItem[], meta: Meta
   if (unchecked.length === 0) {
     lines.push("Nothing left on the list right now.");
   } else {
+    const stores = new Map<string, ShoppingListItem[]>();
     for (const item of unchecked) {
-      const icon = item.category ? meta.icons[item.category] ?? "•" : "•";
-      const qty = item.quantity > 1 ? ` ×${item.quantity}` : "";
-      lines.push(`${icon} ${item.title}${qty}`);
+      const store = item.store?.trim() || "Any store";
+      stores.set(store, [...(stores.get(store) ?? []), item]);
+    }
+    for (const [store, storeItems] of stores) {
+      lines.push(`🏪 ${store}`);
+      for (const item of storeItems) {
+        const icon = item.category ? meta.icons[item.category] ?? "•" : "•";
+        const qty = item.unit === "count" && item.quantity === 1
+          ? ""
+          : ` · ${formatQuantity(item.quantity, item.unit)}`;
+        const aisle = item.aisle ? ` · ${item.aisle}` : "";
+        const price = item.unit_price != null
+          ? ` · ${formatMoney(item.quantity * item.unit_price)}`
+          : "";
+        lines.push(`${icon} ${item.title}${qty}${aisle}${price}`);
+        if (item.substitution) lines.push(`   ↳ Substitute: ${item.substitution}`);
+      }
+      lines.push("");
     }
   }
   lines.push("", "Sent from Grocery Tracker");
@@ -163,4 +221,3 @@ export function sortItems(items: Item[], sort: string): Item[] {
       return copy;
   }
 }
-

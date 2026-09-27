@@ -10,18 +10,19 @@ import { ExportImportSection } from "@/components/ExportImportSection";
 
 export function SettingsSidebar({ meta }: { meta: Meta }) {
   return (
-    <div className="space-y-2">
-      <div className="px-3">
+    <div className="grid gap-4 md:grid-cols-2">
+      <section className="glass rounded-2xl p-5 shadow-md">
+        <p className="mb-3 text-xs font-bold uppercase tracking-wide text-subtle">Appearance</p>
         <ThemeToggle />
-      </div>
+      </section>
 
-      <RemoteAccessSection />
-      <ThresholdSettingsSection />
-      <StorageLocationsSection />
-      <DangerZoneSection meta={meta} />
-      <BackupsSection />
-      <DuplicatesSection meta={meta} />
-      <ExportImportSection />
+      {[<RemoteAccessSection />, <ThresholdSettingsSection />, <StorageLocationsSection />,
+        <BackupsSection />, <DuplicatesSection meta={meta} />, <ExportImportSection />,
+        <DangerZoneSection meta={meta} />].map((section, index) => (
+        <section key={index} className="glass self-start rounded-2xl p-2 shadow-md">
+          {section}
+        </section>
+      ))}
     </div>
   );
 }

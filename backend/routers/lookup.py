@@ -11,6 +11,7 @@ from api_common import (
     COMMON_ITEMS,
     estimate_shelf_life_days,
     guess_category,
+    normalize_unit,
 )
 
 router = APIRouter()
@@ -95,10 +96,13 @@ def classify_title(title: str):
 
 # --- Quick add (voice/free-text) ---
 QUICK_ADD_UNITS = {
-    "kg": 1000, "kgs": 1000, "kilogram": 1000, "kilograms": 1000,
-    "g": 1, "gram": 1, "grams": 1,
-    "lb": 453.592, "lbs": 453.592, "pound": 453.592, "pounds": 453.592,
-    "oz": 28.3495, "ounce": 28.3495, "ounces": 28.3495,
+    "kg": ("kg", 1), "kgs": ("kg", 1), "kilogram": ("kg", 1), "kilograms": ("kg", 1),
+    "g": ("g", 1), "gram": ("g", 1), "grams": ("g", 1),
+    "lb": ("g", 453.592), "lbs": ("g", 453.592), "pound": ("g", 453.592), "pounds": ("g", 453.592),
+    "oz": ("g", 28.3495), "ounce": ("g", 28.3495), "ounces": ("g", 28.3495),
+    "ml": ("ml", 1), "milliliter": ("ml", 1), "milliliters": ("ml", 1),
+    "l": ("l", 1), "ltr": ("l", 1), "litre": ("l", 1), "litres": ("l", 1),
+    "liter": ("l", 1), "liters": ("l", 1),
 }
 QUICK_ADD_LINE_RE = re.compile(
     r"^\s*(?:(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?\s+(?:of\s+)?)?(.+?)\s*$"
@@ -129,13 +133,12 @@ def parse_quick_add(text: str) -> list:
         category = guess_category(name)
         unit_lower = (unit or "").lower()
         quantity: float = 1
+        item_unit = normalize_unit(None, category)
         if number:
             amount = float(number)
-            if unit_lower in QUICK_ADD_UNITS and CATEGORY_UNITS.get(category) == "g":
-                quantity = round(amount * QUICK_ADD_UNITS[unit_lower], 1)
-            elif unit_lower in QUICK_ADD_UNITS:
-                # a weight was given but the category is count-based - keep the count
-                quantity = amount
+            if unit_lower in QUICK_ADD_UNITS:
+                item_unit, multiplier = QUICK_ADD_UNITS[unit_lower]
+                quantity = round(amount * multiplier, 3)
             else:
                 # the "unit" was actually the start of the name (e.g. "2 apples")
                 quantity = amount
@@ -150,9 +153,10 @@ def parse_quick_add(text: str) -> list:
         # default sensible quantity for weight-based categories with no explicit weight
         if CATEGORY_UNITS.get(category) == "g" and (not number or unit_lower not in QUICK_ADD_UNITS):
             quantity = 500 if quantity == 1 else quantity
+            item_unit = "g"
 
         results.append(
-            {"title": name.title(), "quantity": quantity, "category": category}
+            {"title": name.title(), "quantity": quantity, "category": category, "unit": item_unit}
         )
     return results
 

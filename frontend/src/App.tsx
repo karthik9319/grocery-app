@@ -1,16 +1,16 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { BarChart3, CalendarDays, CloudOff, LayoutDashboard, PlusCircle, Search, ShoppingBag } from "lucide-react";
+import { BarChart3, CalendarDays, CloudOff, LayoutDashboard, MoreHorizontal, PlusCircle, Search, Settings, ShoppingBag } from "lucide-react";
 import { api } from "@/lib/api";
 import { QUEUE_CHANGED_EVENT, queueSize } from "@/lib/offlineQueue";
 import { checkAndShowDailyReminder } from "@/lib/dailyReminder";
-import { Header } from "@/components/Header";
 import { OverviewTab } from "@/components/OverviewTab";
 import { AddItemsTab } from "@/components/AddItemsTab";
 import { CategoryView } from "@/components/CategoryView";
 import { CommandPalette } from "@/components/CommandPalette";
 import { SettingsSidebar } from "@/components/SettingsSidebar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/DropdownMenu";
 import { Button, Spinner } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
@@ -152,9 +152,26 @@ function App() {
       icon: <BarChart3 className="h-[18px] w-[18px]" />,
       accent: "#0EA5E9",
     },
+    {
+      value: "settings",
+      label: "Settings",
+      icon: <Settings className="h-[18px] w-[18px]" />,
+      accent: "#64748B",
+    },
   ];
 
   const activeItem = nav.find((n) => n.value === active);
+  const mobilePrimary = ["overview", "add-items", "shopping", "meal-planner"]
+    .map((value) => nav.find((item) => item.value === value)!)
+    .filter(Boolean);
+  const mobileMore = nav.filter((item) => !mobilePrimary.includes(item));
+  const moreIsActive = mobileMore.some((item) => item.value === active);
+  const mobileLabels: Record<string, string> = {
+    overview: "Home",
+    "add-items": "Add",
+    shopping: "Shop",
+    "meal-planner": "Meals",
+  };
 
   return (
     <div
@@ -178,7 +195,7 @@ function App() {
             </div>
           </div>
 
-          <nav className="flex flex-1 flex-col gap-2">
+          <nav className="flex flex-col gap-2">
             {nav.map((item) => {
               const isActive = item.value === active;
               return (
@@ -222,40 +239,55 @@ function App() {
             })}
           </nav>
 
-          <div className="mt-3 border-t border-line pt-3">
-            <SettingsSidebar meta={meta} />
-          </div>
         </div>
       </aside>
 
       {/* Main content */}
       <main className="min-w-0 flex-1 space-y-7">
         <OfflineBanner />
-        {active !== "overview" && (
-          <div className="print:hidden">
-            <Header meta={meta} />
-          </div>
-        )}
-
-        {/* Mobile nav (horizontal scroll) */}
-        <div className="flex gap-2 overflow-x-auto pb-1 lg:hidden print:hidden">
-          {nav.map((item) => {
+        {/* Mobile nav: the four everyday destinations stay visible; everything else is in More. */}
+        <div className="grid grid-cols-5 gap-1.5 pb-1 lg:hidden print:hidden">
+          {mobilePrimary.map((item) => {
             const isActive = item.value === active;
             return (
               <button
                 key={item.value}
                 onClick={() => setActive(item.value)}
                 className={cn(
-                  "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl border border-line px-3 py-2 text-sm font-bold transition-all cursor-pointer",
+                  "flex min-w-0 flex-col items-center gap-1 rounded-xl border border-line px-1 py-2 text-[11px] font-bold transition-all cursor-pointer",
                   isActive ? "text-white shadow-sm" : "bg-surface-solid text-content"
                 )}
                 style={isActive ? { backgroundColor: item.accent } : undefined}
               >
                 {item.emoji ?? item.icon}
-                {item.label}
+                {mobileLabels[item.value] ?? item.label}
               </button>
             );
           })}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={cn(
+                  "flex min-w-0 flex-col items-center gap-1 rounded-xl border border-line px-1 py-2 text-[11px] font-bold transition-all cursor-pointer",
+                  moreIsActive ? "bg-slate-500 text-white shadow-sm" : "bg-surface-solid text-content"
+                )}
+              >
+                <MoreHorizontal className="h-[18px] w-[18px]" />
+                More
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[210px]">
+              {mobileMore.map((item) => (
+                <DropdownMenuItem key={item.value} onSelect={() => setActive(item.value)}>
+                  <span className="grid h-6 w-6 place-items-center">{item.emoji ?? item.icon}</span>
+                  <span>{item.label}</span>
+                  {item.badge != null && item.badge > 0 && (
+                    <span className="ml-auto text-xs text-subtle">{item.badge}</span>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Section header */}
@@ -277,6 +309,7 @@ function App() {
               {active === "shopping" && "Plan your next grocery run"}
               {active === "meal-planner" && "Plan what to cook this week"}
               {active === "charts" && "Insights across your inventory"}
+              {active === "settings" && "Preferences, data tools, backups, and remote access"}
               {meta.categories.includes(active) && `Everything in your ${active.toLowerCase()}`}
             </p>
           </div>
@@ -292,8 +325,9 @@ function App() {
             {active === "search" && <GlobalSearchTab meta={meta} />}
             {active === "shopping" && <ShoppingListTab meta={meta} />}
             {active === "meal-planner" && <MealPlannerTab />}
-            {active === "charts" && <ChartsTab meta={meta} />}
+            {active === "charts" && <ChartsTab meta={meta} onNavigate={setActive} />}
           </Suspense>
+          {active === "settings" && <SettingsSidebar meta={meta} />}
         </div>
       </main>
       {meta && <CommandPalette meta={meta} onNavigate={setActive} onAddLowStock={() => addLowStock.mutate()} />}

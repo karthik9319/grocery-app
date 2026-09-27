@@ -66,6 +66,7 @@ export function CommandPalette({
       { id: "shopping", label: "Shopping list", icon: "🛍️" },
       { id: "meal-planner", label: "Meal planner", icon: "📅" },
       { id: "charts", label: "Charts", icon: "📈" },
+      { id: "settings", label: "Settings", icon: "⚙️" },
       ...meta.categories.map((c) => ({ id: c, label: `Go to ${c}`, icon: meta.icons[c] ?? "📦" })),
     ];
     const rows: Row[] = navTargets.map((t) => ({

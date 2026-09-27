@@ -12,12 +12,11 @@ import {
 } from "recharts";
 import { api } from "@/lib/api";
 import type { Meta } from "@/types";
-import { formatMoney } from "@/lib/utils";
-import { Card, Select } from "@/components/ui";
+import { formatMoney, formatQuantity } from "@/lib/utils";
+import { Button, Card, Select } from "@/components/ui";
 
-export function ChartsTab({ meta }: { meta: Meta }) {
+export function ChartsTab({ meta, onNavigate }: { meta: Meta; onNavigate: (tab: string) => void }) {
   const [category, setCategory] = useState(meta.categories[0]);
-  const unit = meta.units[category];
 
   const { data: categoryCounts } = useQuery({
     queryKey: ["charts", "category-counts"],
@@ -41,6 +40,20 @@ export function ChartsTab({ meta }: { meta: Meta }) {
     items: categoryCounts?.[c] ?? 0,
     fill: meta.palette[c],
   }));
+  const totalItems = countsData.reduce((sum, entry) => sum + entry.items, 0);
+
+  if (categoryCounts && totalItems === 0) {
+    return (
+      <Card className="mx-auto flex max-w-xl flex-col items-center px-6 py-12 text-center">
+        <div className="mb-3 text-4xl">📊</div>
+        <h3 className="font-display text-xl text-content">Charts need a little data</h3>
+        <p className="mt-2 text-sm text-muted">
+          Add your first pantry item and this page will show category, stock, and activity trends.
+        </p>
+        <Button className="mt-5" onClick={() => onNavigate("add-items")}>Add an item</Button>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -110,15 +123,16 @@ export function ChartsTab({ meta }: { meta: Meta }) {
           📦 Stock by item — {meta.icons[category]} {category}
         </h3>
         {stockByItem && stockByItem.length > 0 ? (
-          <ResponsiveContainer width="100%" height={Math.max(220, stockByItem.length * 38)}>
-            <BarChart data={stockByItem} layout="vertical" margin={{ left: 24 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#eee" />
-              <XAxis type="number" tick={{ fontSize: 12 }} label={{ value: `Quantity (${unit})`, position: "insideBottom", offset: -5, fontSize: 12 }} />
-              <YAxis type="category" dataKey="title" tick={{ fontSize: 12 }} width={100} />
-              <Tooltip />
-              <Bar dataKey="quantity" fill={meta.palette[category]} radius={[0, 2, 2, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="divide-y divide-line rounded-xl border border-line">
+            {stockByItem.map((item, index) => (
+              <div key={`${item.title}-${index}`} className="flex items-center justify-between gap-4 px-4 py-3">
+                <span className="truncate text-sm font-semibold text-content">{item.title}</span>
+                <span className="shrink-0 text-sm tabular-nums text-muted">
+                  {formatQuantity(item.quantity, item.unit)}
+                </span>
+              </div>
+            ))}
+          </div>
         ) : (
           <p className="text-sm text-subtle">No {category.toLowerCase()} yet.</p>
         )}
@@ -131,9 +145,9 @@ export function ChartsTab({ meta }: { meta: Meta }) {
             <BarChart data={addedOverTime}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
               <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-              <YAxis tick={{ fontSize: 12 }} label={{ value: `Quantity (${unit})`, angle: -90, position: "insideLeft", fontSize: 12 }} />
+              <YAxis tick={{ fontSize: 12 }} allowDecimals={false} label={{ value: "Items added", angle: -90, position: "insideLeft", fontSize: 12 }} />
               <Tooltip />
-              <Bar dataKey="quantity" fill={meta.palette[category]} radius={[2, 2, 0, 0]} />
+              <Bar dataKey="items" fill={meta.palette[category]} radius={[2, 2, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (

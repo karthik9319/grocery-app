@@ -57,6 +57,15 @@ CATEGORY_ICONS = {"Groceries": "🧺", "Vegetables": "🥕", "Household": "🧴"
 CATEGORIES = list(CATEGORY_ICONS.keys())
 PALETTE = {"Groceries": "#1B7A4D", "Vegetables": "#FF8C42", "Household": "#6C63FF", "Snacks": "#C2185B"}
 CATEGORY_UNITS = {"Groceries": "count", "Vegetables": "g", "Household": "count", "Snacks": "count"}
+ITEM_UNITS = ("count", "g", "kg", "ml", "l")
+UNIT_FAMILIES = {
+    "count": "count",
+    "g": "mass",
+    "kg": "mass",
+    "ml": "volume",
+    "l": "volume",
+}
+UNIT_TO_BASE = {"count": 1.0, "g": 1.0, "kg": 1000.0, "ml": 1.0, "l": 1000.0}
 
 
 COMMON_ITEMS = {
@@ -174,13 +183,43 @@ def estimate_shelf_life_days(title: str, category: str) -> int:
     return 30 if category == "Vegetables" else 14
 
 
+def normalize_unit(unit: Optional[str], category: str) -> str:
+    """Return a supported item-level unit, falling back to the category default."""
+    normalized = (unit or "").strip().lower()
+    return normalized if normalized in ITEM_UNITS else CATEGORY_UNITS.get(category, "count")
+
+
+def convert_quantity(quantity: float, from_unit: str, to_unit: str) -> float:
+    """Convert compatible mass/volume units. Count never converts to another family."""
+    source = normalize_unit(from_unit, "Groceries")
+    target = normalize_unit(to_unit, "Groceries")
+    if UNIT_FAMILIES[source] != UNIT_FAMILIES[target]:
+        raise ValueError(f"Cannot convert {source} to {target}")
+    return quantity * UNIT_TO_BASE[source] / UNIT_TO_BASE[target]
+
+
+def threshold_for_unit(unit: str, settings: dict) -> float:
+    normalized = normalize_unit(unit, "Groceries")
+    family = UNIT_FAMILIES[normalized]
+    if family == "mass":
+        base = settings["weight_threshold"]
+    elif family == "volume":
+        base = settings.get("volume_threshold", 200)
+    else:
+        base = settings["count_threshold"]
+    return base / UNIT_TO_BASE[normalized]
+
+
 def threshold_for(category: str, settings: dict) -> float:
-    return settings["weight_threshold"] if CATEGORY_UNITS[category] == "g" else settings["count_threshold"]
+    """Backward-compatible category-default threshold helper."""
+    return threshold_for_unit(CATEGORY_UNITS.get(category, "count"), settings)
 
 
 def effective_threshold(item: dict, settings: dict) -> float:
     custom = item.get("custom_threshold")
-    return custom if custom is not None else threshold_for(item["category"], settings)
+    return custom if custom is not None else threshold_for_unit(
+        item.get("unit") or CATEGORY_UNITS.get(item["category"], "count"), settings
+    )
 
 
 def days_until_expiration(item: dict) -> Optional[int]:
@@ -218,7 +257,7 @@ def items_to_csv_text(items: list) -> str:
     """Shared CSV serialization used by both the export endpoint and backup snapshots."""
     lines = ["uuid,title,category,quantity,in_use_quantity,unit,notes,expiration_date,created_at"]
     for item in items:
-        unit = CATEGORY_UNITS.get(item["category"], "count")
+        unit = normalize_unit(item.get("unit"), item["category"])
         notes = (item.get("notes") or "").replace(",", ";")
         lines.append(
             f"{item.get('uuid') or ''},{item['title']},{item['category']},{item['quantity']},"
@@ -229,19 +268,24 @@ def items_to_csv_text(items: list) -> str:
 
 
 def favorites_to_csv_text(favorites: list) -> str:
-    lines = ["title,category,default_quantity,created_at"]
+    lines = ["title,category,default_quantity,unit,created_at"]
     for fav in favorites:
         lines.append(
-            f"{fav['title']},{fav['category']},{fav['default_quantity']},{fav['created_at']}"
+            f"{fav['title']},{fav['category']},{fav['default_quantity']},"
+            f"{normalize_unit(fav.get('unit'), fav['category'])},{fav['created_at']}"
         )
     return "\n".join(lines)
 
 
 def shopping_list_to_csv_text(rows: list) -> str:
-    lines = ["title,category,quantity,checked,created_at"]
+    lines = ["title,category,quantity,unit,store,aisle,unit_price,substitution,checked,created_at"]
     for row in rows:
+        substitution = (row.get("substitution") or "").replace(",", ";")
         lines.append(
             f"{row['title']},{row.get('category') or ''},{row.get('quantity', 1)},"
+            f"{normalize_unit(row.get('unit'), row.get('category') or 'Groceries')},"
+            f"{row.get('store') or ''},{row.get('aisle') or ''},{row.get('unit_price') or ''},"
+            f"{substitution},"
             f"{bool(row['checked'])},{row['created_at']}"
         )
     return "\n".join(lines)
@@ -385,7 +429,8 @@ def import_rows(rows, mode: str) -> dict:
         notes = (row.get("notes") or "").strip() or None
         expiration_date = (row.get("expiration_date") or "").strip() or None
 
-        existing = inventory.find_item_by_title(title, category)
+        unit = normalize_unit(row.get("unit"), category)
+        existing = inventory.find_item_by_title(title, category, unit)
         if existing:
             new_total = quantity if mode == "overwrite" else existing["quantity"] + quantity
             inventory.update_item(
@@ -397,6 +442,7 @@ def import_rows(rows, mode: str) -> dict:
                 None,
                 existing.get("custom_threshold"),
                 expiration_date or existing.get("expiration_date"),
+                unit=unit,
             )
             inventory.set_in_use_quantity(existing["id"], in_use_quantity)
             merged += 1
@@ -411,6 +457,7 @@ def import_rows(rows, mode: str) -> dict:
                 expiration_date,
                 row_uuid,
                 in_use_quantity=in_use_quantity,
+                unit=unit,
             )
             added += 1
 
@@ -428,7 +475,8 @@ def import_favorites_rows(rows) -> dict:
             default_quantity = float(row.get("default_quantity") or 1)
         except ValueError:
             default_quantity = 1
-        inventory.add_favorite(title, category, default_quantity)
+        unit = normalize_unit(row.get("unit"), category)
+        inventory.add_favorite(title, category, default_quantity, unit)
         processed += 1
     return {"added": processed, "merged": 0, "skipped": 0}
 
@@ -444,7 +492,21 @@ def import_shopping_list_rows(rows) -> dict:
             quantity = float(row.get("quantity") or 1)
         except ValueError:
             quantity = 1
-        inventory.add_shopping_list_item(title, category, quantity)
+        try:
+            unit_price = float(row.get("unit_price")) if row.get("unit_price") else None
+        except ValueError:
+            unit_price = None
+        unit = normalize_unit(row.get("unit"), category or "Groceries")
+        inventory.add_shopping_list_item(
+            title,
+            category,
+            quantity,
+            unit,
+            (row.get("store") or "").strip() or None,
+            (row.get("aisle") or "").strip() or None,
+            unit_price,
+            (row.get("substitution") or "").strip() or None,
+        )
         processed += 1
     return {"added": processed, "merged": 0, "skipped": 0}
 

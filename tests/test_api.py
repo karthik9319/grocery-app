@@ -69,6 +69,63 @@ def test_shopping_list_quantity(client):
     assert client.get("/api/shopping-list").json()[0]["quantity"] == 6
 
 
+def test_complete_shopping_trip_restocks_inventory_and_records_spend(client):
+    client.post(
+        "/api/items",
+        data={"title": "Milk", "category": "Groceries", "quantity": 500, "unit": "ml"},
+    )
+    response = client.post(
+        "/api/shopping-list",
+        data={
+            "title": "Milk",
+            "category": "Groceries",
+            "quantity": 1,
+            "unit": "l",
+            "store": "DMart",
+            "aisle": "Dairy",
+            "unit_price": 60,
+            "substitution": "Any toned milk",
+        },
+    )
+    assert response.status_code == 200
+    shopping_item = client.get("/api/shopping-list").json()[0]
+    assert shopping_item["store"] == "DMart"
+    assert shopping_item["aisle"] == "Dairy"
+    assert shopping_item["unit"] == "l"
+    assert shopping_item["substitution"] == "Any toned milk"
+
+    client.patch(
+        f"/api/shopping-list/{shopping_item['id']}", data={"checked": "true"}
+    )
+    completed = client.post("/api/shopping-list/complete", json={"store": "DMart"})
+    assert completed.status_code == 200
+    assert completed.json()["completed"] == 1
+    assert completed.json()["total_spend"] == 60
+    assert client.get("/api/shopping-list").json() == []
+
+    milk = client.get("/api/items").json()[0]
+    assert milk["unit"] == "ml"
+    assert milk["quantity"] == 1500
+    spend = client.get("/api/purchases/summary").json()
+    assert spend["total_spend"] == 60
+
+
+def test_complete_shopping_trip_only_finishes_selected_store(client):
+    for title, store in [("Eggs", "DMart"), ("Bread", "Nature's Basket")]:
+        client.post(
+            "/api/shopping-list",
+            data={"title": title, "category": "Groceries", "store": store},
+        )
+    for item in client.get("/api/shopping-list").json():
+        client.patch(f"/api/shopping-list/{item['id']}", data={"checked": "true"})
+
+    completed = client.post("/api/shopping-list/complete", json={"store": "DMart"})
+    assert completed.json()["completed"] == 1
+    remaining = client.get("/api/shopping-list").json()
+    assert len(remaining) == 1
+    assert remaining[0]["store"] == "Nature's Basket"
+
+
 def test_storage_locations_crud(client):
     resp = client.post("/api/storage-locations", data={"name": "Garage", "icon": "🧰"})
     assert resp.status_code == 200
@@ -97,6 +154,31 @@ def test_item_create_and_list(client):
     assert _add_item(client, "Milk").json()["status"] == "added"
     items = client.get("/api/items").json()
     assert any(i["title"] == "Milk" for i in items)
+
+
+def test_item_units_are_stored_and_compatible_units_merge(client):
+    first = client.post(
+        "/api/items",
+        data={"title": "Rice", "category": "Groceries", "quantity": 1, "unit": "kg"},
+    )
+    assert first.status_code == 200
+    second = client.post(
+        "/api/items",
+        data={"title": "Rice", "category": "Groceries", "quantity": 500, "unit": "g"},
+    )
+    assert second.json()["status"] == "merged"
+    item = client.get("/api/items").json()[0]
+    assert item["unit"] == "kg"
+    assert item["quantity"] == 1.5
+
+
+def test_count_and_weight_versions_do_not_merge(client):
+    _add_item(client, "Tomatoes", quantity=2)
+    client.post(
+        "/api/items",
+        data={"title": "Tomatoes", "category": "Groceries", "quantity": 500, "unit": "g"},
+    )
+    assert len(client.get("/api/items").json()) == 2
 
 
 def test_patch_quantity(client):
@@ -233,4 +315,3 @@ def test_predictions_from_history(client):
     assert milk is not None
     assert milk["rate_per_day"] == 1.0  # 4 consumed over 4 days
     assert milk["days_left"] == 10.0  # 10 on hand / 1 per day
-

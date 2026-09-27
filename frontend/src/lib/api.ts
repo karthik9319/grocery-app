@@ -42,6 +42,7 @@ import type {
   SearchResults,
   TunnelStatus,
   UsageEvent,
+  ItemUnit,
 } from "@/types";
 
 // A stalled mobile connection (e.g. through a Cloudflare Tunnel on a flaky 5G signal)
@@ -114,6 +115,7 @@ export const api = {
     const form = new FormData();
     form.append("count_threshold", String(settings.count_threshold));
     form.append("weight_threshold", String(settings.weight_threshold));
+    form.append("volume_threshold", String(settings.volume_threshold));
     return client.put<Settings>("/settings", form).then((r) => r.data);
   },
 
@@ -140,6 +142,7 @@ export const api = {
     title: string;
     category: string;
     quantity: number;
+    unit: ItemUnit;
     notes?: string;
     custom_threshold?: number | null;
     expiration_date?: string | null;
@@ -151,6 +154,7 @@ export const api = {
     form.append("title", data.title);
     form.append("category", data.category);
     form.append("quantity", String(data.quantity));
+    form.append("unit", data.unit);
     if (data.notes) form.append("notes", data.notes);
     if (data.custom_threshold != null)
       form.append("custom_threshold", String(data.custom_threshold));
@@ -167,6 +171,7 @@ export const api = {
       title: string;
       category: string;
       quantity: number;
+      unit: ItemUnit;
       notes?: string;
       custom_threshold?: number | null;
       expiration_date?: string | null;
@@ -178,6 +183,7 @@ export const api = {
     form.append("title", data.title);
     form.append("category", data.category);
     form.append("quantity", String(data.quantity));
+    form.append("unit", data.unit);
     if (data.notes) form.append("notes", data.notes);
     if (data.custom_threshold != null)
       form.append("custom_threshold", String(data.custom_threshold));
@@ -224,11 +230,12 @@ export const api = {
   restoreItem: (item: Item) => client.post("/items/restore", item).then((r) => r.data),
 
   favorites: () => client.get<Favorite[]>("/favorites").then((r) => r.data),
-  addFavorite: (title: string, category: string, default_quantity: number) => {
+  addFavorite: (title: string, category: string, default_quantity: number, unit: ItemUnit) => {
     const form = new FormData();
     form.append("title", title);
     form.append("category", category);
     form.append("default_quantity", String(default_quantity));
+    form.append("unit", unit);
     return client.post("/favorites", form).then((r) => r.data);
   },
   removeFavorite: (title: string, category: string) =>
@@ -237,11 +244,27 @@ export const api = {
     client.post(`/favorites/${id}/quick-add`).then((r) => r.data),
 
   shoppingList: () => client.get<ShoppingListItem[]>("/shopping-list").then((r) => r.data),
-  addShoppingItem: (title: string, category?: string, quantity?: number) => {
+  addShoppingItem: (
+    title: string,
+    category?: string,
+    quantity?: number,
+    details?: {
+      unit?: ItemUnit;
+      store?: string;
+      aisle?: string;
+      unit_price?: number | null;
+      substitution?: string;
+    }
+  ) => {
     const form = new FormData();
     form.append("title", title);
     if (category) form.append("category", category);
     if (quantity != null) form.append("quantity", String(quantity));
+    if (details?.unit) form.append("unit", details.unit);
+    if (details?.store) form.append("store", details.store);
+    if (details?.aisle) form.append("aisle", details.aisle);
+    if (details?.unit_price != null) form.append("unit_price", String(details.unit_price));
+    if (details?.substitution) form.append("substitution", details.substitution);
     return client.post("/shopping-list", form).then((r) => r.data);
   },
   bulkDeleteItems: (ids: number[]) => client.post<{ deleted: number }>('/items/bulk-delete', ids),
@@ -259,10 +282,35 @@ export const api = {
     form.append("quantity", String(quantity));
     return client.patch(`/shopping-list/${id}/quantity`, form).then((r) => r.data);
   },
+  patchShoppingItemDetails: (
+    id: number,
+    details: {
+      unit: ItemUnit;
+      store?: string | null;
+      aisle?: string | null;
+      unit_price?: number | null;
+      substitution?: string | null;
+    }
+  ) => {
+    const form = new FormData();
+    form.append("unit", details.unit);
+    if (details.store) form.append("store", details.store);
+    if (details.aisle) form.append("aisle", details.aisle);
+    if (details.unit_price != null) form.append("unit_price", String(details.unit_price));
+    if (details.substitution) form.append("substitution", details.substitution);
+    return client.patch(`/shopping-list/${id}/details`, form).then((r) => r.data);
+  },
   addLowStockToShoppingList: () =>
     client.post<{ added: number }>("/shopping-list/add-low-stock").then((r) => r.data),
   clearCheckedShoppingItems: () =>
     client.post("/shopping-list/clear-checked").then((r) => r.data),
+  completeShoppingTrip: (store?: string) =>
+    client
+      .post<{ completed: number; total_spend: number; store: string | null }>(
+        "/shopping-list/complete",
+        store ? { store } : {}
+      )
+      .then((r) => r.data),
 
   mealPlan: (start: string, end: string) =>
     client.get<MealPlanEntry[]>("/meal-plan", { params: { start, end } }).then((r) => r.data),
@@ -329,9 +377,9 @@ export const api = {
   chartCategoryCounts: () =>
     cacheGet<Record<string, number>>('/charts/category-counts'),
   chartStockByItem: (category: string) =>
-    cacheGet<{ title: string; quantity: number }[]>('/charts/stock-by-item', { category }),
+    cacheGet<{ title: string; quantity: number; unit: ItemUnit }[]>('/charts/stock-by-item', { category }),
   chartAddedOverTime: (category: string) =>
-    cacheGet<{ date: string; quantity: number }[]>('/charts/added-over-time', { category }),
+    cacheGet<{ date: string; items: number }[]>('/charts/added-over-time', { category }),
 
   itemAliases: (itemId: number) =>
     client.get<ItemAlias[]>(`/items/${itemId}/aliases`).then((r) => r.data),

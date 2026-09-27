@@ -54,8 +54,10 @@ async def scan_receipt(image: UploadFile = File(...)):
         is_weight_unit = CATEGORY_UNITS[category] == "g"
         if is_weight_unit:
             quantity = c["weight_grams"] if c["weight_grams"] is not None else 500
+            unit = "g"
         else:
             quantity = c["quantity"] if c["quantity"] is not None else 1
+            unit = "count"
         expiration_date = (
             date.today() + timedelta(days=estimate_shelf_life_days(title, category))
         ).isoformat()
@@ -64,6 +66,7 @@ async def scan_receipt(image: UploadFile = File(...)):
                 "title": title,
                 "category": category,
                 "quantity": quantity,
+                "unit": unit,
                 "price": c.get("price"),
                 "expiration_date": expiration_date,
             }

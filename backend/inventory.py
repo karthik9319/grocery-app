@@ -34,7 +34,8 @@ def init_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,
                 category TEXT NOT NULL,
-                quantity INTEGER NOT NULL DEFAULT 1,
+                quantity REAL NOT NULL DEFAULT 1,
+                unit TEXT NOT NULL DEFAULT 'count',
                 in_use_quantity REAL NOT NULL DEFAULT 0,
                 image_path TEXT,
                 created_at TEXT NOT NULL
@@ -48,6 +49,7 @@ def init_db() -> None:
                 title TEXT NOT NULL,
                 category TEXT NOT NULL,
                 default_quantity REAL NOT NULL DEFAULT 1,
+                unit TEXT NOT NULL DEFAULT 'count',
                 created_at TEXT NOT NULL,
                 UNIQUE(title, category)
             )
@@ -59,6 +61,12 @@ def init_db() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,
                 category TEXT,
+                quantity REAL NOT NULL DEFAULT 1,
+                unit TEXT NOT NULL DEFAULT 'count',
+                store TEXT,
+                aisle TEXT,
+                unit_price REAL,
+                substitution TEXT,
                 checked INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL
             )
@@ -69,7 +77,8 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS settings (
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 count_threshold REAL NOT NULL DEFAULT 2,
-                weight_threshold REAL NOT NULL DEFAULT 200
+                weight_threshold REAL NOT NULL DEFAULT 200,
+                volume_threshold REAL NOT NULL DEFAULT 200
             )
             """
         )
@@ -144,8 +153,8 @@ def init_db() -> None:
             """
         )
         conn.execute(
-            "INSERT OR IGNORE INTO settings (id, count_threshold, weight_threshold) "
-            "VALUES (1, 2, 200)"
+            "INSERT OR IGNORE INTO settings "
+            "(id, count_threshold, weight_threshold) VALUES (1, 2, 200)"
         )
         conn.commit()
         _migrate_legacy_category_check(conn)
@@ -156,9 +165,13 @@ def init_db() -> None:
         _migrate_add_in_use_quantity_column(conn)
         _migrate_add_meal_plan_done_column(conn)
         _migrate_add_storage_location_column(conn)
+        _migrate_add_item_unit_column(conn)
+        _migrate_add_favorite_unit_column(conn)
+        _migrate_add_volume_threshold_column(conn)
         if storage_locations_table_is_new:
             _seed_default_storage_locations(conn)
         _migrate_add_shopping_list_quantity_column(conn)
+        _migrate_add_shopping_list_trip_columns(conn)
 
 
 def _migrate_legacy_category_check(conn: sqlite3.Connection) -> None:
@@ -176,7 +189,7 @@ def _migrate_legacy_category_check(conn: sqlite3.Connection) -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,
                 category TEXT NOT NULL,
-                quantity INTEGER NOT NULL DEFAULT 1,
+                quantity REAL NOT NULL DEFAULT 1,
                 image_path TEXT,
                 created_at TEXT NOT NULL
             )
@@ -258,6 +271,25 @@ def _migrate_add_shopping_list_quantity_column(conn: sqlite3.Connection) -> None
         conn.commit()
 
 
+def _migrate_add_shopping_list_trip_columns(conn: sqlite3.Connection) -> None:
+    """Add optional shopping-trip metadata without disturbing existing list rows."""
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(shopping_list)").fetchall()}
+    additions = {
+        "unit": "TEXT NOT NULL DEFAULT 'count'",
+        "store": "TEXT",
+        "aisle": "TEXT",
+        "unit_price": "REAL",
+        "substitution": "TEXT",
+    }
+    changed = False
+    for name, definition in additions.items():
+        if name not in cols:
+            conn.execute(f"ALTER TABLE shopping_list ADD COLUMN {name} {definition}")
+            changed = True
+    if changed:
+        conn.commit()
+
+
 def _migrate_add_storage_location_column(conn: sqlite3.Connection) -> None:
     """Older DBs don't have a storage_location column (free text, e.g. Fridge/Freezer/
     Pantry/Cabinet by default, but user-editable via the storage_locations table) - add
@@ -265,6 +297,39 @@ def _migrate_add_storage_location_column(conn: sqlite3.Connection) -> None:
     cols = [row["name"] for row in conn.execute("PRAGMA table_info(items)").fetchall()]
     if "storage_location" not in cols:
         conn.execute("ALTER TABLE items ADD COLUMN storage_location TEXT")
+        conn.commit()
+
+
+def _migrate_add_item_unit_column(conn: sqlite3.Connection) -> None:
+    """Store quantity units per item instead of inferring them from the category.
+
+    Existing rows keep the app's historical behavior: Vegetables are grams and every
+    other category is a count. New rows always provide their unit explicitly through
+    the API, so groceries such as rice can be tracked by weight without moving category.
+    """
+    cols = [row["name"] for row in conn.execute("PRAGMA table_info(items)").fetchall()]
+    if "unit" not in cols:
+        conn.execute("ALTER TABLE items ADD COLUMN unit TEXT NOT NULL DEFAULT 'count'")
+        conn.execute("UPDATE items SET unit = 'g' WHERE category = 'Vegetables'")
+        conn.commit()
+
+
+def _migrate_add_favorite_unit_column(conn: sqlite3.Connection) -> None:
+    """Favorites must retain the item's unit when they quick-add inventory."""
+    cols = [row["name"] for row in conn.execute("PRAGMA table_info(favorites)").fetchall()]
+    if "unit" not in cols:
+        conn.execute("ALTER TABLE favorites ADD COLUMN unit TEXT NOT NULL DEFAULT 'count'")
+        conn.execute("UPDATE favorites SET unit = 'g' WHERE category = 'Vegetables'")
+        conn.commit()
+
+
+def _migrate_add_volume_threshold_column(conn: sqlite3.Connection) -> None:
+    """Add a default low-stock threshold for millilitre/litre items."""
+    cols = [row["name"] for row in conn.execute("PRAGMA table_info(settings)").fetchall()]
+    if "volume_threshold" not in cols:
+        conn.execute(
+            "ALTER TABLE settings ADD COLUMN volume_threshold REAL NOT NULL DEFAULT 200"
+        )
         conn.commit()
 
 
@@ -349,7 +414,7 @@ def get_connection():
 def add_item(
     title: str,
     category: str,
-    quantity: int,
+    quantity: float,
     image_path: Optional[str],
     notes: Optional[str] = None,
     custom_threshold: Optional[float] = None,
@@ -357,16 +422,18 @@ def add_item(
     item_uuid: Optional[str] = None,
     in_use_quantity: float = 0,
     storage_location: Optional[str] = None,
+    unit: str = "count",
 ) -> None:
     with get_connection() as conn:
         conn.execute(
-            "INSERT INTO items (title, category, quantity, in_use_quantity, image_path, notes, "
+            "INSERT INTO items (title, category, quantity, unit, in_use_quantity, image_path, notes, "
             "custom_threshold, expiration_date, uuid, storage_location, created_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 title.strip(),
                 category,
                 quantity,
+                unit,
                 in_use_quantity,
                 image_path,
                 notes,
@@ -380,13 +447,20 @@ def add_item(
         conn.commit()
 
 
-def find_item_by_title(title: str, category: str):
+def find_item_by_title(title: str, category: str, unit: Optional[str] = None):
     """Return an existing item with the same title (case-insensitive) and category, if any."""
     with get_connection() as conn:
-        row = conn.execute(
-            "SELECT * FROM items WHERE lower(title) = lower(?) AND category = ? LIMIT 1",
-            (title.strip(), category),
-        ).fetchone()
+        if unit is None:
+            row = conn.execute(
+                "SELECT * FROM items WHERE lower(title) = lower(?) AND category = ? LIMIT 1",
+                (title.strip(), category),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM items WHERE lower(title) = lower(?) AND category = ? "
+                "AND unit = ? LIMIT 1",
+                (title.strip(), category, unit),
+            ).fetchone()
         return dict(row) if row else None
 
 
@@ -504,19 +578,21 @@ def update_item(
     item_id: int,
     title: str,
     category: str,
-    quantity: int,
+    quantity: float,
     notes: Optional[str],
     image_path: Optional[str] = None,
     custom_threshold: Optional[float] = None,
     expiration_date: Optional[str] = None,
     storage_location: Optional[str] = None,
+    unit: Optional[str] = None,
 ) -> None:
     """Update an item's fields. image_path is only changed when a new one is provided."""
     with get_connection() as conn:
         if image_path is not None:
             conn.execute(
                 "UPDATE items SET title = ?, category = ?, quantity = ?, notes = ?, "
-                "custom_threshold = ?, expiration_date = ?, storage_location = ?, image_path = ? "
+                "custom_threshold = ?, expiration_date = ?, storage_location = ?, "
+                "unit = COALESCE(?, unit), image_path = ? "
                 "WHERE id = ?",
                 (
                     title.strip(),
@@ -526,6 +602,7 @@ def update_item(
                     custom_threshold,
                     expiration_date,
                     storage_location,
+                    unit,
                     image_path,
                     item_id,
                 ),
@@ -533,7 +610,8 @@ def update_item(
         else:
             conn.execute(
                 "UPDATE items SET title = ?, category = ?, quantity = ?, notes = ?, "
-                "custom_threshold = ?, expiration_date = ?, storage_location = ? WHERE id = ?",
+                "custom_threshold = ?, expiration_date = ?, storage_location = ?, "
+                "unit = COALESCE(?, unit) WHERE id = ?",
                 (
                     title.strip(),
                     category,
@@ -542,6 +620,7 @@ def update_item(
                     custom_threshold,
                     expiration_date,
                     storage_location,
+                    unit,
                     item_id,
                 ),
             )
@@ -774,14 +853,21 @@ def delete_item_photo(photo_id: int):
 def get_settings():
     with get_connection() as conn:
         row = conn.execute("SELECT * FROM settings WHERE id = 1").fetchone()
-        return dict(row) if row else {"count_threshold": 2, "weight_threshold": 200}
+        return dict(row) if row else {
+            "count_threshold": 2,
+            "weight_threshold": 200,
+            "volume_threshold": 200,
+        }
 
 
-def update_settings(count_threshold: float, weight_threshold: float) -> None:
+def update_settings(
+    count_threshold: float, weight_threshold: float, volume_threshold: float = 200
+) -> None:
     with get_connection() as conn:
         conn.execute(
-            "UPDATE settings SET count_threshold = ?, weight_threshold = ? WHERE id = 1",
-            (count_threshold, weight_threshold),
+            "UPDATE settings SET count_threshold = ?, weight_threshold = ?, "
+            "volume_threshold = ? WHERE id = 1",
+            (count_threshold, weight_threshold, volume_threshold),
         )
         conn.commit()
 
@@ -812,13 +898,15 @@ def get_items_added_by_date():
 # --- Favorites (for quick re-add without a photo) ---
 
 
-def add_favorite(title: str, category: str, default_quantity: float) -> None:
+def add_favorite(
+    title: str, category: str, default_quantity: float, unit: str = "count"
+) -> None:
     with get_connection() as conn:
         conn.execute(
-            "INSERT INTO favorites (title, category, default_quantity, created_at) "
-            "VALUES (?, ?, ?, ?) ON CONFLICT(title, category) DO UPDATE SET "
-            "default_quantity = excluded.default_quantity",
-            (title.strip(), category, default_quantity, datetime.now().isoformat()),
+            "INSERT INTO favorites (title, category, default_quantity, unit, created_at) "
+            "VALUES (?, ?, ?, ?, ?) ON CONFLICT(title, category) DO UPDATE SET "
+            "default_quantity = excluded.default_quantity, unit = excluded.unit",
+            (title.strip(), category, default_quantity, unit, datetime.now().isoformat()),
         )
         conn.commit()
 
@@ -850,27 +938,58 @@ def is_favorited(title: str, category: str) -> bool:
 # --- Shopping list ---
 
 
-def add_shopping_list_item(title: str, category: Optional[str] = None, quantity: float = 1) -> None:
+def add_shopping_list_item(
+    title: str,
+    category: Optional[str] = None,
+    quantity: float = 1,
+    unit: str = "count",
+    store: Optional[str] = None,
+    aisle: Optional[str] = None,
+    unit_price: Optional[float] = None,
+    substitution: Optional[str] = None,
+) -> None:
     """Add an item to the shopping list. Re-adding a title+category that's already on
     the list (and still unchecked) adds to its quantity instead of creating a duplicate
     row - same merge-on-add philosophy as regular inventory items."""
+    normalized_store = store.strip() if store and store.strip() else None
+    normalized_aisle = aisle.strip() if aisle and aisle.strip() else None
+    normalized_substitution = substitution.strip() if substitution and substitution.strip() else None
     with get_connection() as conn:
         existing = conn.execute(
             "SELECT id, quantity FROM shopping_list WHERE lower(title) = lower(?) AND category IS ? "
-            "AND checked = 0",
-            (title.strip(), category),
+            "AND unit = ? AND COALESCE(lower(store), '') = COALESCE(lower(?), '') AND checked = 0",
+            (title.strip(), category, unit, normalized_store),
         ).fetchone()
         if existing:
             conn.execute(
-                "UPDATE shopping_list SET quantity = ? WHERE id = ?",
-                (existing["quantity"] + quantity, existing["id"]),
+                "UPDATE shopping_list SET quantity = ?, aisle = COALESCE(?, aisle), "
+                "unit_price = COALESCE(?, unit_price), substitution = COALESCE(?, substitution) "
+                "WHERE id = ?",
+                (
+                    existing["quantity"] + quantity,
+                    normalized_aisle,
+                    unit_price,
+                    normalized_substitution,
+                    existing["id"],
+                ),
             )
             conn.commit()
             return
         conn.execute(
-            "INSERT INTO shopping_list (title, category, quantity, checked, created_at) "
-            "VALUES (?, ?, ?, 0, ?)",
-            (title.strip(), category, quantity, datetime.now().isoformat()),
+            "INSERT INTO shopping_list "
+            "(title, category, quantity, unit, store, aisle, unit_price, substitution, checked, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
+            (
+                title.strip(),
+                category,
+                quantity,
+                unit,
+                normalized_store,
+                normalized_aisle,
+                unit_price,
+                normalized_substitution,
+                datetime.now().isoformat(),
+            ),
         )
         conn.commit()
 
@@ -881,10 +1000,35 @@ def update_shopping_item_quantity(item_id: int, quantity: float) -> None:
         conn.commit()
 
 
+def update_shopping_item_details(
+    item_id: int,
+    unit: str,
+    store: Optional[str],
+    aisle: Optional[str],
+    unit_price: Optional[float],
+    substitution: Optional[str],
+) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE shopping_list SET unit = ?, store = ?, aisle = ?, unit_price = ?, "
+            "substitution = ? WHERE id = ?",
+            (
+                unit,
+                store.strip() if store and store.strip() else None,
+                aisle.strip() if aisle and aisle.strip() else None,
+                unit_price,
+                substitution.strip() if substitution and substitution.strip() else None,
+                item_id,
+            ),
+        )
+        conn.commit()
+
+
 def get_shopping_list():
     with get_connection() as conn:
         rows = conn.execute(
-            "SELECT * FROM shopping_list ORDER BY checked ASC, created_at DESC"
+            "SELECT * FROM shopping_list ORDER BY checked ASC, COALESCE(store, ''), "
+            "COALESCE(aisle, ''), created_at DESC"
         ).fetchall()
         return [dict(row) for row in rows]
 
@@ -906,6 +1050,15 @@ def delete_shopping_item(item_id: int) -> None:
 def clear_checked_shopping_items() -> None:
     with get_connection() as conn:
         conn.execute("DELETE FROM shopping_list WHERE checked = 1")
+        conn.commit()
+
+
+def delete_shopping_items(item_ids: list[int]) -> None:
+    if not item_ids:
+        return
+    placeholders = ",".join("?" for _ in item_ids)
+    with get_connection() as conn:
+        conn.execute(f"DELETE FROM shopping_list WHERE id IN ({placeholders})", item_ids)
         conn.commit()
 
 
@@ -1178,5 +1331,3 @@ def get_consumption_rate(item_id: int):
         "span_days": round(span_days, 2),
         "events": len(rows),
     }
-
-

@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import type { Meta } from "@/types";
 import { ItemCard, useUndoableDelete } from "@/components/ItemCard";
 import { EmptyState, Button, Input, Select, Switch } from "@/components/ui";
-import { SORT_OPTIONS, sortItems } from "@/lib/utils";
+import { SORT_OPTIONS, sortItems, thresholdForItem } from "@/lib/utils";
 
 export function CategoryView({ category, meta }: { category: string; meta: Meta }) {
   const [search, setSearch] = useState("");
@@ -26,16 +26,13 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
   });
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: api.settings });
 
-  const threshold =
-    meta.units[category] === "g" ? settings?.weight_threshold ?? 200 : settings?.count_threshold ?? 2;
-
   const filtered = useMemo(() => {
     let result = items ?? [];
     if (search) {
       result = result.filter((i) => i.title.toLowerCase().includes(search.toLowerCase()));
     }
     if (lowOnly) {
-      result = result.filter((i) => i.quantity <= (i.custom_threshold ?? threshold));
+      result = result.filter((i) => i.quantity <= thresholdForItem(i, settings));
     }
     if (inUseOnly) {
       result = result.filter((i) => i.in_use_quantity > 0);
@@ -44,7 +41,7 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
       result = result.filter((i) => i.storage_location === locationFilter);
     }
     return sortItems(result, sort);
-  }, [items, search, lowOnly, inUseOnly, locationFilter, sort, threshold]);
+  }, [items, search, lowOnly, inUseOnly, locationFilter, sort, settings]);
 
   // Lazy-render in pages so a large category doesn't mount hundreds of cards at once.
   const PAGE_SIZE = 24;
@@ -216,7 +213,7 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
             key={item.id}
             item={item}
             meta={meta}
-            threshold={item.custom_threshold ?? threshold}
+                threshold={thresholdForItem(item, settings)}
             selectable={selectMode}
             selected={selectedIds.has(item.id)}
             onToggleSelect={toggleId}

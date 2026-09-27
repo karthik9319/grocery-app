@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { X } from "lucide-react";
-import type { Item, Meta } from "@/types";
+import type { Item, ItemUnit, Meta } from "@/types";
 import { api } from "@/lib/api";
-import { imageUrl, cn, titleCase } from "@/lib/utils";
+import { imageUrl, cn, convertItemQuantity, ITEM_UNIT_OPTIONS, titleCase, unitStep } from "@/lib/utils";
 import { Dialog, DialogContent } from "@/components/Dialog";
 import { Badge, Button, Checkbox, Input, Label, Select, Textarea } from "@/components/ui";
 import { TitleAutocomplete } from "@/components/TitleAutocomplete";
@@ -24,6 +24,7 @@ export function EditItemDialog({
   const [title, setTitle] = useState(item.title);
   const [category, setCategory] = useState(item.category);
   const [quantity, setQuantity] = useState(item.quantity);
+  const [unit, setUnit] = useState<ItemUnit>(item.unit);
   const [storageLocation, setStorageLocation] = useState(item.storage_location ?? "");
   const [notes, setNotes] = useState(item.notes ?? "");
   const [useCustomThreshold, setUseCustomThreshold] = useState(item.custom_threshold != null);
@@ -95,6 +96,7 @@ export function EditItemDialog({
         title: cleanTitle,
         category,
         quantity,
+        unit,
         notes,
         custom_threshold: useCustomThreshold ? customThreshold : null,
         expiration_date: trackExpiry ? expiryDate : null,
@@ -102,7 +104,7 @@ export function EditItemDialog({
         image: newImage,
       });
       if (isFavorite) {
-        await api.addFavorite(cleanTitle, category, favoriteQty);
+        await api.addFavorite(cleanTitle, category, favoriteQty, unit);
       } else {
         await api.removeFavorite(item.title, item.category);
       }
@@ -116,8 +118,6 @@ export function EditItemDialog({
     },
     onError: () => toast.error("Couldn't save changes."),
   });
-
-  const unit = meta.units[category];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -164,13 +164,28 @@ export function EditItemDialog({
           </div>
 
           <div>
-            <Label>Quantity {unit === "g" ? "(grams)" : ""}</Label>
-            <Input
-              type="number"
-              value={quantity}
-              step={unit === "g" ? 50 : 1}
-              onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
-            />
+            <Label>Quantity</Label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                min="0"
+                value={quantity}
+                step={unitStep(unit)}
+                onChange={(e) => setQuantity(parseFloat(e.target.value) || 0)}
+              />
+              <Select
+                value={unit}
+                onValueChange={(value) => {
+                  const nextUnit = value as ItemUnit;
+                  setQuantity((current) => convertItemQuantity(current, unit, nextUnit));
+                  setCustomThreshold((current) => convertItemQuantity(current, unit, nextUnit));
+                  setFavoriteQty((current) => convertItemQuantity(current, unit, nextUnit));
+                  setUnit(nextUnit);
+                }}
+                options={ITEM_UNIT_OPTIONS}
+                className="w-24"
+              />
+            </div>
           </div>
 
           <div>
@@ -190,7 +205,8 @@ export function EditItemDialog({
               type="number"
               value={customThreshold}
               onChange={(e) => setCustomThreshold(parseFloat(e.target.value) || 0)}
-              placeholder={`Alert at/below (${unit === "g" ? "grams" : "count"})`}
+              step={unitStep(unit)}
+              placeholder={`Alert at/below (${unit === "l" ? "L" : unit})`}
             />
           )}
 

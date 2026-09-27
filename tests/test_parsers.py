@@ -42,7 +42,15 @@ def test_quick_add_parses_multiple_items():
     assert by_title["Milk"]["quantity"] == 2
     assert by_title["Eggs"]["quantity"] == 3
     assert by_title["Toothpaste"]["category"] == "Household"
-    assert "Rice" in by_title
+    assert by_title["Rice"]["quantity"] == 500
+    assert by_title["Rice"]["unit"] == "g"
+
+
+def test_quick_add_keeps_volume_unit_independent_of_category():
+    item = api.parse_quick_add("1.5L milk")[0]
+    assert item["category"] == "Groceries"
+    assert item["quantity"] == 1.5
+    assert item["unit"] == "l"
 
 
 def test_quick_add_strips_leading_verb():

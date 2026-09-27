@@ -1,8 +1,10 @@
+from typing import Optional
+
 from fastapi import APIRouter, Form
 from fastapi.responses import JSONResponse
 
 import inventory
-from api_common import CATEGORIES, CATEGORY_ICONS, CATEGORY_UNITS, PALETTE, logger
+from api_common import CATEGORIES, CATEGORY_ICONS, CATEGORY_UNITS, ITEM_UNITS, PALETTE, logger
 
 router = APIRouter()
 
@@ -27,6 +29,7 @@ def get_meta():
         "categories": CATEGORIES,
         "icons": CATEGORY_ICONS,
         "units": CATEGORY_UNITS,
+        "item_units": ITEM_UNITS,
         "palette": PALETTE,
         "storage_locations": [loc["name"] for loc in locations],
         "storage_location_icons": {loc["name"]: loc["icon"] for loc in locations},
@@ -40,6 +43,15 @@ def get_settings():
 
 
 @router.put("/api/settings")
-def put_settings(count_threshold: float = Form(...), weight_threshold: float = Form(...)):
-    inventory.update_settings(count_threshold, weight_threshold)
+def put_settings(
+    count_threshold: float = Form(...),
+    weight_threshold: float = Form(...),
+    volume_threshold: Optional[float] = Form(None),
+):
+    current = inventory.get_settings()
+    inventory.update_settings(
+        count_threshold,
+        weight_threshold,
+        volume_threshold if volume_threshold is not None else current.get("volume_threshold", 200),
+    )
     return inventory.get_settings()

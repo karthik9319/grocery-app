@@ -144,7 +144,7 @@ export function Header({ meta }: { meta: Meta }) {
                       {meta.icons[item.category]} {item.title}
                     </span>
                     <Badge color="orange">
-                      {formatQuantity(item.quantity, meta.units[item.category])}
+                      {formatQuantity(item.quantity, item.unit)}
                     </Badge>
                   </li>
                 ))}

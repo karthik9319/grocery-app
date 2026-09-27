@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import type { Meta } from "@/types";
 import { ItemCard, useUndoableDelete } from "@/components/ItemCard";
 import { Button, Card, EmptyState, Input, Select } from "@/components/ui";
-import { SORT_OPTIONS, sortItems } from "@/lib/utils";
+import { SORT_OPTIONS, sortItems, thresholdForItem } from "@/lib/utils";
 
 const MEAL_SLOT_LABELS: Record<string, string> = {
   breakfast: "🍳 Breakfast",
@@ -43,11 +43,6 @@ export function GlobalSearchTab({ meta }: { meta: Meta }) {
     setVisibleCount(PAGE_SIZE);
   }, [q, sort]);
   const visibleItems = sortedItems.slice(0, visibleCount);
-
-  function thresholdFor(item: (typeof sortedItems)[number]) {
-    if (item.custom_threshold != null) return item.custom_threshold;
-    return meta.units[item.category] === "g" ? settings?.weight_threshold ?? 200 : settings?.count_threshold ?? 2;
-  }
 
   return (
     <div className="space-y-5">
@@ -90,7 +85,7 @@ export function GlobalSearchTab({ meta }: { meta: Meta }) {
                 key={item.id}
                 item={item}
                 meta={meta}
-                threshold={thresholdFor(item)}
+                threshold={thresholdForItem(item, settings)}
                 onDeleted={(deleted) => {
                   notifyDeleted(deleted);
                   queryClient.invalidateQueries({ queryKey: ["items"] });

@@ -3,7 +3,7 @@ import re
 from fastapi import APIRouter, HTTPException
 
 import inventory
-from api_common import BASE_DIR, CATEGORIES
+from api_common import BASE_DIR, CATEGORIES, UNIT_FAMILIES, convert_quantity
 
 router = APIRouter()
 
@@ -62,7 +62,10 @@ def find_duplicates():
             is_match = norm_a == norm_b or (
                 min(len(norm_a), len(norm_b)) >= 4 and levenshtein(norm_a, norm_b) <= 2
             )
-            if is_match:
+            units_compatible = UNIT_FAMILIES.get(a.get("unit", "count")) == UNIT_FAMILIES.get(
+                b.get("unit", "count")
+            )
+            if is_match and units_compatible:
                 matches.append(b)
         if len(matches) > 1:
             for m in matches:
@@ -91,7 +94,12 @@ def merge_duplicates(payload: dict):
         merged_item = next((i for i in all_items if i["id"] == merge_id), None)
         if not merged_item:
             continue
-        total_quantity += merged_item["quantity"]
+        try:
+            total_quantity += convert_quantity(
+                merged_item["quantity"], merged_item.get("unit", "count"), keep.get("unit", "count")
+            )
+        except ValueError as exc:
+            raise HTTPException(400, "Only items with compatible units can be merged") from exc
         try:
             inventory.add_alias(keep_id, merged_item["title"])
         except ValueError:
@@ -122,5 +130,6 @@ def merge_duplicates(payload: dict):
         keep.get("custom_threshold"),
         keep.get("expiration_date"),
         keep.get("storage_location"),
+        unit=keep.get("unit", "count"),
     )
     return {"status": "merged", "kept_id": keep_id, "quantity": total_quantity}

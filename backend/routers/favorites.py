@@ -1,7 +1,9 @@
+from typing import Optional
+
 from fastapi import APIRouter, Form, HTTPException
 
 import inventory
-from api_common import auto_fetch_image
+from api_common import auto_fetch_image, convert_quantity, normalize_unit
 
 router = APIRouter()
 
@@ -13,8 +15,13 @@ def list_favorites():
 
 
 @router.post("/api/favorites")
-def add_favorite(title: str = Form(...), category: str = Form(...), default_quantity: float = Form(...)):
-    inventory.add_favorite(title, category, default_quantity)
+def add_favorite(
+    title: str = Form(...),
+    category: str = Form(...),
+    default_quantity: float = Form(...),
+    unit: Optional[str] = Form(None),
+):
+    inventory.add_favorite(title, category, default_quantity, normalize_unit(unit, category))
     return {"status": "ok"}
 
 
@@ -30,19 +37,30 @@ def quick_add_favorite(favorite_id: int):
     fav = next((f for f in favorites if f["id"] == favorite_id), None)
     if not fav:
         raise HTTPException(404, "Favorite not found")
-    existing = inventory.find_item_by_title(fav["title"], fav["category"])
+    fav_unit = normalize_unit(fav.get("unit"), fav["category"])
+    existing = inventory.find_item_by_title(fav["title"], fav["category"], fav_unit)
+    add_quantity = fav["default_quantity"]
+    if existing is None:
+        compatible = inventory.find_item_by_title(fav["title"], fav["category"])
+        if compatible:
+            try:
+                add_quantity = convert_quantity(fav["default_quantity"], fav_unit, compatible["unit"])
+                existing = compatible
+            except ValueError:
+                pass
     if existing:
-        new_qty = existing["quantity"] + fav["default_quantity"]
+        new_qty = existing["quantity"] + add_quantity
         inventory.update_quantity(existing["id"], new_qty)
         inventory.log_usage_event(
             existing["id"], existing["title"], existing["category"], "restock",
-            fav["default_quantity"], new_qty,
+            add_quantity, new_qty,
         )
     else:
         inventory.add_item(
-            fav["title"], fav["category"], fav["default_quantity"], auto_fetch_image(fav["title"])
+            fav["title"], fav["category"], fav["default_quantity"], auto_fetch_image(fav["title"]),
+            unit=fav_unit,
         )
-        created = inventory.find_item_by_title(fav["title"], fav["category"])
+        created = inventory.find_item_by_title(fav["title"], fav["category"], fav_unit)
         if created:
             inventory.log_usage_event(
                 created["id"], created["title"], created["category"], "add",

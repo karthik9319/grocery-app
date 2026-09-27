@@ -4,7 +4,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Item, Meta } from "@/types";
 import { api } from "@/lib/api";
-import { daysUntil, formatQuantity, imageUrl } from "@/lib/utils";
+import { daysUntil, formatQuantity, imageUrl, unitStep } from "@/lib/utils";
 import { Badge, Button, Card, Checkbox } from "@/components/ui";
 import { EditItemDialog } from "@/components/EditItemDialog";
 import { PhotoGalleryDialog } from "@/components/PhotoGalleryDialog";
@@ -29,7 +29,7 @@ export function ItemCard({
   const queryClient = useQueryClient();
   const [editOpen, setEditOpen] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
-  const unit = meta.units[item.category];
+  const unit = item.unit;
   const dotColor = meta.palette[item.category] ?? "#999";
   const isLow = item.quantity <= threshold;
   const expDays = daysUntil(item.expiration_date);
@@ -42,7 +42,7 @@ export function ItemCard({
         : expDays <= 3
           ? { color: "#f59e0b", label: "Expiring soon" }
           : { color: "#22c55e", label: "Fresh" };
-  const useStep = unit === "g" ? 50 : 1;
+  const useStep = unitStep(unit);
 
   const qtyMutation = useMutation({
     mutationFn: (quantity: number) => api.patchQuantity(item.id, quantity),

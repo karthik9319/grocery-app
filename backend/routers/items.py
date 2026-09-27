@@ -8,6 +8,8 @@ from api_common import (
     CATEGORIES,
     _remove_image_file,
     auto_fetch_image,
+    convert_quantity,
+    normalize_unit,
     retrain_classifier,
     save_upload,
     write_backup,
@@ -29,6 +31,7 @@ def create_item(
     title: str = Form(...),
     category: str = Form(...),
     quantity: float = Form(...),
+    unit: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
     custom_threshold: Optional[float] = Form(None),
     expiration_date: Optional[str] = Form(None),
@@ -38,12 +41,27 @@ def create_item(
 ):
     # An alias (e.g. "soda" for a "Coca-Cola" item) always wins first, merging into the
     # canonical item regardless of whatever category was picked in the form.
+    requested_unit = normalize_unit(unit, category)
     aliased = inventory.find_item_by_alias(title)
-    existing = aliased or inventory.find_item_by_title(title, category)
+    existing = aliased or inventory.find_item_by_title(title, category, requested_unit)
+    merge_quantity = quantity
+    if existing:
+        try:
+            merge_quantity = convert_quantity(quantity, requested_unit, existing["unit"])
+        except ValueError:
+            existing = None
+    if existing is None and not aliased:
+        compatible = inventory.find_item_by_title(title, category)
+        if compatible:
+            try:
+                merge_quantity = convert_quantity(quantity, requested_unit, compatible["unit"])
+                existing = compatible
+            except ValueError:
+                pass
     if price is not None and price > 0:
         inventory.add_purchase(title, category, quantity, price, source="manual")
     if existing:
-        new_total = existing["quantity"] + quantity
+        new_total = existing["quantity"] + merge_quantity
         inventory.update_item(
             existing["id"],
             existing["title"],
@@ -54,9 +72,10 @@ def create_item(
             existing.get("custom_threshold"),
             expiration_date or existing.get("expiration_date"),
             storage_location or existing.get("storage_location"),
+            unit=existing["unit"],
         )
         inventory.log_usage_event(
-            existing["id"], existing["title"], existing["category"], "restock", quantity, new_total
+            existing["id"], existing["title"], existing["category"], "restock", merge_quantity, new_total
         )
         return {"status": "merged", "id": existing["id"], "quantity": new_total}
 
@@ -64,8 +83,9 @@ def create_item(
     inventory.add_item(
         title, category, quantity, image_path, notes, custom_threshold, expiration_date,
         storage_location=storage_location,
+        unit=requested_unit,
     )
-    created = inventory.find_item_by_title(title, category)
+    created = inventory.find_item_by_title(title, category, requested_unit)
     if created:
         inventory.log_usage_event(
             created["id"], created["title"], created["category"], "add", quantity, created["quantity"]
@@ -108,6 +128,7 @@ def update_item(
     title: str = Form(...),
     category: str = Form(...),
     quantity: float = Form(...),
+    unit: Optional[str] = Form(None),
     notes: Optional[str] = Form(None),
     custom_threshold: Optional[float] = Form(None),
     expiration_date: Optional[str] = Form(None),
@@ -129,6 +150,7 @@ def update_item(
     inventory.update_item(
         item_id, title, category, quantity, notes, new_image_path, custom_threshold, expiration_date,
         storage_location,
+        unit=normalize_unit(unit, category) if unit is not None else None,
     )
     return {"status": "updated"}
 
@@ -202,6 +224,7 @@ def restore_item(item: dict):
         item.get("uuid"),
         in_use_quantity=item.get("in_use_quantity", 0),
         storage_location=item.get("storage_location"),
+        unit=normalize_unit(item.get("unit"), item["category"]),
     )
     return {"status": "restored"}
 

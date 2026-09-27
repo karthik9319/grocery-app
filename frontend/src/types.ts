@@ -1,9 +1,12 @@
+export type ItemUnit = "count" | "g" | "kg" | "ml" | "l";
+
 export interface Item {
   id: number;
   uuid: string;
   title: string;
   category: string;
   quantity: number;
+  unit: ItemUnit;
   in_use_quantity: number;
   image_path: string | null;
   notes: string | null;
@@ -16,7 +19,8 @@ export interface Item {
 export interface Meta {
   categories: string[];
   icons: Record<string, string>;
-  units: Record<string, "count" | "g">;
+  units: Record<string, ItemUnit>;
+  item_units: ItemUnit[];
   palette: Record<string, string>;
   storage_locations: string[];
   storage_location_icons: Record<string, string>;
@@ -25,6 +29,7 @@ export interface Meta {
 export interface Settings {
   count_threshold: number;
   weight_threshold: number;
+  volume_threshold: number;
 }
 
 export interface TunnelStatus {
@@ -50,6 +55,7 @@ export interface Favorite {
   title: string;
   category: string;
   default_quantity: number;
+  unit: ItemUnit;
   created_at: string;
 }
 
@@ -58,6 +64,11 @@ export interface ShoppingListItem {
   title: string;
   category: string | null;
   quantity: number;
+  unit: ItemUnit;
+  store: string | null;
+  aisle: string | null;
+  unit_price: number | null;
+  substitution: string | null;
   checked: boolean;
   created_at: string;
 }
@@ -66,6 +77,7 @@ export interface ReceiptCandidate {
   title: string;
   category: string;
   quantity: number;
+  unit: ItemUnit;
   price: number | null;
   expiration_date: string | null;
 }
@@ -107,6 +119,7 @@ export interface QuickAddItem {
   title: string;
   quantity: number;
   category: string;
+  unit: ItemUnit;
 }
 
 export interface Suggestion {

@@ -9,8 +9,8 @@ import {
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { Item, Meta } from "@/types";
-import { cn, formatMoney, formatQuantity, imageUrl } from "@/lib/utils";
-import { Spinner } from "@/components/ui";
+import { cn, formatMoney, formatQuantity, imageUrl, thresholdForItem, unitStep } from "@/lib/utils";
+import { Button, Card, Spinner } from "@/components/ui";
 import { TodayMealsCard } from "@/components/TodayMealsCard";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -37,8 +37,7 @@ export function OverviewTab({
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: api.settings });
   const { data: predictions } = useQuery({ queryKey: ["predictions"], queryFn: api.predictions });
 
-  const thresholdFor = (i: Item) =>
-    i.custom_threshold ?? (meta.units[i.category] === "g" ? settings?.weight_threshold ?? 200 : settings?.count_threshold ?? 2);
+  const thresholdFor = (i: Item) => thresholdForItem(i, settings);
 
   const useMutation_ = useMutation({
     mutationFn: ({ id, amount }: { id: number; amount: number }) => api.useItem(id, amount),
@@ -96,7 +95,7 @@ export function OverviewTab({
       key: `low-${i.id}`,
       tone: "#E8792B",
       title: `${i.title} is low`,
-      sub: `${formatQuantity(i.quantity, meta.units[i.category])} left · add to list`,
+      sub: `${formatQuantity(i.quantity, i.unit)} left · add to list`,
       onClick: () => addLowStock.mutate(),
     });
   }
@@ -113,7 +112,7 @@ export function OverviewTab({
       key: `use-${i.id}`,
       tone: "#6C63FF",
       title: `Finish ${i.title}`,
-      sub: `${formatQuantity(i.in_use_quantity, meta.units[i.category])} opened / in use`,
+      sub: `${formatQuantity(i.in_use_quantity, i.unit)} opened / in use`,
     });
   }
 
@@ -130,6 +129,22 @@ export function OverviewTab({
   const label = "text-[11px] font-semibold uppercase tracking-[0.12em] text-subtle";
   const spendPoints = spendSeries.map((s) => s.total);
   const catCount = meta.categories.filter((c) => (counts?.[c] ?? 0) > 0).length;
+
+  if (totalItems === 0) {
+    return (
+      <Card className="mx-auto flex max-w-2xl flex-col items-center px-6 py-14 text-center">
+        <div className="mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-theme-200 text-3xl">🛒</div>
+        <h3 className="font-display text-2xl text-content">Start your pantry</h3>
+        <p className="mt-2 max-w-md text-sm text-muted">
+          Add your first item by photo, barcode, receipt, or a quick phrase. Stock alerts and insights
+          will appear here automatically.
+        </p>
+        <Button className="mt-6" onClick={() => onNavigate("add-items")}>
+          <Camera className="h-4 w-4" /> Add your first item
+        </Button>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-5">
@@ -190,11 +205,11 @@ export function OverviewTab({
           </div>
           <ul className="divide-y divide-line">
             {previewItems.map((i) => {
-              const unit = meta.units[i.category];
+              const unit = i.unit;
               const thr = thresholdFor(i);
               const isLow = i.quantity <= thr;
               const fill = Math.max(6, Math.min(100, (i.quantity / (thr * 3)) * 100));
-              const step = unit === "g" ? 50 : 1;
+              const step = unitStep(unit);
               return (
                 <li key={i.id} className="flex items-center gap-4 px-6 py-4">
                   {imageUrl(i.image_path) ? (

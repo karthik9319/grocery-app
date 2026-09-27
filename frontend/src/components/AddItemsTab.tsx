@@ -3,8 +3,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Camera, FileSpreadsheet, Loader2, Mic, ScanBarcode, Sparkles, Upload, X } from "lucide-react";
 import { api } from "@/lib/api";
-import type { Meta, QuickAddItem } from "@/types";
-import { compressImageFile, formatMoney, titleCase } from "@/lib/utils";
+import type { ItemUnit, Meta, QuickAddItem, ReceiptCandidate } from "@/types";
+import { compressImageFile, convertItemQuantity, formatMoney, ITEM_UNIT_OPTIONS, titleCase, unitStep } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/Tabs";
 import { Button, Card, Checkbox, Input, Select } from "@/components/ui";
 import { TitleAutocomplete } from "@/components/TitleAutocomplete";
@@ -22,7 +22,7 @@ type DraftEntry = {
   title: string;
   category: string;
   quantity: number;
-  unit: "count" | "g" | "kg";
+  unit: ItemUnit;
   notes: string;
   useThreshold: boolean;
   threshold: number;
@@ -152,12 +152,12 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
         skipped++;
         continue;
       }
-      const quantity = draft.unit === "kg" ? draft.quantity * 1000 : draft.quantity;
       try {
         const result = await api.createItem({
           title: titleCase(draft.title),
           category: draft.category,
-          quantity,
+          quantity: draft.quantity,
+          unit: draft.unit,
           notes: draft.notes || undefined,
           custom_threshold: draft.useThreshold ? draft.threshold : null,
           expiration_date: draft.trackExpiry ? draft.expiryDate : null,
@@ -277,30 +277,28 @@ function PhotoAddPanel({ meta }: { meta: Meta }) {
               }
               options={meta.categories.map((c) => ({ value: c, label: `${meta.icons[c]} ${c}` }))}
             />
-            {meta.units[draft.category] === "g" ? (
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  value={draft.quantity}
-                  onChange={(e) => updateDraft(draft.id, { quantity: parseFloat(e.target.value) || 0 })}
-                />
-                <Select
-                  value={draft.unit}
-                  onValueChange={(unit) => updateDraft(draft.id, { unit: unit as "g" | "kg" })}
-                  options={[
-                    { value: "g", label: "g" },
-                    { value: "kg", label: "kg" },
-                  ]}
-                  className="w-24"
-                />
-              </div>
-            ) : (
+            <div className="flex gap-2">
               <Input
                 type="number"
                 value={draft.quantity}
+                min="0"
+                step={unitStep(draft.unit)}
                 onChange={(e) => updateDraft(draft.id, { quantity: parseFloat(e.target.value) || 0 })}
               />
-            )}
+              <Select
+                value={draft.unit}
+                onValueChange={(unit) => {
+                  const nextUnit = unit as ItemUnit;
+                  updateDraft(draft.id, {
+                    unit: nextUnit,
+                    quantity: convertItemQuantity(draft.quantity, draft.unit, nextUnit),
+                    threshold: convertItemQuantity(draft.threshold, draft.unit, nextUnit),
+                  });
+                }}
+                options={ITEM_UNIT_OPTIONS}
+                className="w-24"
+              />
+            </div>
             <Input
               placeholder="Notes (optional)"
               value={draft.notes}
@@ -379,9 +377,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
-  const [candidates, setCandidates] = useState<
-    { title: string; category: string; quantity: number; price: number | null; expiration_date: string | null }[]
-  >([]);
+  const [candidates, setCandidates] = useState<ReceiptCandidate[]>([]);
 
   async function scan() {
     if (!file) return;
@@ -396,6 +392,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
           title: titleCase(c.title),
           category: c.category,
           quantity: c.quantity,
+          unit: c.unit,
           price: c.price,
           expiration_date: c.expiration_date,
         }))
@@ -421,6 +418,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
         title: titleCase(c.title),
         category: c.category,
         quantity: c.quantity,
+        unit: c.unit,
         price: c.price,
         expiration_date: c.expiration_date,
       });
@@ -488,7 +486,7 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
             skip that line):
           </p>
           {candidates.map((c, idx) => (
-            <div key={idx} className="grid grid-cols-[1fr_auto_auto_auto] gap-2">
+            <div key={idx} className="grid gap-2 sm:grid-cols-[minmax(10rem,1fr)_auto_auto_auto_auto]">
               <Input
                 value={c.title}
                 onChange={(e) =>
@@ -513,6 +511,8 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
               <Input
                 type="number"
                 value={c.quantity}
+                min="0"
+                step={unitStep(c.unit)}
                 onChange={(e) =>
                   setCandidates((prev) =>
                     prev.map((p, i) =>
@@ -521,6 +521,24 @@ function ReceiptScanPanel({ meta }: { meta: Meta }) {
                   )
                 }
                 className="w-20"
+              />
+              <Select
+                value={c.unit}
+                onValueChange={(unit) =>
+                  setCandidates((prev) =>
+                    prev.map((p, i) => {
+                      if (i !== idx) return p;
+                      const nextUnit = unit as ItemUnit;
+                      return {
+                        ...p,
+                        unit: nextUnit,
+                        quantity: convertItemQuantity(p.quantity, p.unit, nextUnit),
+                      };
+                    })
+                  )
+                }
+                options={ITEM_UNIT_OPTIONS}
+                className="w-24"
               />
               <div className="relative w-24">
                 <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-sm text-subtle">
@@ -634,6 +652,7 @@ function QuickAddPanel({ meta }: { meta: Meta }) {
           title: titleCase(it.title),
           category: it.category,
           quantity: it.quantity,
+          unit: it.unit,
         });
         if (result.status === "merged") merged++;
         else added++;
@@ -688,7 +707,7 @@ function QuickAddPanel({ meta }: { meta: Meta }) {
         <div className="space-y-3">
           <p className="text-sm text-muted">Review before adding:</p>
           {items.map((it, idx) => (
-            <div key={idx} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-2">
+            <div key={idx} className="grid items-center gap-2 sm:grid-cols-[minmax(10rem,1fr)_auto_auto_auto_auto]">
               <Input
                 value={it.title}
                 onChange={(e) =>
@@ -706,12 +725,32 @@ function QuickAddPanel({ meta }: { meta: Meta }) {
               <Input
                 type="number"
                 value={it.quantity}
+                min="0"
+                step={unitStep(it.unit)}
                 onChange={(e) =>
                   setItems((prev) =>
                     prev.map((p, i) => (i === idx ? { ...p, quantity: parseFloat(e.target.value) || 0 } : p))
                   )
                 }
                 className="w-20"
+              />
+              <Select
+                value={it.unit}
+                onValueChange={(unit) =>
+                  setItems((prev) =>
+                    prev.map((p, i) => {
+                      if (i !== idx) return p;
+                      const nextUnit = unit as ItemUnit;
+                      return {
+                        ...p,
+                        unit: nextUnit,
+                        quantity: convertItemQuantity(p.quantity, p.unit, nextUnit),
+                      };
+                    })
+                  )
+                }
+                options={ITEM_UNIT_OPTIONS}
+                className="w-24"
               />
               <button
                 onClick={() => setItems((prev) => prev.filter((_, i) => i !== idx))}

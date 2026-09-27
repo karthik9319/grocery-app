@@ -82,18 +82,33 @@ source "$ROOT_DIR/.venv/bin/activate"
 echo "==> Python Version: $(python --version)"
 
 ###############################################################################
-# Upgrade pip
+# Upgrade pip (only needed right after creating a fresh venv - skip the PyPI
+# round-trip on every ordinary launch)
 ###############################################################################
 
-echo "==> Upgrading pip..."
-python -m pip install --upgrade pip setuptools wheel
+if [ "$RECREATE_VENV" = true ]; then
+    echo "==> Upgrading pip..."
+    python -m pip install --upgrade pip setuptools wheel
+fi
 
 ###############################################################################
-# Install Backend Dependencies
+# Install Backend Dependencies (skip if requirements.txt hasn't changed since
+# the last install - re-resolving ~40 packages, including paddlepaddle/
+# paddleocr's large dependency tree, on every launch is what made this slow)
 ###############################################################################
 
-echo "==> Installing backend dependencies..."
-pip install -r "$ROOT_DIR/requirements.txt"
+REQ_HASH_FILE="$ROOT_DIR/.venv/.requirements.sha256"
+REQ_HASH="$(shasum -a 256 "$ROOT_DIR/requirements.txt" | awk '{print $1}')"
+
+if [ ! -f "$REQ_HASH_FILE" ] || [ "$(cat "$REQ_HASH_FILE")" != "$REQ_HASH" ] \
+    || ! python -m pip check >/dev/null 2>&1 \
+    || ! python -c "import fastapi, uvicorn, PIL" >/dev/null 2>&1; then
+    echo "==> Installing backend dependencies (requirements.txt changed)..."
+    pip install -r "$ROOT_DIR/requirements.txt"
+    echo "$REQ_HASH" > "$REQ_HASH_FILE"
+else
+    echo "==> Backend dependencies up to date, skipping install."
+fi
 
 
 ###############################################################################
@@ -116,15 +131,49 @@ echo "==> Node : $(node -v)"
 echo "==> npm  : $(npm -v)"
 
 ###############################################################################
-# Install Frontend Dependencies
+# Install Frontend Dependencies (skip if package-lock.json hasn't changed)
 ###############################################################################
 
 cd "$ROOT_DIR/frontend"
 
-echo "==> Installing frontend dependencies..."
-npm install
+LOCK_HASH_FILE="node_modules/.package-lock.sha256"
+LOCK_HASH="$(shasum -a 256 package-lock.json | awk '{print $1}')"
+
+if [ ! -d node_modules ] || [ ! -f "$LOCK_HASH_FILE" ] \
+    || [ "$(cat "$LOCK_HASH_FILE" 2>/dev/null)" != "$LOCK_HASH" ] \
+    || ! npm ls --depth=0 >/dev/null 2>&1; then
+    echo "==> Installing frontend dependencies (lockfile changed or install is incomplete)..."
+    npm ci --prefer-offline
+    echo "$LOCK_HASH" > "$LOCK_HASH_FILE"
+else
+    echo "==> Frontend dependencies up to date, skipping install."
+fi
 
 cd "$ROOT_DIR"
+
+###############################################################################
+# Cleanup (registered before either process starts so a partial launch cannot
+# leave an orphaned backend or frontend behind)
+###############################################################################
+
+BACKEND_PID=""
+FRONTEND_PID=""
+
+cleanup() {
+    echo ""
+    echo "============================================================"
+    echo "Stopping services..."
+    echo "============================================================"
+
+    if [ -n "$BACKEND_PID" ]; then kill "$BACKEND_PID" >/dev/null 2>&1 || true; fi
+    if [ -n "$FRONTEND_PID" ]; then kill "$FRONTEND_PID" >/dev/null 2>&1 || true; fi
+    if [ -n "$BACKEND_PID" ]; then wait "$BACKEND_PID" 2>/dev/null || true; fi
+    if [ -n "$FRONTEND_PID" ]; then wait "$FRONTEND_PID" 2>/dev/null || true; fi
+
+    echo "Done."
+}
+
+trap cleanup EXIT INT TERM
 
 ###############################################################################
 # Start Backend
@@ -133,15 +182,12 @@ cd "$ROOT_DIR"
 echo ""
 echo "==> Starting FastAPI..."
 
-uvicorn api:app \
-    --app-dir backend \
-    --host 0.0.0.0 \
-    --port "$BACKEND_PORT" \
-    --reload \
-    --reload-exclude "$ROOT_DIR/.venv" \
-    --reload-exclude "$ROOT_DIR/data" \
-    --reload-exclude "$ROOT_DIR/frontend" \
-    --reload-exclude "$ROOT_DIR/tests" &
+UVICORN_ARGS=(api:app --app-dir backend --host 0.0.0.0 --port "$BACKEND_PORT")
+if [ "${GROCERY_RELOAD:-0}" = "1" ]; then
+    UVICORN_ARGS+=(--reload --reload-exclude "$ROOT_DIR/.venv" --reload-exclude "$ROOT_DIR/data" \
+        --reload-exclude "$ROOT_DIR/frontend" --reload-exclude "$ROOT_DIR/tests")
+fi
+uvicorn "${UVICORN_ARGS[@]}" &
 BACKEND_PID=$!
 
 ###############################################################################
@@ -158,28 +204,31 @@ FRONTEND_PID=$!
 cd "$ROOT_DIR"
 
 ###############################################################################
-# Cleanup
+# Ready (do not claim success until both processes answer HTTP requests)
 ###############################################################################
 
-cleanup() {
-
-    echo ""
-    echo "============================================================"
-    echo "Stopping services..."
-    echo "============================================================"
-
-    kill "$BACKEND_PID" "$FRONTEND_PID" >/dev/null 2>&1 || true
-
-    wait "$BACKEND_PID" "$FRONTEND_PID" 2>/dev/null || true
-
-    echo "Done."
+wait_for_service() {
+    local pid="$1"
+    local url="$2"
+    local label="$3"
+    local attempt
+    for attempt in {1..120}; do
+        if ! kill -0 "$pid" >/dev/null 2>&1; then
+            echo "ERROR: $label stopped during startup."
+            return 1
+        fi
+        if curl --silent --fail --max-time 2 "$url" >/dev/null 2>&1; then
+            echo "==> $label ready."
+            return 0
+        fi
+        sleep 0.5
+    done
+    echo "ERROR: Timed out waiting for $label at $url"
+    return 1
 }
 
-trap cleanup EXIT INT TERM
-
-###############################################################################
-# Ready
-###############################################################################
+wait_for_service "$BACKEND_PID" "http://localhost:$BACKEND_PORT/api/health" "Backend"
+wait_for_service "$FRONTEND_PID" "http://localhost:$FRONTEND_PORT" "Frontend"
 
 echo ""
 echo "============================================================"

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import type { Item, Meta } from "@/types";
 import { Button, EmptyState } from "@/components/ui";
+import { formatQuantity } from "@/lib/utils";
 
 function DuplicateGroupCard({
   group,
@@ -35,8 +36,7 @@ function DuplicateGroupCard({
             {meta.icons[item.category]} {item.title}
           </span>
           <span className="shrink-0 text-subtle">
-            {item.quantity}
-            {meta.units[item.category] === "g" ? "g" : ""}
+            {formatQuantity(item.quantity, item.unit)}
           </span>
         </label>
       ))}
