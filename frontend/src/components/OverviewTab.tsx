@@ -1,7 +1,10 @@
 import { useEffect, useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ArrowRight,
   Camera,
+  CalendarDays,
+  PackagePlus,
   Receipt,
   ShoppingBag,
   Sparkles,
@@ -34,6 +37,10 @@ export function OverviewTab({
   const { data: spend } = useQuery({ queryKey: ["purchases", "summary"], queryFn: api.purchasesSummary });
   const { data: counts } = useQuery({ queryKey: ["charts", "category-counts"], queryFn: api.chartCategoryCounts });
   const { data: items } = useQuery({ queryKey: ["items"], queryFn: () => api.items() });
+  const { data: shopping } = useQuery({
+    queryKey: ["shopping-list"],
+    queryFn: api.shoppingList,
+  });
   const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: api.settings });
   const { data: predictions } = useQuery({ queryKey: ["predictions"], queryFn: api.predictions });
 
@@ -129,20 +136,118 @@ export function OverviewTab({
   const label = "text-[11px] font-semibold uppercase tracking-[0.12em] text-subtle";
   const spendPoints = spendSeries.map((s) => s.total);
   const catCount = meta.categories.filter((c) => (counts?.[c] ?? 0) > 0).length;
+  const openShopping = (shopping ?? []).filter((item) => !item.checked);
 
   if (totalItems === 0) {
     return (
-      <Card className="mx-auto flex max-w-2xl flex-col items-center px-6 py-14 text-center">
-        <div className="mb-4 grid h-16 w-16 place-items-center rounded-2xl bg-theme-200 text-3xl">🛒</div>
-        <h3 className="font-display text-2xl text-content">Start your pantry</h3>
-        <p className="mt-2 max-w-md text-sm text-muted">
-          Add your first item by photo, barcode, receipt, or a quick phrase. Stock alerts and insights
-          will appear here automatically.
-        </p>
-        <Button className="mt-6" onClick={() => onNavigate("add-items")}>
-          <Camera className="h-4 w-4" /> Add your first item
-        </Button>
-      </Card>
+      <div className="space-y-5">
+        <Card className="relative overflow-hidden p-6 sm:p-8">
+          <div className="pointer-events-none absolute -right-12 -top-20 h-56 w-56 rounded-full bg-theme-200/70 blur-2xl" />
+          <div className="relative max-w-3xl">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-theme-200 text-2xl">
+                🛒
+              </div>
+              <div>
+                <p className={label}>Pantry setup</p>
+                <p className="mt-0.5 text-sm font-semibold text-theme-600 dark:text-theme-400">
+                  Ready when you are
+                </p>
+              </div>
+            </div>
+            <h2 className="max-w-2xl font-display text-3xl font-semibold leading-tight text-content sm:text-4xl">
+              Turn what you have—or what you’re buying—into a useful pantry.
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted sm:text-base">
+              Add items directly, scan a receipt, or finish a shopping trip. Once products are in
+              your pantry, stock alerts and spending insights will fill this dashboard automatically.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button onClick={() => onNavigate("add-items")}>
+                <PackagePlus className="h-4 w-4" /> Add pantry items
+              </Button>
+              <Button variant="outline" onClick={() => onNavigate("shopping")}>
+                <ShoppingBag className="h-4 w-4" />
+                Shopping list{openShopping.length ? ` (${openShopping.length})` : ""}
+              </Button>
+            </div>
+          </div>
+        </Card>
+
+        <div className="grid gap-5 lg:grid-cols-[1.35fr_1fr] lg:items-start">
+          <Card className="overflow-hidden">
+            <div className="flex items-center gap-3 border-b border-line px-5 py-4 sm:px-6">
+              <div className="grid h-10 w-10 place-items-center rounded-xl bg-accent-200 text-lg">
+                🛍️
+              </div>
+              <div>
+                <p className="font-display text-lg font-semibold text-content">Next shopping trip</p>
+                <p className="text-xs text-subtle">
+                  {openShopping.length
+                    ? `${openShopping.length} ${openShopping.length === 1 ? "item" : "items"} waiting`
+                    : "Your list is ready for planning"}
+                </p>
+              </div>
+              <button
+                onClick={() => onNavigate("shopping")}
+                className="ml-auto flex items-center gap-1 text-sm font-bold text-theme-600 hover:underline dark:text-theme-400"
+              >
+                Open <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+            {openShopping.length ? (
+              <ul className="divide-y divide-line">
+                {openShopping.slice(0, 5).map((item) => (
+                  <li key={item.id} className="flex items-center gap-3 px-5 py-3 sm:px-6">
+                    <span className="text-base">{item.category ? meta.icons[item.category] : "🛒"}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-content">
+                      {item.title}
+                    </span>
+                    <span className="text-xs font-semibold text-subtle">
+                      {formatQuantity(item.quantity, item.unit)}
+                    </span>
+                  </li>
+                ))}
+                {openShopping.length > 5 && (
+                  <li className="px-5 py-3 text-center text-xs font-semibold text-subtle sm:px-6">
+                    +{openShopping.length - 5} more on your list
+                  </li>
+                )}
+              </ul>
+            ) : (
+              <div className="px-6 py-8 text-center">
+                <p className="text-sm text-muted">Add products you want to pick up next.</p>
+                <Button variant="outline" size="sm" className="mt-3" onClick={() => onNavigate("shopping")}>
+                  Build a list
+                </Button>
+              </div>
+            )}
+          </Card>
+
+          <TodayMealsCard onNavigate={onNavigate} />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <EmptyOverviewAction
+            icon={<Sparkles className="h-5 w-5" />}
+            title="Quick add"
+            description="Type an item or use a photo."
+            onClick={() => onNavigate("add-items")}
+          />
+          <EmptyOverviewAction
+            icon={<Receipt className="h-5 w-5" />}
+            title="Scan a receipt"
+            description="Bring a full grocery run in at once."
+            onClick={() => onNavigate("add-items")}
+          />
+          <EmptyOverviewAction
+            icon={<CalendarDays className="h-5 w-5" />}
+            title="Plan meals"
+            description="Keep this week’s cooking in view."
+            onClick={() => onNavigate("meal-planner")}
+          />
+        </div>
+      </div>
     );
   }
 
@@ -408,6 +513,34 @@ function QuickAction({ icon, label, onClick }: { icon: React.ReactNode; label: s
     >
       {icon}
       {label}
+    </button>
+  );
+}
+
+function EmptyOverviewAction({
+  icon,
+  title,
+  description,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="group flex items-center gap-3 rounded-2xl border border-line bg-surface-solid p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+    >
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-theme-200 text-theme-700 dark:text-theme-300">
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-bold text-content">{title}</span>
+        <span className="block text-xs leading-5 text-muted">{description}</span>
+      </span>
+      <ArrowRight className="h-4 w-4 shrink-0 text-subtle transition-transform group-hover:translate-x-0.5" />
     </button>
   );
 }
