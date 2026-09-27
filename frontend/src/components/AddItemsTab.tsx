@@ -1,5 +1,5 @@
 import { lazy, Suspense, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Camera, FileSpreadsheet, Loader2, Mic, ScanBarcode, Sparkles, Upload, X } from "lucide-react";
 import { api } from "@/lib/api";
@@ -59,10 +59,10 @@ function makeDraft(file: File | null, meta: Meta): DraftEntry {
 
 export function AddItemsTab({ meta }: { meta: Meta }) {
   return (
-    <Tabs defaultValue="photo">
+    <Tabs defaultValue="quick">
       <TabsList>
-        <TabsTrigger value="photo">📷 By Photo</TabsTrigger>
         <TabsTrigger value="quick">⚡ Quick Add</TabsTrigger>
+        <TabsTrigger value="photo">📷 By Photo</TabsTrigger>
         <TabsTrigger value="receipt">🧾 By Receipt</TabsTrigger>
         <TabsTrigger value="csv">📄 By CSV</TabsTrigger>
       </TabsList>
@@ -583,6 +583,17 @@ function QuickAddPanel({ meta }: { meta: Meta }) {
   const [listening, setListening] = useState(false);
   const [items, setItems] = useState<QuickAddItem[]>([]);
   const recognitionRef = useRef<any>(null);
+  const { data: shopping } = useQuery({
+    queryKey: ["shopping-list"],
+    queryFn: api.shoppingList,
+  });
+  const { data: purchases } = useQuery({
+    queryKey: ["purchases", "recent"],
+    queryFn: () => api.purchases(12),
+  });
+  const recentSuggestions = Array.from(
+    new Set([...(purchases ?? []).map((item) => item.title), ...(shopping ?? []).map((item) => item.title)])
+  ).slice(0, 7);
 
   const speechSupported =
     typeof window !== "undefined" &&
@@ -702,6 +713,24 @@ function QuickAddPanel({ meta }: { meta: Meta }) {
           Parse
         </Button>
       </div>
+
+      {recentSuggestions.length > 0 && items.length === 0 && (
+        <div>
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-subtle">Add again</p>
+          <div className="flex flex-wrap gap-2">
+            {recentSuggestions.map((title) => (
+              <button
+                key={title}
+                type="button"
+                onClick={() => setText((current) => current.trim() ? `${current.trim()}, ${title}` : title)}
+                className="rounded-full border border-line bg-surface-solid px-3 py-1.5 text-sm font-semibold text-content shadow-sm hover:bg-theme-200"
+              >
+                + {title}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {items.length > 0 && (
         <div className="space-y-3">

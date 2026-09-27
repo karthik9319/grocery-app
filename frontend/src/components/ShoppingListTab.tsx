@@ -4,8 +4,10 @@ import { toast } from "sonner";
 import {
   CheckCircle2,
   ChevronDown,
+  ListChecks,
   MessageCircle,
   PackageCheck,
+  Pencil,
   Printer,
   RefreshCw,
   X,
@@ -43,6 +45,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
   const [newSubstitution, setNewSubstitution] = useState("");
   const [showTripDetails, setShowTripDetails] = useState(false);
   const [selectedStore, setSelectedStore] = useState("all");
+  const [shoppingMode, setShoppingMode] = useState(false);
 
   const { data: items } = useQuery({ queryKey: ["shopping-list"], queryFn: api.shoppingList });
 
@@ -189,6 +192,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
   const inCartTotal = checked.reduce((sum, item) => sum + lineTotal(item), 0);
   const remainingTotal = unchecked.reduce((sum, item) => sum + lineTotal(item), 0);
   const missingPriceCount = filteredItems.filter((item) => item.unit_price == null).length;
+  const pricedItemCount = filteredItems.length - missingPriceCount;
 
   function confirmCompleteTrip() {
     if (!checked.length) return;
@@ -209,8 +213,9 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
   return (
     <div className="space-y-5">
       <p className="text-sm text-muted print:hidden">
-        Organize by store and aisle, track the expected bill, then finish the trip to move
-        purchased items into your pantry.
+        {shoppingMode
+          ? "Tap an item as it goes into your cart. Finish the trip when you have paid."
+          : "Organize by store and aisle, track the expected bill, then finish the trip to move purchased items into your pantry."}
       </p>
 
       <p className="hidden text-center font-display text-lg text-content print:block">
@@ -218,6 +223,15 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
       </p>
 
       <div className="flex flex-wrap gap-2 print:hidden">
+        <Button
+          variant={shoppingMode ? "default" : "outline"}
+          onClick={() => setShoppingMode((active) => !active)}
+        >
+          {shoppingMode ? <Pencil className="h-4 w-4" /> : <ListChecks className="h-4 w-4" />}
+          {shoppingMode ? "Edit list" : "Start shopping"}
+        </Button>
+        {!shoppingMode && (
+          <>
         <Button
           variant="outline"
           onClick={() => addLowStock.mutate()}
@@ -235,6 +249,8 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
         >
           <MessageCircle className="h-4 w-4" /> Share
         </Button>
+          </>
+        )}
         {storeOptions.length > 1 && (
           <Select
             value={selectedStore}
@@ -245,7 +261,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
         )}
       </div>
 
-      <Card className="p-4 print:hidden">
+      {!shoppingMode && <Card className="p-4 print:hidden">
         <form
           className="grid gap-3 lg:grid-cols-[minmax(12rem,1fr)_11rem_7rem_6rem_auto]"
           onSubmit={(event) => {
@@ -333,9 +349,9 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
             </div>
           )}
         </form>
-      </Card>
+      </Card>}
 
-      {!!filteredItems.length && (
+      {!shoppingMode && pricedItemCount > 0 && (
         <div className="grid gap-3 sm:grid-cols-3 print:hidden">
           <TripStat
             label="Expected total"
@@ -384,6 +400,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
                   onQuantity={(quantity) => changeQuantity.mutate({ id: item.id, quantity })}
                   onDetails={(patch) => updateDetails.mutate({ item, patch })}
                   onDelete={() => deleteItem.mutate(item)}
+                  shoppingMode={shoppingMode}
                 />
               ))}
             </section>
@@ -402,9 +419,11 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
                 {checked.length} item(s) · {formatMoney(inCartTotal)} expected
               </p>
             </div>
-            <Button className="sm:ml-auto" onClick={confirmCompleteTrip} disabled={completeTrip.isPending}>
-              <PackageCheck className="h-4 w-4" /> Finish trip & add to pantry
-            </Button>
+            {!shoppingMode && (
+              <Button className="sm:ml-auto" onClick={confirmCompleteTrip} disabled={completeTrip.isPending}>
+                <PackageCheck className="h-4 w-4" /> Finish trip & add to pantry
+              </Button>
+            )}
           </div>
           <div className="divide-y divide-line">
             {checked.map((item) => (
@@ -423,7 +442,7 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
               </div>
             ))}
           </div>
-          <div className="p-3 text-right">
+          {!shoppingMode && <div className="p-3 text-right">
             <Button
               variant="ghost"
               size="sm"
@@ -435,8 +454,24 @@ export function ShoppingListTab({ meta }: { meta: Meta }) {
             >
               Remove without adding
             </Button>
-          </div>
+          </div>}
         </Card>
+      )}
+
+      {shoppingMode && !!filteredItems.length && (
+        <div className="sticky bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 flex items-center gap-3 rounded-2xl border border-line bg-surface-solid/95 p-3 shadow-xl backdrop-blur print:hidden">
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-content">
+              {checked.length} in cart · {unchecked.length} remaining
+            </span>
+            <span className="block text-xs text-subtle">
+              {pricedItemCount > 0 ? `${formatMoney(inCartTotal)} expected in cart` : "Check items off as you shop"}
+            </span>
+          </span>
+          <Button onClick={confirmCompleteTrip} disabled={!checked.length || completeTrip.isPending}>
+            <PackageCheck className="h-4 w-4" /> Finish trip
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -471,6 +506,7 @@ function ShoppingItemCard({
   onQuantity,
   onDetails,
   onDelete,
+  shoppingMode,
 }: {
   item: ShoppingListItem;
   meta: Meta;
@@ -478,11 +514,59 @@ function ShoppingItemCard({
   onQuantity: (quantity: number) => void;
   onDetails: (patch: DetailPatch) => void;
   onDelete: () => void;
+  shoppingMode: boolean;
 }) {
   const step = unitStep(item.unit);
   const total = item.unit_price == null ? null : item.quantity * item.unit_price;
   const [showDetails, setShowDetails] = useState(false);
   const detailsId = `shopping-item-details-${item.id}`;
+
+  if (shoppingMode) {
+    return (
+      <Card className="overflow-hidden">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={onCheck}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onCheck();
+            }
+          }}
+          className="flex min-h-16 cursor-pointer items-center gap-3 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-theme-500"
+          aria-label={`Put ${item.title} in cart`}
+        >
+          <Checkbox
+            checked={false}
+            onClick={(event) => event.stopPropagation()}
+            onCheckedChange={onCheck}
+            className="h-6 w-6"
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-base font-bold text-content">
+              {item.category ? meta.icons[item.category] : ""} {item.title}
+            </span>
+            {(item.aisle || item.substitution) && (
+              <span className="block truncate text-xs text-subtle">
+                {[item.aisle, item.substitution ? `Substitute: ${item.substitution}` : null]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            )}
+          </span>
+          <span className="shrink-0 text-sm font-bold text-muted">
+            {formatQuantity(item.quantity, item.unit)}
+          </span>
+          {total != null && (
+            <span className="shrink-0 text-sm font-bold tabular-nums text-content">
+              {formatMoney(total)}
+            </span>
+          )}
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <Card className="overflow-hidden">

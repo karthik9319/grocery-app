@@ -8,6 +8,7 @@ import {
   Receipt,
   ShoppingBag,
   Sparkles,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -33,6 +34,9 @@ export function OverviewTab({
   onNavigate: (tab: string) => void;
 }) {
   const queryClient = useQueryClient();
+  const [showSetupGuide, setShowSetupGuide] = useState(
+    () => localStorage.getItem("pantry-setup-guide-dismissed") !== "1"
+  );
   const { data: summary } = useQuery({ queryKey: ["summary"], queryFn: api.summary });
   const { data: spend } = useQuery({ queryKey: ["purchases", "summary"], queryFn: api.purchasesSummary });
   const { data: counts } = useQuery({ queryKey: ["charts", "category-counts"], queryFn: api.chartCategoryCounts });
@@ -138,11 +142,30 @@ export function OverviewTab({
   const catCount = meta.categories.filter((c) => (counts?.[c] ?? 0) > 0).length;
   const openShopping = (shopping ?? []).filter((item) => !item.checked);
 
+  function dismissSetupGuide() {
+    localStorage.setItem("pantry-setup-guide-dismissed", "1");
+    setShowSetupGuide(false);
+  }
+
+  function leaveSetupGuide(tab: string) {
+    dismissSetupGuide();
+    onNavigate(tab);
+  }
+
   if (totalItems === 0) {
     return (
       <div className="space-y-5">
+        {showSetupGuide ? (
         <Card className="relative overflow-hidden p-6 sm:p-8">
           <div className="pointer-events-none absolute -right-12 -top-20 h-56 w-56 rounded-full bg-theme-200/70 blur-2xl" />
+          <button
+            type="button"
+            onClick={dismissSetupGuide}
+            className="absolute right-4 top-4 z-10 rounded-full p-2 text-subtle hover:bg-surface hover:text-content"
+            aria-label="Dismiss pantry setup guide"
+          >
+            <X className="h-4 w-4" />
+          </button>
           <div className="relative max-w-3xl">
             <div className="mb-4 flex items-center gap-3">
               <div className="grid h-12 w-12 place-items-center rounded-2xl bg-theme-200 text-2xl">
@@ -163,16 +186,33 @@ export function OverviewTab({
               your pantry, stock alerts and spending insights will fill this dashboard automatically.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <Button onClick={() => onNavigate("add-items")}>
+              <Button onClick={() => leaveSetupGuide("add-items")}>
                 <PackagePlus className="h-4 w-4" /> Add pantry items
               </Button>
-              <Button variant="outline" onClick={() => onNavigate("shopping")}>
+              <Button variant="outline" onClick={() => leaveSetupGuide("shopping")}>
                 <ShoppingBag className="h-4 w-4" />
                 Shopping list{openShopping.length ? ` (${openShopping.length})` : ""}
               </Button>
             </div>
           </div>
         </Card>
+        ) : (
+          <Card className="flex flex-wrap items-center gap-3 px-5 py-4">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-theme-200 text-xl">🧺</span>
+            <span className="min-w-52 flex-1">
+              <span className="block font-display text-lg text-content">Your pantry is ready to fill</span>
+              <span className="block text-xs text-muted">Add an item or finish a shopping trip when you’re ready.</span>
+            </span>
+            <Button size="sm" onClick={() => onNavigate("add-items")}>Add items</Button>
+            <button
+              type="button"
+              onClick={() => setShowSetupGuide(true)}
+              className="text-xs font-bold text-theme-600 hover:underline dark:text-theme-400"
+            >
+              Show guide
+            </button>
+          </Card>
+        )}
 
         <div className="grid gap-5 lg:grid-cols-[1.35fr_1fr] lg:items-start">
           <Card className="overflow-hidden">

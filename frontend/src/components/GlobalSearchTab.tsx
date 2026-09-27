@@ -57,7 +57,9 @@ export function GlobalSearchTab({ meta }: { meta: Meta }) {
             autoFocus
           />
         </div>
-        <Select value={sort} onValueChange={setSort} options={SORT_OPTIONS} className="sm:max-w-[200px]" />
+        {q && sortedItems.length > 0 && (
+          <Select value={sort} onValueChange={setSort} options={SORT_OPTIONS} className="sm:max-w-[200px]" />
+        )}
       </div>
 
       {!q && (
@@ -68,7 +70,13 @@ export function GlobalSearchTab({ meta }: { meta: Meta }) {
         />
       )}
 
-      {isLoading && q && <p className="text-sm text-subtle">Searching...</p>}
+      {isLoading && q && (
+        <div className="grid animate-pulse gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {[0, 1, 2].map((index) => (
+            <div key={index} className="h-32 rounded-2xl bg-surface-solid" />
+          ))}
+        </div>
+      )}
 
       {!isLoading && q && totalMatches === 0 && (
         <EmptyState icon="🤷" title="No matches" description={`Nothing found for "${q}".`} />

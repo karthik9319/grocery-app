@@ -8,7 +8,15 @@ import { ItemCard, useUndoableDelete } from "@/components/ItemCard";
 import { EmptyState, Button, Input, Select, Switch } from "@/components/ui";
 import { SORT_OPTIONS, sortItems, thresholdForItem } from "@/lib/utils";
 
-export function CategoryView({ category, meta }: { category: string; meta: Meta }) {
+export function CategoryView({
+  category,
+  meta,
+  onNavigate,
+}: {
+  category: string;
+  meta: Meta;
+  onNavigate: (tab: string) => void;
+}) {
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("newest");
   const [lowOnly, setLowOnly] = useState(false);
@@ -119,6 +127,7 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
 
   return (
     <div className="space-y-5">
+      {!!items?.length && (
       <div className="glass flex flex-col gap-3 rounded-2xl p-4 shadow-md sm:flex-row sm:items-center">
         <div className="relative sm:max-w-xs sm:flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-subtle" />
@@ -159,6 +168,7 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
           {selectMode ? "Cancel" : "Select"}
         </Button>
       </div>
+      )}
 
       {selectMode && (
         <div className="glass flex flex-wrap items-center gap-3 rounded-2xl p-3 shadow-md">
@@ -197,14 +207,28 @@ export function CategoryView({ category, meta }: { category: string; meta: Meta 
         </div>
       )}
 
-      {isLoading && <p className="text-sm text-subtle">Loading...</p>}
+      {isLoading && (
+        <div className="grid animate-pulse gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {[0, 1, 2].map((index) => (
+            <div key={index} className="h-44 rounded-2xl bg-surface-solid" />
+          ))}
+        </div>
+      )}
 
-      {!isLoading && filtered.length === 0 && (
-        <EmptyState
-          icon={meta.icons[category]}
-          title="No items match"
-          description="Try clearing your search/filters, or add a new item from the Add Items tab."
-        />
+      {!isLoading && (items?.length ?? 0) === 0 && (
+        <div className="rounded-2xl border border-dashed border-line bg-surface-solid px-6 py-12 text-center">
+          <div className="text-4xl">{meta.icons[category]}</div>
+          <h3 className="mt-3 font-display text-xl text-content">No {category.toLowerCase()} yet</h3>
+          <p className="mx-auto mt-2 max-w-md text-sm text-muted">
+            Add your first item here and Pantry Pilot will start tracking quantity, location,
+            freshness, and low-stock status.
+          </p>
+          <Button className="mt-5" onClick={() => onNavigate("add-items")}>Add an item</Button>
+        </div>
+      )}
+
+      {!isLoading && !!items?.length && filtered.length === 0 && (
+        <EmptyState icon="🔎" title="No matching items" description="Clear or adjust the filters above." />
       )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { CalendarDays, PackagePlus, ShoppingBag } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -34,6 +35,14 @@ export function ChartsTab({ meta, onNavigate }: { meta: Meta; onNavigate: (tab: 
     queryKey: ["purchases", "summary"],
     queryFn: api.purchasesSummary,
   });
+  const { data: shopping } = useQuery({
+    queryKey: ["shopping-list"],
+    queryFn: api.shoppingList,
+  });
+  const { data: mealHistory } = useQuery({
+    queryKey: ["meal-plan-history"],
+    queryFn: () => api.mealPlanHistory(),
+  });
 
   const countsData = meta.categories.map((c) => ({
     category: c,
@@ -43,15 +52,50 @@ export function ChartsTab({ meta, onNavigate }: { meta: Meta; onNavigate: (tab: 
   const totalItems = countsData.reduce((sum, entry) => sum + entry.items, 0);
 
   if (categoryCounts && totalItems === 0) {
+    const openShopping = (shopping ?? []).filter((item) => !item.checked);
+    const mealCount = (mealHistory ?? []).reduce((sum, meal) => sum + meal.times_used, 0);
     return (
-      <Card className="mx-auto flex max-w-xl flex-col items-center px-6 py-12 text-center">
-        <div className="mb-3 text-4xl">📊</div>
-        <h3 className="font-display text-xl text-content">Charts need a little data</h3>
-        <p className="mt-2 text-sm text-muted">
-          Add your first pantry item and this page will show category, stock, and activity trends.
-        </p>
-        <Button className="mt-5" onClick={() => onNavigate("add-items")}>Add an item</Button>
-      </Card>
+      <div className="space-y-5">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <EmptyStat icon={<ShoppingBag className="h-5 w-5" />} label="To buy" value={openShopping.length} />
+          <EmptyStat icon={<CalendarDays className="h-5 w-5" />} label="Meals recorded" value={mealCount} />
+          <EmptyStat icon={<PackagePlus className="h-5 w-5" />} label="Pantry items" value={0} />
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr]">
+          <Card className="overflow-hidden">
+            <div className="border-b border-line px-5 py-4">
+              <h3 className="font-display text-lg text-content">Most repeated meals</h3>
+              <p className="text-xs text-subtle">Based on your meal-planner history</p>
+            </div>
+            {(mealHistory ?? []).length ? (
+              <div className="divide-y divide-line">
+                {(mealHistory ?? []).slice(0, 6).map((meal) => (
+                  <div key={`${meal.meal_slot}-${meal.title}`} className="flex items-center gap-3 px-5 py-3">
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-content">{meal.title}</span>
+                    <span className="rounded-full bg-theme-200 px-2 py-1 text-xs font-bold text-content">
+                      {meal.times_used}×
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="px-5 py-8 text-center text-sm text-muted">Plan meals to build your history.</p>
+            )}
+          </Card>
+
+          <Card className="flex flex-col justify-between p-6">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-subtle">Pantry insights</p>
+              <h3 className="mt-2 font-display text-2xl text-content">Your pantry story starts with one item.</h3>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                Shopping and meal activity already appear here. Stock and freshness charts will join them once items reach your pantry.
+              </p>
+            </div>
+            <Button className="mt-5" onClick={() => onNavigate("add-items")}>Add an item</Button>
+          </Card>
+        </div>
+      </div>
     );
   }
 
@@ -155,5 +199,19 @@ export function ChartsTab({ meta, onNavigate }: { meta: Meta; onNavigate: (tab: 
         )}
       </Card>
     </div>
+  );
+}
+
+function EmptyStat({ icon, label, value }: { icon: React.ReactNode; label: string; value: number }) {
+  return (
+    <Card className="flex items-center gap-3 p-4">
+      <span className="grid h-10 w-10 place-items-center rounded-xl bg-theme-200 text-theme-700 dark:text-theme-300">
+        {icon}
+      </span>
+      <span>
+        <span className="block text-xs font-bold uppercase tracking-wide text-subtle">{label}</span>
+        <span className="font-display text-2xl text-content">{value}</span>
+      </span>
+    </Card>
   );
 }

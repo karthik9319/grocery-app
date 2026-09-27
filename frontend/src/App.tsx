@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { BarChart3, CalendarDays, CloudOff, LayoutDashboard, MoreHorizontal, PlusCircle, Search, Settings, ShoppingBag } from "lucide-react";
+import { BarChart3, CalendarDays, ChevronDown, CloudOff, Globe2, LayoutDashboard, MoreHorizontal, PlusCircle, Search, Settings, ShoppingBag } from "lucide-react";
 import { api } from "@/lib/api";
 import { QUEUE_CHANGED_EVENT, queueSize } from "@/lib/offlineQueue";
 import { checkAndShowDailyReminder } from "@/lib/dailyReminder";
@@ -32,8 +32,14 @@ const ChartsTab = lazy(() =>
 
 function TabFallback() {
   return (
-    <div className="flex items-center justify-center py-16">
-      <Spinner className="h-6 w-6" />
+    <div className="animate-pulse space-y-5" aria-label="Loading section">
+      <div className="h-14 rounded-2xl bg-surface-solid" />
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="h-24 rounded-2xl bg-surface-solid" />
+        <div className="h-24 rounded-2xl bg-surface-solid" />
+        <div className="h-24 rounded-2xl bg-surface-solid" />
+      </div>
+      <div className="h-64 rounded-2xl bg-surface-solid" />
     </div>
   );
 }
@@ -60,7 +66,13 @@ function App() {
     queryFn: api.chartCategoryCounts,
   });
   const { data: shopping } = useQuery({ queryKey: ["shopping-list"], queryFn: api.shoppingList });
+  const { data: tunnel } = useQuery({
+    queryKey: ["tunnel-status"],
+    queryFn: api.tunnelStatus,
+    refetchInterval: 3000,
+  });
   const [active, setActive] = useState("overview");
+  const [pantryOpen, setPantryOpen] = useState(true);
   const queryClient = useQueryClient();
   const addLowStock = useMutation({
     mutationFn: api.addLowStockToShoppingList,
@@ -68,6 +80,14 @@ function App() {
       queryClient.invalidateQueries({ queryKey: ["shopping-list"] });
       toast.success(`Added ${res.added} low-stock item(s) to the shopping list`, { icon: "🛍️" });
     },
+  });
+  const stopTunnel = useMutation({
+    mutationFn: api.stopTunnel,
+    onSuccess: (result) => {
+      queryClient.setQueryData(["tunnel-status"], result);
+      toast.success("Remote access turned off");
+    },
+    onError: () => toast.error("Could not turn off remote access."),
   });
 
   useEffect(() => {
@@ -96,10 +116,15 @@ function App() {
 
   if (isLoading || !meta) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Spinner className="h-8 w-8" />
-          <p className="text-sm text-subtle">Loading your pantry…</p>
+      <div className="mx-auto flex min-h-screen w-full max-w-[1440px] gap-6 px-4 py-6 lg:px-8">
+        <div className="hidden h-[calc(100vh-3rem)] w-64 shrink-0 animate-pulse rounded-3xl bg-surface-solid lg:block" />
+        <div className="min-w-0 flex-1 animate-pulse space-y-6">
+          <div className="h-12 w-56 rounded-2xl bg-surface-solid" />
+          <div className="h-56 rounded-3xl bg-surface-solid" />
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="h-64 rounded-2xl bg-surface-solid" />
+            <div className="h-64 rounded-2xl bg-surface-solid" />
+          </div>
         </div>
       </div>
     );
@@ -166,6 +191,10 @@ function App() {
     .filter(Boolean);
   const mobileMore = nav.filter((item) => !mobilePrimary.includes(item));
   const moreIsActive = mobileMore.some((item) => item.value === active);
+  const primaryDesktopValues = new Set(["overview", "add-items", "shopping", "meal-planner", "charts"]);
+  const primaryDesktop = nav.filter((item) => primaryDesktopValues.has(item.value));
+  const categoryNav = nav.filter((item) => meta.categories.includes(item.value));
+  const settingsNav = nav.find((item) => item.value === "settings")!;
   const mobileLabels: Record<string, string> = {
     overview: "Home",
     "add-items": "Add",
@@ -190,13 +219,13 @@ function App() {
               🛒
             </div>
             <div className="leading-tight">
-              <p className="font-display text-sm text-content">Pantry</p>
-              <p className="text-xs font-semibold text-subtle">Tracker</p>
+              <p className="font-display text-sm text-content">Pantry Pilot</p>
+              <p className="text-xs font-semibold text-subtle">Home food companion</p>
             </div>
           </div>
 
-          <nav className="flex flex-col gap-2">
-            {nav.map((item) => {
+          <nav className="flex flex-col gap-1.5">
+            {primaryDesktop.map((item) => {
               const isActive = item.value === active;
               return (
                 <button
@@ -237,6 +266,59 @@ function App() {
                 </button>
               );
             })}
+
+            <button
+              type="button"
+              onClick={() => setPantryOpen((open) => !open)}
+              className="mt-1 flex items-center gap-3 rounded-2xl border border-transparent px-3 py-2 text-sm font-bold text-muted hover:border-line hover:bg-surface hover:text-content"
+              aria-expanded={pantryOpen}
+            >
+              <span className="flex h-8 w-8 items-center justify-center text-lg">🧺</span>
+              <span>Pantry</span>
+              <span className="ml-auto text-xs text-subtle">
+                {Object.values(counts ?? {}).reduce((sum, count) => sum + count, 0)}
+              </span>
+              <ChevronDown className={`h-4 w-4 transition-transform ${pantryOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {pantryOpen && (
+              <div className="ml-5 space-y-1 border-l border-line pl-2">
+                {categoryNav.map((item) => {
+                  const isActive = item.value === active;
+                  return (
+                    <button
+                      key={item.value}
+                      onClick={() => setActive(item.value)}
+                      className={cn(
+                        "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold transition-colors",
+                        isActive ? "text-white shadow-sm" : "text-muted hover:bg-surface hover:text-content"
+                      )}
+                      style={isActive ? { backgroundColor: item.accent } : undefined}
+                    >
+                      <span>{item.emoji}</span>
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      <span className={cn("text-xs", isActive ? "text-white/80" : "text-subtle")}>
+                        {item.badge ?? 0}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            <button
+              onClick={() => setActive(settingsNav.value)}
+              className={cn(
+                "mt-2 flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-bold transition-all",
+                active === settingsNav.value
+                  ? "border-line text-white shadow-sm"
+                  : "border-transparent text-muted hover:border-line hover:bg-surface hover:text-content"
+              )}
+              style={active === settingsNav.value ? { backgroundColor: settingsNav.accent } : undefined}
+            >
+              <span className="flex h-8 w-8 items-center justify-center">{settingsNav.icon}</span>
+              Settings
+            </button>
           </nav>
 
         </div>
@@ -245,6 +327,22 @@ function App() {
       {/* Main content */}
       <main className="min-w-0 flex-1 space-y-7">
         <OfflineBanner />
+        {tunnel?.running && (
+          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-amber-400/60 bg-amber-50 px-4 py-2.5 text-sm text-amber-950 shadow-sm dark:bg-amber-950/40 dark:text-amber-100 print:hidden">
+            <Globe2 className="h-4 w-4 shrink-0" />
+            <span className="font-bold">Remote access is on</span>
+            <span className="text-xs opacity-80">Anyone with the current link can open Pantry Pilot.</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="ml-auto"
+              onClick={() => stopTunnel.mutate()}
+              disabled={stopTunnel.isPending}
+            >
+              Turn off
+            </Button>
+          </div>
+        )}
         {/* Mobile nav: the four everyday destinations stay visible; everything else is in More. */}
         <div className="grid grid-cols-5 gap-1.5 pb-1 lg:hidden print:hidden">
           {mobilePrimary.map((item) => {
@@ -313,13 +411,22 @@ function App() {
               {meta.categories.includes(active) && `Everything in your ${active.toLowerCase()}`}
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setActive("search")}
+            className="ml-auto flex h-10 items-center gap-2 rounded-xl border border-line bg-surface-solid px-3 text-sm font-bold text-muted shadow-sm hover:text-content"
+            aria-label="Search everything"
+          >
+            <Search className="h-4 w-4" />
+            <span className="hidden sm:inline">Search</span>
+          </button>
         </div>
 
         <div className="animate-fade-in">
           {active === "overview" && <OverviewTab meta={meta} onNavigate={setActive} />}
           {active === "add-items" && <AddItemsTab meta={meta} />}
           {meta.categories.map(
-            (c) => active === c && <CategoryView key={c} category={c} meta={meta} />
+            (c) => active === c && <CategoryView key={c} category={c} meta={meta} onNavigate={setActive} />
           )}
           <Suspense fallback={<TabFallback />}>
             {active === "search" && <GlobalSearchTab meta={meta} />}

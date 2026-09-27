@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { format } from "date-fns";
 import { Plus } from "lucide-react";
@@ -118,60 +119,131 @@ export function MealCalendarView({
   setEditing: (state: EditingState) => void;
   onToggleDone: (data: { id: number; done: boolean }) => void;
 }) {
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+
+  useEffect(() => {
+    const dateStrings = days.map((day) => format(day, DATE_FMT));
+    if (!dateStrings.includes(selectedDate)) {
+      setSelectedDate(dateStrings.includes(todayStr) ? todayStr : dateStrings[0]);
+    }
+  }, [days, selectedDate, todayStr]);
+
+  const selectedDay = days.find((day) => format(day, DATE_FMT) === selectedDate) ?? days[0];
+
   return (
     <>
       <p className="hidden text-center font-display text-lg text-content print:block">
         Weekly Meal Plan &middot; {format(weekStart, "MMM d")} – {format(days[6], "MMM d, yyyy")}
       </p>
 
-      <div className="flex gap-3 overflow-x-auto pb-2 print:grid print:grid-cols-7 print:gap-2 print:overflow-visible print:pb-0">
+      <div className="space-y-3 md:hidden print:hidden">
+        <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Choose a day">
+          {days.map((day) => {
+            const dateStr = format(day, DATE_FMT);
+            const selected = dateStr === selectedDate;
+            const isToday = dateStr === todayStr;
+            return (
+              <button
+                key={dateStr}
+                type="button"
+                onClick={() => setSelectedDate(dateStr)}
+                aria-pressed={selected}
+                className={cn(
+                  "flex min-w-14 shrink-0 flex-col items-center rounded-xl border px-3 py-2 text-xs font-bold transition-colors",
+                  selected
+                    ? "border-theme-500 bg-theme-500 text-white"
+                    : "border-line bg-surface-solid text-muted hover:bg-theme-200",
+                  isToday && !selected && "border-theme-500 text-theme-700 dark:text-theme-300"
+                )}
+              >
+                <span>{format(day, "EEE")}</span>
+                <span className="mt-0.5 text-base">{format(day, "d")}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <DayCard
+          day={selectedDay}
+          byDaySlot={byDaySlot}
+          todayStr={todayStr}
+          setEditing={setEditing}
+          onToggleDone={onToggleDone}
+          className="w-full"
+        />
+      </div>
+
+      <div className="hidden gap-3 overflow-x-auto pb-2 md:flex print:grid print:grid-cols-7 print:gap-2 print:overflow-visible print:pb-0">
         {days.map((day) => {
-          const dateStr = format(day, DATE_FMT);
-          const isToday = dateStr === todayStr;
           return (
-            <Card
-              key={dateStr}
-              className={cn(
-                "w-[210px] shrink-0 p-3 print:w-auto print:shrink",
-                isToday && "border-theme-500 shadow-md"
-              )}
-            >
-              <p className="font-display text-sm text-content print:text-base">{format(day, "EEEE")}</p>
-              <p className="mb-2 text-xs text-subtle print:text-sm">{format(day, "MMM d")}</p>
-              <div className="space-y-2.5">
-                {MEAL_SLOTS.map((slot) => {
-                  const key = `${dateStr}|${slot.value}`;
-                  const slotEntries = byDaySlot.get(key) ?? [];
-                  return (
-                    <div key={slot.value}>
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-subtle print:text-xs">
-                        {slot.icon} {slot.label}
-                      </p>
-                      <div className="mt-1 space-y-1">
-                        {slotEntries.map((e) => (
-                          <DraggableMealEntry
-                            key={e.id}
-                            entry={e}
-                            dateStr={dateStr}
-                            slot={slot}
-                            onEdit={() => setEditing({ date: dateStr, slot: slot.value, entry: e })}
-                            onToggleDone={onToggleDone}
-                          />
-                        ))}
-                        <DroppableSlotAdd
-                          dateStr={dateStr}
-                          slot={slot}
-                          onAdd={() => setEditing({ date: dateStr, slot: slot.value })}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
+            <DayCard
+              key={format(day, DATE_FMT)}
+              day={day}
+              byDaySlot={byDaySlot}
+              todayStr={todayStr}
+              setEditing={setEditing}
+              onToggleDone={onToggleDone}
+              className="w-[210px] shrink-0 print:w-auto print:shrink"
+            />
           );
         })}
       </div>
     </>
+  );
+}
+
+function DayCard({
+  day,
+  byDaySlot,
+  todayStr,
+  setEditing,
+  onToggleDone,
+  className,
+}: {
+  day: Date;
+  byDaySlot: Map<string, MealPlanEntry[]>;
+  todayStr: string;
+  setEditing: (state: EditingState) => void;
+  onToggleDone: (data: { id: number; done: boolean }) => void;
+  className?: string;
+}) {
+  const dateStr = format(day, DATE_FMT);
+  const isToday = dateStr === todayStr;
+
+  return (
+    <Card className={cn("p-3", isToday && "border-theme-500 shadow-md", className)}>
+      <p className="font-display text-sm text-content print:text-base">{format(day, "EEEE")}</p>
+      <p className="mb-2 text-xs text-subtle print:text-sm">{format(day, "MMM d")}</p>
+      <div className="space-y-2.5">
+        {MEAL_SLOTS.map((slot) => {
+          const key = `${dateStr}|${slot.value}`;
+          const slotEntries = byDaySlot.get(key) ?? [];
+          return (
+            <div key={slot.value}>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-subtle print:text-xs">
+                {slot.icon} {slot.label}
+              </p>
+              <div className="mt-1 space-y-1">
+                {slotEntries.map((entry) => (
+                  <DraggableMealEntry
+                    key={entry.id}
+                    entry={entry}
+                    dateStr={dateStr}
+                    slot={slot}
+                    onEdit={() => setEditing({ date: dateStr, slot: slot.value, entry })}
+                    onToggleDone={onToggleDone}
+                  />
+                ))}
+                <DroppableSlotAdd
+                  dateStr={dateStr}
+                  slot={slot}
+                  onAdd={() => setEditing({ date: dateStr, slot: slot.value })}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
